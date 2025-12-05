@@ -50,6 +50,9 @@ export default function MainLayout() {
             <NavLink to="/cattle/active" style={linkStyle}>
               Active Cattle
             </NavLink>
+            <NavLink to="/cattle/register"style={linkStyle}> 
+            Cattle Registration
+            </NavLink>
             <NavLink to="/milk-yield" style={linkStyle}>
               Milk Yield
             </NavLink>

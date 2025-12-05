@@ -8,11 +8,7 @@ export default function Login() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!email || !password) {
-      alert("Please enter both email and password");
-      return;
-    }
-    // later we will add real auth; for now just go to dashboard
+    // ⬇️ For development: no validation, just go to dashboard
     navigate("/dashboard");
   }
 
@@ -22,7 +18,8 @@ export default function Login() {
         minHeight: "100vh",
         display: "flex",
         background: "linear-gradient(135deg, #f9fafb, #e0f2fe)",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily:
+          "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
       {/* LEFT: App description & feature cards */}
@@ -52,9 +49,9 @@ export default function Login() {
             marginBottom: "1.75rem",
           }}
         >
-          Integrated cattle data management system for Govardhana Goshala –
-          track cattle master data, milk yield, treatments, bio-waste, Dattu
-          Yojana, and more from a single dashboard.
+          Integrated cattle data management system for Govardhana Goshala – track
+          cattle master data, milk yield, treatments, bio-waste, Dattu Yojana,
+          and more from a single dashboard.
         </p>
 
         <div
@@ -122,7 +119,8 @@ export default function Login() {
               color: "#6b7280",
             }}
           >
-            Use your registered credentials to access Govardhana CDMS.
+            For development you can leave the fields blank and click{" "}
+            <strong>Login</strong> to open the dashboard.
           </p>
 
           <form
@@ -143,6 +141,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="(optional for now)"
                 style={{
                   width: "100%",
                   padding: "0.55rem 0.6rem",
@@ -167,6 +166,7 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="(optional for now)"
                 style={{
                   width: "100%",
                   padding: "0.55rem 0.6rem",

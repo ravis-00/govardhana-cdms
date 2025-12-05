@@ -13,16 +13,20 @@ import NewBorn from "./pages/NewBorn.jsx";
 import Feeding from "./pages/Feeding.jsx";
 import DattuYojana from "./pages/DattuYojana.jsx";
 import Deregister from "./pages/Deregister.jsx";
+import CattleRegistration from "./pages/CattleRegistration.jsx"; // 👈 ADD THIS
 
 export default function App() {
   return (
     <Routes>
+      {/* Public routes (no MainLayout) */}
+      <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
 
+      {/* Protected app area (with sidebar/topbar layout) */}
       <Route element={<MainLayout />}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/cattle/active" element={<ActiveCattle />} />
+        <Route path="/cattle/register" element={<CattleRegistration />} />
         <Route path="/milk-yield" element={<MilkYield />} />
         <Route path="/bio-waste" element={<BioWaste />} />
         <Route path="/vaccine" element={<Vaccine />} />
@@ -32,6 +36,9 @@ export default function App() {
         <Route path="/dattu-yojana" element={<DattuYojana />} />
         <Route path="/deregister" element={<Deregister />} />
       </Route>
+
+      {/* Fallback: any unknown route -> Login */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
