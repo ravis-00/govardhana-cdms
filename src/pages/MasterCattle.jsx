@@ -1,0 +1,404 @@
+// src/pages/MasterCattle.jsx
+import React, { useMemo, useState } from "react";
+
+// TEMP sample data – later you can replace this with real API data
+const SAMPLE_MASTER = [
+  {
+    id: 1,
+    tagNo: "617335",
+    name: "RUDHRA",
+    breed: "Malenadu Gidda",
+    sex: "Male",
+    status: "Dead",
+    color: "Black",
+    dateOfAdmission: "2019-05-01",
+    dateOfDeAdmission: "2025-11-27",
+    typeOfDeAdmission: "Death",
+  },
+  {
+    id: 2,
+    tagNo: "463068",
+    name: "Ganga",
+    breed: "Hallikar",
+    sex: "Female",
+    status: "Active",
+    color: "Grey",
+    dateOfAdmission: "2022-08-14",
+    dateOfDeAdmission: "",
+    typeOfDeAdmission: "",
+  },
+  {
+    id: 3,
+    tagNo: "472771",
+    name: "BAWYA",
+    breed: "Mixed",
+    sex: "Female",
+    status: "Sold",
+    color: "Brown",
+    dateOfAdmission: "2020-03-10",
+    dateOfDeAdmission: "2024-06-01",
+    typeOfDeAdmission: "Sold",
+  },
+];
+
+const STATUS_OPTIONS = ["All", "Active", "Inactive", "Dead", "Sold", "Transferred"];
+
+export default function MasterCattle() {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [searchText, setSearchText] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const filteredRows = useMemo(() => {
+    return SAMPLE_MASTER.filter((row) => {
+      const matchStatus =
+        statusFilter === "All" ||
+        row.status.toLowerCase() === statusFilter.toLowerCase();
+      const haystack =
+        `${row.tagNo} ${row.name} ${row.breed} ${row.status}`.toLowerCase();
+      const matchSearch = haystack.includes(searchText.toLowerCase());
+      return matchStatus && matchSearch;
+    });
+  }, [statusFilter, searchText]);
+
+  return (
+    <div style={{ padding: "1.5rem 2rem", height: "100%", display: "flex", gap: "1.5rem" }}>
+      {/* LEFT: list */}
+      <div style={{ flex: 2, minWidth: 0 }}>
+        {/* Header */}
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "1.6rem",
+              fontWeight: 700,
+              margin: 0,
+            }}
+          >
+            Master Cattle Data
+          </h1>
+
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+            {/* Status filter */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  marginBottom: "0.15rem",
+                  color: "#6b7280",
+                }}
+              >
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  padding: "0.35rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  marginBottom: "0.15rem",
+                  color: "#6b7280",
+                }}
+              >
+                Search
+              </label>
+              <input
+                type="text"
+                placeholder="Tag no / name / breed"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{
+                  padding: "0.35rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  fontSize: "0.85rem",
+                  minWidth: "220px",
+                }}
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* Table */}
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "0.75rem",
+            boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
+            overflow: "hidden",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "0.9rem",
+            }}
+          >
+            <thead
+              style={{
+                background: "#f1f5f9",
+                textAlign: "left",
+              }}
+            >
+              <tr>
+                <th style={thStyle}>Tag No</th>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Breed</th>
+                <th style={thStyle}>Sex</th>
+                <th style={thStyle}>Status</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    style={{
+                      padding: "0.9rem 1rem",
+                      textAlign: "center",
+                      color: "#6b7280",
+                    }}
+                  >
+                    No cattle records match the current filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredRows.map((row, idx) => (
+                  <tr
+                    key={row.id}
+                    style={{
+                      backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
+                    }}
+                  >
+                    <td style={tdStyle}>{row.tagNo}</td>
+                    <td style={tdStyle}>{row.name}</td>
+                    <td style={tdStyle}>{row.breed}</td>
+                    <td style={tdStyle}>{row.sex}</td>
+                    <td style={tdStyle}>
+                      <StatusPill status={row.status} />
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(row)}
+                        style={viewBtnStyle}
+                        title="View full details"
+                      >
+                        👁️ View
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* RIGHT: detail panel */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: "260px",
+          maxWidth: "360px",
+        }}
+      >
+        {selected ? (
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "0.75rem",
+              boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
+              padding: "1rem 1.25rem",
+              height: "100%",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "#6b7280",
+                  }}
+                >
+                  Cattle Details
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  {selected.tagNo} – {selected.name}
+                </div>
+              </div>
+              <StatusPill status={selected.status} />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "0.5rem 1.25rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              <DetailItem label="Tag No" value={selected.tagNo} />
+              <DetailItem label="Name" value={selected.name} />
+              <DetailItem label="Breed" value={selected.breed} />
+              <DetailItem label="Sex" value={selected.sex} />
+              <DetailItem label="Color" value={selected.color} />
+              <DetailItem
+                label="Date of Admission"
+                value={selected.dateOfAdmission}
+              />
+              <DetailItem
+                label="Date of De-Admission"
+                value={selected.dateOfDeAdmission}
+              />
+              <DetailItem
+                label="Type of De-Admission"
+                value={selected.typeOfDeAdmission}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              height: "100%",
+              borderRadius: "0.75rem",
+              border: "1px dashed #d1d5db",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.9rem",
+              color: "#6b7280",
+            }}
+          >
+            Select a cattle from the list to view details.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* small helper components & styles */
+
+const thStyle = {
+  padding: "0.6rem 1rem",
+  borderBottom: "1px solid #e5e7eb",
+  fontWeight: 600,
+  fontSize: "0.8rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+  color: "#475569",
+};
+
+const tdStyle = {
+  padding: "0.55rem 1rem",
+  borderBottom: "1px solid #e5e7eb",
+  color: "#111827",
+};
+
+const viewBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#e0e7ff",
+  color: "#1d4ed8",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+};
+
+function DetailItem({ label, value }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: "0.7rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: "#9ca3af",
+          marginBottom: "0.1rem",
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ color: "#111827" }}>{value}</div>
+    </div>
+  );
+}
+
+function StatusPill({ status }) {
+  const normalized = (status || "").toLowerCase();
+  let bg = "#e5e7eb";
+  let fg = "#374151";
+
+  if (normalized === "active") {
+    bg = "#dcfce7";
+    fg = "#166534";
+  } else if (normalized === "dead") {
+    bg = "#fee2e2";
+    fg = "#b91c1c";
+  } else if (normalized === "sold" || normalized === "transferred") {
+    bg = "#fef3c7";
+    fg = "#92400e";
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: "999px",
+        padding: "0.15rem 0.6rem",
+        background: bg,
+        color: fg,
+        fontSize: "0.75rem",
+        fontWeight: 500,
+      }}
+    >
+      {status}
+    </span>
+  );
+}
