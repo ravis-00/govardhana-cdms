@@ -1,5 +1,5 @@
 // src/layout/MainLayout.jsx
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 const linkStyle = ({ isActive }) => ({
@@ -14,13 +14,25 @@ const linkStyle = ({ isActive }) => ({
 
 export default function MainLayout() {
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="app-shell">
       {/* TOPBAR */}
       <header className="topbar">
+        {/* LEFT: hamburger */}
+        <button
+          className="topbar-menu-btn"
+          type="button"
+          onClick={() => setSidebarOpen((prev) => !prev)}
+          aria-label="Toggle sidebar"
+        >
+          &#9776;
+        </button>
+
+        {/* CENTER: logo + title */}
         <div
-          className="topbar-left"
+          className="topbar-center"
           onClick={() => navigate("/dashboard")}
           style={{ cursor: "pointer" }}
         >
@@ -33,14 +45,27 @@ export default function MainLayout() {
           </div>
         </div>
 
+        {/* RIGHT: Home + user */}
         <div className="topbar-right">
+          <button
+            type="button"
+            className="topbar-home-btn"
+            onClick={() => navigate("/login")}
+          >
+            🏠 Home
+          </button>
           <span className="topbar-user">User</span>
         </div>
       </header>
 
       {/* BODY */}
       <div className="layout-body">
-        <aside className="sidebar">
+        {/* SIDEBAR */}
+        <aside
+          className={
+            sidebarOpen ? "sidebar" : "sidebar sidebar-hidden"
+          }
+        >
           <nav style={{ display: "grid", gap: "0.25rem" }}>
             <NavLink to="/dashboard" style={linkStyle}>
               Dashboard
@@ -84,14 +109,13 @@ export default function MainLayout() {
             <NavLink to="/death-records" style={linkStyle}>
               💀 Cattle Death Records
             </NavLink>
-
-            {/* NEW MENU ITEM */}
             <NavLink to="/certificates-reports" style={linkStyle}>
-              📄 Certificates & Reports
+              📄 Certificates &amp; Reports
             </NavLink>
           </nav>
         </aside>
 
+        {/* MAIN CONTENT */}
         <main className="main-content">
           <Outlet />
         </main>
