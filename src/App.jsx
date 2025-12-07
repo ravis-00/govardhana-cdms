@@ -21,6 +21,9 @@ import DattuYojana from "./pages/DattuYojana.jsx";
 import Deregister from "./pages/Deregister.jsx";
 import DeathRecords from "./pages/DeathRecords.jsx";
 import NewTag from "./pages/NewTag.jsx"; // ✅ new import
+import CattleProfile from "./pages/CattleProfile.jsx";
+import PedigreeViewer from "./pages/PedigreeViewer.jsx";
+
 
 export default function App() {
   return (
@@ -47,7 +50,8 @@ export default function App() {
         <Route path="/feeding" element={<Feeding />} />
         <Route path="/dattu-yojana" element={<DattuYojana />} />
         <Route path="/deregister" element={<Deregister />} />
-
+<Route path="/cattle/profile" element={<CattleProfile />} />
+<Route path="/cattle/pedigree" element={<PedigreeViewer />} />
         {/* Death records (matches sidebar path) */}
         <Route path="/death-records" element={<DeathRecords />} />
       </Route>

@@ -96,6 +96,14 @@ export default function MainLayout() {
               Deregister Cattle
             </NavLink>
 
+            <NavLink to="/cattle/profile" style={linkStyle}>
+  Cattle Profile (demo)
+</NavLink>
+<NavLink to="/cattle/pedigree" style={linkStyle}>
+  Pedigree Viewer
+</NavLink>
+
+
             <NavLink to="/death-records" style={linkStyle}>
               💀 Cattle Death Records
             </NavLink>
