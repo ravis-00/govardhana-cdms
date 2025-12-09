@@ -1,62 +1,62 @@
 // src/pages/ActiveCattle.jsx
-import React, { useMemo, useState } from "react";
-
-const SAMPLE_CATTLE = [
-  {
-    id: "1db95b2d",
-    cattleId: "632643",
-    govtId: "390020",
-    name: "Vasundara",
-    colour: "White",
-    cattleType: "Cow",
-    breed: "Hallikar",
-    gender: "Female",
-    ageYears: 7,
-    location: "Jayadeva",
-    adoptionStatus: "Punyakoti",
-    pictureUrl: "", // later we will fill from sheet / Apps Script
-    remarks: "Healthy, high milk yield",
-  },
-  {
-    id: "1db95b2e",
-    cattleId: "868135",
-    govtId: "390021",
-    name: "Shanthi",
-    colour: "Brown",
-    cattleType: "Cow",
-    breed: "Mix",
-    gender: "Female",
-    ageYears: 5,
-    location: "Kamadhenu",
-    adoptionStatus: "Samrakshana",
-    pictureUrl: "",
-    remarks: "",
-  },
-  // ... keep / replace with real data later
-];
+import React, { useEffect, useMemo, useState } from "react";
+import { getActiveCattle } from "../api/masterApi";
 
 export default function ActiveCattle() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [breedFilter, setBreedFilter] = useState("All");
   const [nameFilter, setNameFilter] = useState("");
   const [selectedCattle, setSelectedCattle] = useState(null);
 
-  // 🧠 Unique breed options
-  const breedOptions = useMemo(() => {
-    const set = new Set();
-    SAMPLE_CATTLE.forEach((c) => c.breed && set.add(c.breed));
-    return ["All", ...Array.from(set)];
+  // Load active cattle from backend
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getActiveCattle();
+        setRows(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load active cattle");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
+  // Breed options based on data
+  const breedOptions = useMemo(() => {
+    const set = new Set();
+    rows.forEach((c) => c.breed && set.add(String(c.breed)));
+    return ["All", ...Array.from(set)];
+  }, [rows]);
+
   // Filtered rows
-  const rows = useMemo(() => {
-    return SAMPLE_CATTLE.filter((row) => {
+  const filteredRows = useMemo(() => {
+    const term = nameFilter.toLowerCase().trim();
+    return rows.filter((row) => {
       const byBreed = breedFilter === "All" || row.breed === breedFilter;
-      const byName =
-        !nameFilter ||
-        row.name.toLowerCase().includes(nameFilter.toLowerCase());
-      return byBreed && byName;
+
+      if (!term) return byBreed;
+
+      const haystack = (
+        `${row.cattleId || row.tagNumber || ""} ` +
+        `${row.name || ""} ` +
+        `${row.breed || ""} ` +
+        `${row.locationShed || row.location || ""}`
+      )
+        .toString()
+        .toLowerCase();
+
+      const bySearch = haystack.includes(term);
+      return byBreed && bySearch;
     });
-  }, [breedFilter, nameFilter]);
+  }, [rows, breedFilter, nameFilter]);
 
   function openDetails(cattle) {
     setSelectedCattle(cattle);
@@ -64,6 +64,41 @@ export default function ActiveCattle() {
 
   function closeDetails() {
     setSelectedCattle(null);
+  }
+
+  // Loading / error states
+  if (loading) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1
+          style={{
+            fontSize: "1.6rem",
+            fontWeight: 700,
+            marginBottom: "0.5rem",
+          }}
+        >
+          Active Cattle
+        </h1>
+        <div>Loading active cattle data…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1
+          style={{
+            fontSize: "1.6rem",
+            fontWeight: 700,
+            marginBottom: "0.5rem",
+          }}
+        >
+          Active Cattle
+        </h1>
+        <div style={{ color: "red" }}>{error}</div>
+      </div>
+    );
   }
 
   return (
@@ -127,11 +162,11 @@ export default function ActiveCattle() {
                 color: "#6b7280",
               }}
             >
-              Search by Name
+              Search
             </label>
             <input
               type="text"
-              placeholder="Type name…"
+              placeholder="Name / tag / breed / location"
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
               style={{
@@ -139,7 +174,7 @@ export default function ActiveCattle() {
                 borderRadius: "0.5rem",
                 border: "1px solid #d1d5db",
                 fontSize: "0.85rem",
-                minWidth: "180px",
+                minWidth: "220px",
               }}
             />
           </div>
@@ -169,20 +204,22 @@ export default function ActiveCattle() {
             }}
           >
             <tr>
-              {/* internal ID hidden; no column */}
               <th style={thStyle}>Cattle ID</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Breed</th>
               <th style={thStyle}>Gender</th>
+              <th style={thStyle}>Age</th>
+              <th style={thStyle}>Weight (Kgs)</th>
               <th style={thStyle}>Location</th>
+              <th style={thStyle}>Adoption</th>
               <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {filteredRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={9}
                   style={{
                     padding: "0.9rem 1rem",
                     textAlign: "center",
@@ -193,21 +230,25 @@ export default function ActiveCattle() {
                 </td>
               </tr>
             ) : (
-              rows.map((row, idx) => (
+              filteredRows.map((row, idx) => (
                 <tr
-                  key={row.id}
+                  key={row.id || row.cattleId || row.tagNumber || idx}
                   style={{
-                    backgroundColor:
-                      idx % 2 === 0 ? "#ffffff" : "#f9fafb",
+                    backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.cattleId}</td>
+                  <td style={tdStyle}>{row.cattleId || row.tagNumber}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>
                     {row.name}
                   </td>
                   <td style={tdStyle}>{row.breed}</td>
                   <td style={tdStyle}>{row.gender}</td>
-                  <td style={tdStyle}>{row.location}</td>
+                  <td style={tdStyle}>{formatAge(row)}</td>
+                  <td style={tdStyle}>{row.weightKgs || "-"}</td>
+                  <td style={tdStyle}>
+                    {row.locationShed || row.location || "-"}
+                  </td>
+                  <td style={tdStyle}>{row.adoptionStatus || "-"}</td>
                   <td
                     style={{
                       ...tdStyle,
@@ -279,7 +320,7 @@ export default function ActiveCattle() {
                 >
                   {selectedCattle.name}{" "}
                   <span style={{ color: "#6b7280", fontWeight: 400 }}>
-                    ({selectedCattle.cattleId})
+                    ({selectedCattle.cattleId || selectedCattle.tagNumber})
                   </span>
                 </div>
               </div>
@@ -304,10 +345,9 @@ export default function ActiveCattle() {
                 width: "100%",
                 height: "180px",
                 borderRadius: "0.75rem",
-                background:
-                  selectedCattle.pictureUrl
-                    ? `url(${selectedCattle.pictureUrl}) center/cover`
-                    : "#f3f4f6",
+                background: selectedCattle.pictureUrl
+                  ? `url(${selectedCattle.pictureUrl}) center/cover`
+                  : "#f3f4f6",
                 marginBottom: "1rem",
                 display: "flex",
                 alignItems: "center",
@@ -330,21 +370,37 @@ export default function ActiveCattle() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Cattle ID" value={selectedCattle.cattleId} />
-              <DetailItem label="Govt ID" value={selectedCattle.govtId} />
-              <DetailItem label="Colour" value={selectedCattle.colour} />
-              <DetailItem label="Type" value={selectedCattle.cattleType} />
-              <DetailItem label="Gender" value={selectedCattle.gender} />
-              <DetailItem label="Breed" value={selectedCattle.breed} />
               <DetailItem
-                label="Age (Years)"
-                value={
-                  selectedCattle.ageYears !== undefined
-                    ? selectedCattle.ageYears
-                    : ""
-                }
+                label="Cattle ID"
+                value={selectedCattle.cattleId || selectedCattle.tagNumber}
               />
-              <DetailItem label="Location / Shed" value={selectedCattle.location} />
+              <DetailItem label="Govt ID" value={selectedCattle.govtId} />
+              <DetailItem label="Breed" value={selectedCattle.breed} />
+              <DetailItem label="Gender" value={selectedCattle.gender} />
+              <DetailItem
+                label="Colour"
+                value={selectedCattle.colour || selectedCattle.color}
+              />
+              <DetailItem
+                label="Age"
+                value={formatAge(selectedCattle)}
+              />
+              <DetailItem
+                label="Weight (Kgs)"
+                value={selectedCattle.weightKgs}
+              />
+              <DetailItem
+                label="Location / Shed"
+                value={selectedCattle.locationShed || selectedCattle.location}
+              />
+              <DetailItem
+                label="Date of Admission"
+                value={formatDate(selectedCattle.dateOfAdmission)}
+              />
+              <DetailItem
+                label="Type of Admission"
+                value={selectedCattle.typeOfAdmission}
+              />
               <DetailItem
                 label="Adoption Status"
                 value={selectedCattle.adoptionStatus}
@@ -357,6 +413,8 @@ export default function ActiveCattle() {
     </div>
   );
 }
+
+/* ---- styles & helpers ---- */
 
 const thStyle = {
   padding: "0.6rem 1rem",
@@ -410,7 +468,48 @@ function DetailItem({ label, value }) {
       >
         {label}
       </div>
-      <div style={{ color: "#111827" }}>{value}</div>
+      <div style={{ color: "#111827" }}>{String(value)}</div>
     </div>
   );
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+// AgeMonths_cal → "X yrs Y months"
+function formatAge(c) {
+  const raw = c.ageMonthsCal;
+
+  if (raw !== undefined && raw !== null && raw !== "") {
+    const totalMonths = Number(raw);
+    if (!isNaN(totalMonths) && totalMonths >= 0) {
+      const years = Math.floor(totalMonths / 12);
+      const months = totalMonths % 12;
+
+      const parts = [];
+      if (years > 0) {
+        parts.push(`${years} yr${years > 1 ? "s" : ""}`);
+      }
+      if (months > 0) {
+        parts.push(`${months} month${months > 1 ? "s" : ""}`);
+      }
+      if (parts.length === 0) return "0 months";
+      return parts.join(" ");
+    }
+  }
+
+  if (c.ageYears) {
+    return `${c.ageYears} yr${c.ageYears > 1 ? "s" : ""}`;
+  }
+
+  if (c.ageAtAdmission) return String(c.ageAtAdmission);
+
+  return "";
 }

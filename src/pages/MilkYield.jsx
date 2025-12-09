@@ -1,5 +1,6 @@
 // src/pages/MilkYield.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getMilkYield } from "../api/masterApi";
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -8,59 +9,109 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-12
 }
 
-// TEMP sample data – later we will load from backend
-const SAMPLE_YIELD = [
-  {
-    id: 1,
-    date: "2025-12-01",
-    shed: "Punyakoti",
-    morningYield: 120,
-    eveningYield: 100,
-    calfShare: 20,
-    calfNoseNumber: "C-001",
-    vendor: 80,
-    temple: 30,
-    guests: 10,
-    canteen: 50,
-    hostel: 20,
-    remarks: "Normal day",
-  },
-  {
-    id: 2,
-    date: "2025-12-02",
-    shed: "Punyakoti",
-    morningYield: 130,
-    eveningYield: 105,
-    calfShare: 25,
-    calfNoseNumber: "C-002",
-    vendor: 90,
-    temple: 25,
-    guests: 8,
-    canteen: 55,
-    hostel: 22,
-    remarks: "",
-  },
-];
+/**
+ * Format any date-ish value as dd/mm/yyyy.
+ */
+function formatDate(value) {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/**
+ * Convert a date value into yyyy-mm-dd for <input type="date" />.
+ */
+function toInputDate(value) {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (!Number.isNaN(d.getTime())) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // Fallback – if already a string like 2025-10-02T...
+  return String(value).slice(0, 10);
+}
 
 export default function MilkYield() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_YIELD);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_YIELD.length + 1);
+  const [formMode, setFormMode] = useState("add"); // "add" | "edit"
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [nextId, setNextId] = useState(1);
 
   // for view-details popup
   const [selectedEntry, setSelectedEntry] = useState(null);
 
+  // Load from backend
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getMilkYield();
+        const safe = Array.isArray(data) ? data : [];
+        setRows(safe);
+        setNextId((safe.length || 0) + 1);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load milk yield data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.date.startsWith(month)),
+    () =>
+      rows.filter((r) => {
+        const d = String(r.date || "");
+        return d.startsWith(month); // underlying date is ISO-like
+      }),
     [rows, month]
   );
 
-  function openForm() {
+  // === Add / Edit form helpers ===
+
+  function openFormAdd() {
+    setFormMode("add");
+    setEditingIndex(null);
     setForm({
       ...getEmptyForm(),
       date: month + "-01",
+    });
+    setShowForm(true);
+  }
+
+  function openFormEdit(row, index) {
+    setFormMode("edit");
+    setEditingIndex(index);
+    setForm({
+      date: toInputDate(row.date),
+      shed: row.shed || "",
+      morningYield: row.morningYield ?? "",
+      eveningYield: row.eveningYield ?? "",
+      dayTotalYield: row.dayTotalYield ?? "",
+      outPass: row.outPass ?? "",
+      outPassNumber: row.outPassNumber ?? "",
+      leftToByProducts: row.leftToByProducts ?? "",
+      milkToWorkers: row.milkToWorkers ?? "",
+      milkToTemple: row.milkToTemple ?? "",
+      milkToGuests: row.milkToGuests ?? "",
+      milkToStaffCanteen: row.milkToStaffCanteen ?? "",
+      milkToEvents: row.milkToEvents ?? "",
+      remarks: row.remarks ?? "",
     });
     setShowForm(true);
   }
@@ -77,23 +128,38 @@ export default function MilkYield() {
   function handleSubmit(e) {
     e.preventDefault();
 
-    const newRow = {
+    const prepared = {
       ...form,
-      id: nextId,
+      // keep date as yyyy-mm-dd from input
       morningYield: Number(form.morningYield || 0),
       eveningYield: Number(form.eveningYield || 0),
-      calfShare: Number(form.calfShare || 0),
-      vendor: Number(form.vendor || 0),
-      temple: Number(form.temple || 0),
-      guests: Number(form.guests || 0),
-      canteen: Number(form.canteen || 0),
-      hostel: Number(form.hostel || 0),
+      dayTotalYield: Number(form.dayTotalYield || 0),
+      outPass: Number(form.outPass || 0),
+      leftToByProducts: Number(form.leftToByProducts || 0),
+      milkToWorkers: Number(form.milkToWorkers || 0),
+      milkToTemple: Number(form.milkToTemple || 0),
+      milkToGuests: Number(form.milkToGuests || 0),
+      milkToStaffCanteen: Number(form.milkToStaffCanteen || 0),
+      milkToEvents: Number(form.milkToEvents || 0),
     };
 
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
+    if (formMode === "add") {
+      const newRow = {
+        ...prepared,
+        id: nextId,
+      };
+      setRows((prev) => [...prev, newRow]);
+      setNextId((id) => id + 1);
+    } else if (formMode === "edit" && editingIndex !== null) {
+      setRows((prev) =>
+        prev.map((row, idx) => (idx === editingIndex ? { ...row, ...prepared } : row))
+      );
+    }
+
     setShowForm(false);
   }
+
+  // === View modal helpers ===
 
   function openView(entry) {
     setSelectedEntry(entry);
@@ -102,6 +168,32 @@ export default function MilkYield() {
   function closeView() {
     setSelectedEntry(null);
   }
+
+  // === Loading / error states ===
+
+  if (loading) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          Milk Yield
+        </h1>
+        <div>Loading milk yield data…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          Milk Yield
+        </h1>
+        <div style={{ color: "red" }}>{error}</div>
+      </div>
+    );
+  }
+
+  // === Main UI ===
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
@@ -143,7 +235,7 @@ export default function MilkYield() {
               style={{
                 padding: "0.35rem 0.6rem",
                 borderRadius: "0.5rem",
-                border: "1px solid #d1d5db",   // ✅ FIXED LINE
+                border: "1px solid #d1d5db",
                 fontSize: "0.85rem",
               }}
             />
@@ -151,7 +243,7 @@ export default function MilkYield() {
 
           <button
             type="button"
-            onClick={openForm}
+            onClick={openFormAdd}
             style={{
               padding: "0.45rem 0.95rem",
               borderRadius: "999px",
@@ -195,12 +287,13 @@ export default function MilkYield() {
               <th style={thStyle}>Shed</th>
               <th style={thStyle}>Morning (L)</th>
               <th style={thStyle}>Evening (L)</th>
-              <th style={thStyle}>Calf Share (L)</th>
-              <th style={thStyle}>Vendor</th>
-              <th style={thStyle}>Temple</th>
-              <th style={thStyle}>Guests</th>
-              <th style={thStyle}>Canteen</th>
-              <th style={thStyle}>Hostel</th>
+              <th style={thStyle}>Day Total (L)</th>
+              <th style={thStyle}>Out Pass (L)</th>
+              <th style={thStyle}>Left to By-products</th>
+              <th style={thStyle}>Milk to Workers</th>
+              <th style={thStyle}>Milk to Temple</th>
+              <th style={thStyle}>Staff Canteen</th>
+              <th style={thStyle}>Events</th>
               <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
             </tr>
           </thead>
@@ -208,7 +301,7 @@ export default function MilkYield() {
             {filteredRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   style={{
                     padding: "0.9rem 1rem",
                     textAlign: "center",
@@ -221,30 +314,47 @@ export default function MilkYield() {
             ) : (
               filteredRows.map((row, idx) => (
                 <tr
-                  key={row.id}
+                  key={row.id || idx}
                   style={{
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.date}</td>
+                  <td style={tdStyle}>{formatDate(row.date)}</td>
                   <td style={tdStyle}>{row.shed}</td>
                   <td style={tdStyle}>{row.morningYield}</td>
                   <td style={tdStyle}>{row.eveningYield}</td>
-                  <td style={tdStyle}>{row.calfShare}</td>
-                  <td style={tdStyle}>{row.vendor}</td>
-                  <td style={tdStyle}>{row.temple}</td>
-                  <td style={tdStyle}>{row.guests}</td>
-                  <td style={tdStyle}>{row.canteen}</td>
-                  <td style={tdStyle}>{row.hostel}</td>
+                  <td style={tdStyle}>{row.dayTotalYield}</td>
+                  <td style={tdStyle}>{row.outPass}</td>
+                  <td style={tdStyle}>{row.leftToByProducts}</td>
+                  <td style={tdStyle}>{row.milkToWorkers}</td>
+                  <td style={tdStyle}>{row.milkToTemple}</td>
+                  <td style={tdStyle}>{row.milkToStaffCanteen}</td>
+                  <td style={tdStyle}>{row.milkToEvents}</td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => openView(row)}
-                      style={viewBtnStyle}
-                      title="View details"
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        gap: "0.35rem",
+                        alignItems: "center",
+                      }}
                     >
-                      👁️ View
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => openView(row)}
+                        style={viewBtnStyle}
+                        title="View details"
+                      >
+                        👁️ View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openFormEdit(row, idx)}
+                        style={editBtnStyle}
+                        title="Edit entry"
+                      >
+                        ✏️ Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -253,13 +363,10 @@ export default function MilkYield() {
         </table>
       </div>
 
-      {/* Centered Form Modal */}
+      {/* Centered Form Modal (Add + Edit) */}
       {showForm && (
         <div style={overlayStyle} onClick={closeForm}>
-          <div
-            style={formModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={formModalStyle} onClick={(e) => e.stopPropagation()}>
             {/* Modal header */}
             <div
               style={{
@@ -275,7 +382,7 @@ export default function MilkYield() {
                   fontSize: "1.2rem",
                 }}
               >
-                Milk Yield Form
+                {formMode === "add" ? "Add Milk Yield Entry" : "Edit Milk Yield Entry"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -329,68 +436,82 @@ export default function MilkYield() {
               </Field>
 
               <NumberField
-                label="Morning Milk (L)"
+                label="Morning Milk Yield (L)"
                 name="morningYield"
                 value={form.morningYield}
                 onChange={handleFormChange}
               />
 
               <NumberField
-                label="Evening Milk (L)"
+                label="Evening Milk Yield (L)"
                 name="eveningYield"
                 value={form.eveningYield}
                 onChange={handleFormChange}
               />
 
               <NumberField
-                label="Calf Share (L)"
-                name="calfShare"
-                value={form.calfShare}
+                label="Day Total Yield (L)"
+                name="dayTotalYield"
+                value={form.dayTotalYield}
                 onChange={handleFormChange}
               />
 
-              <Field label="Calf Nose Number">
+              <NumberField
+                label="Out Pass (L)"
+                name="outPass"
+                value={form.outPass}
+                onChange={handleFormChange}
+              />
+
+              <Field label="Out Pass Number">
                 <input
                   type="text"
-                  name="calfNoseNumber"
-                  value={form.calfNoseNumber}
+                  name="outPassNumber"
+                  value={form.outPassNumber}
                   onChange={handleFormChange}
                   style={inputStyle}
                 />
               </Field>
 
               <NumberField
-                label="Milk to Vendor (L)"
-                name="vendor"
-                value={form.vendor}
+                label="Left to By-products (L)"
+                name="leftToByProducts"
+                value={form.leftToByProducts}
+                onChange={handleFormChange}
+              />
+
+              <NumberField
+                label="Milk to Workers (L)"
+                name="milkToWorkers"
+                value={form.milkToWorkers}
                 onChange={handleFormChange}
               />
 
               <NumberField
                 label="Milk to Temple (L)"
-                name="temple"
-                value={form.temple}
+                name="milkToTemple"
+                value={form.milkToTemple}
                 onChange={handleFormChange}
               />
 
               <NumberField
                 label="Milk to Guests (L)"
-                name="guests"
-                value={form.guests}
+                name="milkToGuests"
+                value={form.milkToGuests}
                 onChange={handleFormChange}
               />
 
               <NumberField
-                label="Milk to Canteen (L)"
-                name="canteen"
-                value={form.canteen}
+                label="Milk to Staff Canteen (L)"
+                name="milkToStaffCanteen"
+                value={form.milkToStaffCanteen}
                 onChange={handleFormChange}
               />
 
               <NumberField
-                label="Milk to Hostel (L)"
-                name="hostel"
-                value={form.hostel}
+                label="Milk to Events (L)"
+                name="milkToEvents"
+                value={form.milkToEvents}
                 onChange={handleFormChange}
               />
 
@@ -411,10 +532,7 @@ export default function MilkYield() {
       {/* View Details Modal */}
       {selectedEntry && (
         <div style={overlayStyle} onClick={closeView}>
-          <div
-            style={viewModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div
               style={{
@@ -441,7 +559,7 @@ export default function MilkYield() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedEntry.date} – {selectedEntry.shed}
+                  {formatDate(selectedEntry.date)} – {selectedEntry.shed}
                 </div>
               </div>
               <button
@@ -462,43 +580,51 @@ export default function MilkYield() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Date" value={selectedEntry.date} />
+              <DetailItem label="Date" value={formatDate(selectedEntry.date)} />
               <DetailItem label="Shed" value={selectedEntry.shed} />
               <DetailItem
-                label="Morning Milk (L)"
+                label="Morning Milk Yield (L)"
                 value={selectedEntry.morningYield}
               />
               <DetailItem
-                label="Evening Milk (L)"
+                label="Evening Milk Yield (L)"
                 value={selectedEntry.eveningYield}
               />
               <DetailItem
-                label="Calf Share (L)"
-                value={selectedEntry.calfShare}
+                label="Day Total Yield (L)"
+                value={selectedEntry.dayTotalYield}
               />
               <DetailItem
-                label="Calf Nose Number"
-                value={selectedEntry.calfNoseNumber}
+                label="Out Pass (L)"
+                value={selectedEntry.outPass}
               />
               <DetailItem
-                label="Milk to Vendor (L)"
-                value={selectedEntry.vendor}
+                label="Out Pass Number"
+                value={selectedEntry.outPassNumber}
+              />
+              <DetailItem
+                label="Left to By-products (L)"
+                value={selectedEntry.leftToByProducts}
+              />
+              <DetailItem
+                label="Milk to Workers (L)"
+                value={selectedEntry.milkToWorkers}
               />
               <DetailItem
                 label="Milk to Temple (L)"
-                value={selectedEntry.temple}
+                value={selectedEntry.milkToTemple}
               />
               <DetailItem
                 label="Milk to Guests (L)"
-                value={selectedEntry.guests}
+                value={selectedEntry.milkToGuests}
               />
               <DetailItem
-                label="Milk to Canteen (L)"
-                value={selectedEntry.canteen}
+                label="Milk to Staff Canteen (L)"
+                value={selectedEntry.milkToStaffCanteen}
               />
               <DetailItem
-                label="Milk to Hostel (L)"
-                value={selectedEntry.hostel}
+                label="Milk to Events (L)"
+                value={selectedEntry.milkToEvents}
               />
               <DetailItem
                 label="Remarks"
@@ -520,13 +646,15 @@ function getEmptyForm() {
     shed: "",
     morningYield: "",
     eveningYield: "",
-    calfShare: "",
-    calfNoseNumber: "",
-    vendor: "",
-    temple: "",
-    guests: "",
-    canteen: "",
-    hostel: "",
+    dayTotalYield: "",
+    outPass: "",
+    outPassNumber: "",
+    leftToByProducts: "",
+    milkToWorkers: "",
+    milkToTemple: "",
+    milkToGuests: "",
+    milkToStaffCanteen: "",
+    milkToEvents: "",
     remarks: "",
   };
 }
@@ -560,6 +688,19 @@ const viewBtnStyle = {
   gap: "0.2rem",
 };
 
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#dcfce7",
+  color: "#166534",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+};
+
 const overlayStyle = {
   position: "fixed",
   inset: 0,
@@ -572,7 +713,7 @@ const overlayStyle = {
 
 const formModalStyle = {
   width: "100%",
-  maxWidth: "480px",
+  maxWidth: "520px",
   maxHeight: "90vh",
   overflowY: "auto",
   background: "#ffffff",
@@ -669,7 +810,7 @@ function DetailItem({ label, value }) {
       >
         {label}
       </div>
-      <div style={{ color: "#111827" }}>{value}</div>
+      <div style={{ color: "#111827" }}>{String(value)}</div>
     </div>
   );
 }
