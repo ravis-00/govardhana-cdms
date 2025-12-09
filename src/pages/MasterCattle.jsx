@@ -1,67 +1,91 @@
 // src/pages/MasterCattle.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getCattle } from "../api/masterApi";
 
-// TEMP sample data – later you can replace this with real API data
-const SAMPLE_MASTER = [
-  {
-    id: 1,
-    tagNo: "617335",
-    name: "RUDHRA",
-    breed: "Malenadu Gidda",
-    sex: "Male",
-    status: "Dead",
-    color: "Black",
-    dateOfAdmission: "2019-05-01",
-    dateOfDeAdmission: "2025-11-27",
-    typeOfDeAdmission: "Death",
-  },
-  {
-    id: 2,
-    tagNo: "463068",
-    name: "Ganga",
-    breed: "Hallikar",
-    sex: "Female",
-    status: "Active",
-    color: "Grey",
-    dateOfAdmission: "2022-08-14",
-    dateOfDeAdmission: "",
-    typeOfDeAdmission: "",
-  },
-  {
-    id: 3,
-    tagNo: "472771",
-    name: "BAWYA",
-    breed: "Mixed",
-    sex: "Female",
-    status: "Sold",
-    color: "Brown",
-    dateOfAdmission: "2020-03-10",
-    dateOfDeAdmission: "2024-06-01",
-    typeOfDeAdmission: "Sold",
-  },
-];
-
-const STATUS_OPTIONS = ["All", "Active", "Inactive", "Dead", "Sold", "Transferred"];
+// Status options used in the filter dropdown
+const STATUS_OPTIONS = ["All", "Active", "Inactive", "Dead", "Sold", "Transferred", "Reactive"];
 
 export default function MasterCattle() {
+  const [rows, setRows] = useState([]);        // data from API
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("All");
   const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState(null);
 
+  // Load data once when the page mounts
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getCattle(); // calls Apps Script
+        // data is an array of objects with keys from CATTLE_FIELDS in code.gs
+        setRows(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load Master data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
   const filteredRows = useMemo(() => {
-    return SAMPLE_MASTER.filter((row) => {
+    return rows.filter((row) => {
+      const status = String(row.status || "").toLowerCase();
+
       const matchStatus =
         statusFilter === "All" ||
-        row.status.toLowerCase() === statusFilter.toLowerCase();
-      const haystack =
-        `${row.tagNo} ${row.name} ${row.breed} ${row.status}`.toLowerCase();
+        status === statusFilter.toLowerCase();
+
+      const haystack = (
+        `${row.cattleId || row.tagNumber || ""} ` +
+        `${row.name || ""} ` +
+        `${row.breed || ""} ` +
+        `${row.status || ""}`
+      ).toLowerCase();
+
       const matchSearch = haystack.includes(searchText.toLowerCase());
+
       return matchStatus && matchSearch;
     });
-  }, [statusFilter, searchText]);
+  }, [rows, statusFilter, searchText]);
+
+  // Loading / error states
+  if (loading) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          Master Cattle Data
+        </h1>
+        <div>Loading data from Master sheet…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "1.5rem 2rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          Master Cattle Data
+        </h1>
+        <div style={{ color: "red" }}>{error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: "1.5rem 2rem", height: "100%", display: "flex", gap: "1.5rem" }}>
+    <div
+      style={{
+        padding: "1.5rem 2rem",
+        height: "100%",
+        display: "flex",
+        gap: "1.5rem",
+      }}
+    >
       {/* LEFT: list */}
       <div style={{ flex: 2, minWidth: 0 }}>
         {/* Header */}
@@ -191,15 +215,15 @@ export default function MasterCattle() {
               ) : (
                 filteredRows.map((row, idx) => (
                   <tr
-                    key={row.id}
+                    key={row.id || idx}
                     style={{
                       backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                     }}
                   >
-                    <td style={tdStyle}>{row.tagNo}</td>
+                    <td style={tdStyle}>{row.cattleId || row.tagNumber}</td>
                     <td style={tdStyle}>{row.name}</td>
                     <td style={tdStyle}>{row.breed}</td>
-                    <td style={tdStyle}>{row.sex}</td>
+                    <td style={tdStyle}>{row.gender}</td>
                     <td style={tdStyle}>
                       <StatusPill status={row.status} />
                     </td>
@@ -264,7 +288,9 @@ export default function MasterCattle() {
                     fontWeight: 600,
                   }}
                 >
-                  {selected.tagNo} – {selected.name}
+                  {(selected.cattleId || selected.tagNumber) +
+                    " – " +
+                    (selected.name || "")}
                 </div>
               </div>
               <StatusPill status={selected.status} />
@@ -278,22 +304,35 @@ export default function MasterCattle() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Tag No" value={selected.tagNo} />
+              <DetailItem label="Tag No" value={selected.cattleId || selected.tagNumber} />
               <DetailItem label="Name" value={selected.name} />
               <DetailItem label="Breed" value={selected.breed} />
-              <DetailItem label="Sex" value={selected.sex} />
-              <DetailItem label="Color" value={selected.color} />
+              <DetailItem label="Sex" value={selected.gender} />
+              <DetailItem label="Colour" value={selected.colour || selected.color} />
+              <DetailItem label="Location / Shed" value={selected.locationShed} />
               <DetailItem
                 label="Date of Admission"
                 value={selected.dateOfAdmission}
               />
               <DetailItem
+                label="Type of Admission"
+                value={selected.typeOfAdmission}
+              />
+              <DetailItem
                 label="Date of De-Admission"
-                value={selected.dateOfDeAdmission}
+                value={selected.dateOfDeAdmit}
               />
               <DetailItem
                 label="Type of De-Admission"
-                value={selected.typeOfDeAdmission}
+                value={selected.typeOfDeAdmit}
+              />
+              <DetailItem
+                label="Adoption Status"
+                value={selected.adoptionStatus}
+              />
+              <DetailItem
+                label="Cattle Weight (Kgs)"
+                value={selected.weightKgs}
               />
             </div>
           </div>
@@ -350,7 +389,7 @@ const viewBtnStyle = {
 };
 
 function DetailItem({ label, value }) {
-  if (!value) return null;
+  if (value === undefined || value === null || value === "") return null;
   return (
     <div>
       <div
@@ -364,7 +403,7 @@ function DetailItem({ label, value }) {
       >
         {label}
       </div>
-      <div style={{ color: "#111827" }}>{value}</div>
+      <div style={{ color: "#111827" }}>{String(value)}</div>
     </div>
   );
 }
@@ -383,6 +422,9 @@ function StatusPill({ status }) {
   } else if (normalized === "sold" || normalized === "transferred") {
     bg = "#fef3c7";
     fg = "#92400e";
+  } else if (normalized === "reactive" || normalized === "inactive") {
+    bg = "#e5e7eb";
+    fg = "#6b7280";
   }
 
   return (
