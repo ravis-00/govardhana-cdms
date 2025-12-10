@@ -104,3 +104,44 @@ export async function getMilkYield() {
 export async function getBioWaste() {
   return getRequest("getBioWaste");
 }
+
+export async function getVaccine() {
+  return getRequest("getVaccine");
+}
+
+// --- Medical Treatment (Health sheet) ---
+
+export async function getTreatments() {
+  const res = await fetch(`${BASE_URL}?action=getTreatments`);
+  const json = await res.json();
+  if (!json.success) {
+    throw new Error(json.error || "Failed to load medical treatment data");
+  }
+  return json.data || [];
+}
+
+export async function addTreatment(payload) {
+  const res = await fetch(`${BASE_URL}?action=addTreatment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!json.success) {
+    throw new Error(json.error || "Failed to add treatment entry");
+  }
+  return json;
+}
+
+export async function updateTreatment(payload) {
+  const res = await fetch(`${BASE_URL}?action=updateTreatment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!json.success) {
+    throw new Error(json.error || "Failed to update treatment entry");
+  }
+  return json;
+}

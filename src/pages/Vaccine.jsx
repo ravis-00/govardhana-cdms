@@ -1,5 +1,6 @@
 // src/pages/Vaccine.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getVaccine } from "../api/masterApi";
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -8,44 +9,134 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-12
 }
 
-// TEMP sample data – later we will load from backend / Google Sheet
-const SAMPLE_VACCINE = [
-  {
-    id: 1,
-    date: "2025-06-03",
-    type: "Vaccination",
-    medicine: "FMD Vaccine",
-    doctorName: "Dr. Ramesh",
-    remarks: "All animals vaccinated",
-  },
-  {
-    id: 2,
-    date: "2025-05-10",
-    type: "Deworming",
-    medicine: "Albendazole",
-    doctorName: "Dr. Kavya",
-    remarks: "",
-  },
-];
+/**
+ * Convert any value from the sheet (Date object, "dd-mm-yyyy" string, ISO, etc.)
+ * into a normal "YYYY-MM-DD" string so we can filter by month.
+ */
+function toIsoDateString(value) {
+  if (!value) return "";
+
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const str = String(value).trim();
+
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const m = str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (m) {
+    const day = m[1].padStart(2, "0");
+    const month = m[2].padStart(2, "0");
+    const year = m[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Fallback – let Date parse
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mm}-${dd}`;
+  }
+
+  return "";
+}
+
+/**
+ * Display date as DD/MM/YYYY
+ */
+function formatDisplayDate(value) {
+  const iso = toIsoDateString(value);
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/* ====== React Component ====== */
 
 export default function Vaccine() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_VACCINE);
+
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_VACCINE.length + 1);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [nextLocalId, setNextLocalId] = useState(1);
 
   const [selectedEntry, setSelectedEntry] = useState(null);
 
+  // ---- Load from Google Sheet via API ----
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getVaccine(); // from masterApi.js
+
+        const normalised = (Array.isArray(data) ? data : []).map(
+          (raw, index) => ({
+            id: raw.id || index + 1,
+            date: toIsoDateString(raw.date),
+            type: raw.category || raw.type || "", // "Vaccination / Deworming"
+            vaccineType: raw.vaccineType || raw.vaccine_type || "",
+            medicine: raw.medicine || "",
+            doctorName: raw.doctor || raw.doctorName || "",
+            remarks: raw.remarks || "",
+          })
+        );
+
+        setRows(normalised);
+        setNextLocalId(normalised.length + 1);
+      } catch (err) {
+        console.error("Error loading vaccine data", err);
+        setError(err.message || "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.date.startsWith(month)),
+    () =>
+      rows.filter((r) => {
+        if (!r.date) return false;
+        const iso = toIsoDateString(r.date);
+        return iso.startsWith(month); // YYYY-MM
+      }),
     [rows, month]
   );
 
   function openForm() {
+    setIsEditMode(false);
     setForm({
       ...getEmptyForm(),
       date: month + "-01",
+    });
+    setShowForm(true);
+  }
+
+  function openEdit(entry) {
+    setIsEditMode(true);
+    setForm({
+      id: entry.id,
+      type: entry.type || "",
+      vaccineType: entry.vaccineType || "",
+      date: toIsoDateString(entry.date),
+      medicine: entry.medicine || "",
+      doctorName: entry.doctorName || "",
+      remarks: entry.remarks || "",
     });
     setShowForm(true);
   }
@@ -62,13 +153,30 @@ export default function Vaccine() {
   function handleSubmit(e) {
     e.preventDefault();
 
-    const newRow = {
-      ...form,
-      id: nextId,
+    if (!form.date || !form.type) {
+      alert("Please select date and Vaccination / Deworming type.");
+      return;
+    }
+
+    const normalised = {
+      id: form.id || nextLocalId,
+      date: toIsoDateString(form.date),
+      type: form.type || "",
+      vaccineType: form.vaccineType || "",
+      medicine: form.medicine || "",
+      doctorName: form.doctorName || "",
+      remarks: form.remarks || "",
     };
 
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
+    if (isEditMode) {
+      setRows((prev) =>
+        prev.map((r) => (String(r.id) === String(normalised.id) ? normalised : r))
+      );
+    } else {
+      setRows((prev) => [...prev, normalised]);
+      setNextLocalId((id) => id + 1);
+    }
+
     setShowForm(false);
   }
 
@@ -145,6 +253,22 @@ export default function Vaccine() {
         </div>
       </header>
 
+      {/* Error state */}
+      {error && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.6rem 0.9rem",
+            borderRadius: "0.5rem",
+            background: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: "0.85rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* Table */}
       <div
         style={{
@@ -169,7 +293,8 @@ export default function Vaccine() {
           >
             <tr>
               <th style={thStyle}>Date</th>
-              <th style={thStyle}>Type</th>
+              <th style={thStyle}>Vaccination / Deworming</th>
+              <th style={thStyle}>Vaccine Type</th>
               <th style={thStyle}>Medicine</th>
               <th style={thStyle}>Doctor</th>
               <th style={thStyle}>Remarks</th>
@@ -177,10 +302,23 @@ export default function Vaccine() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {loading ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
+                  style={{
+                    padding: "0.9rem 1rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Loading…
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
                   style={{
                     padding: "0.9rem 1rem",
                     textAlign: "center",
@@ -193,19 +331,26 @@ export default function Vaccine() {
             ) : (
               filteredRows.map((row, idx) => (
                 <tr
-                  key={row.id}
+                  key={row.id ?? idx}
                   style={{
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.date}</td>
+                  <td style={tdStyle}>{formatDisplayDate(row.date)}</td>
                   <td style={tdStyle}>{row.type}</td>
+                  <td style={tdStyle}>{row.vaccineType}</td>
                   <td style={tdStyle}>{row.medicine}</td>
                   <td style={tdStyle}>{row.doctorName}</td>
                   <td style={tdStyle}>
                     {row.remarks || <span style={{ color: "#9ca3af" }}>—</span>}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "center" }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={() => openView(row)}
@@ -213,6 +358,14 @@ export default function Vaccine() {
                       title="View details"
                     >
                       👁️ View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(row)}
+                      style={editBtnStyle}
+                      title="Edit entry"
+                    >
+                      ✏️ Edit
                     </button>
                   </td>
                 </tr>
@@ -222,13 +375,10 @@ export default function Vaccine() {
         </table>
       </div>
 
-      {/* Centered Form Modal */}
+      {/* Centered Form Modal (Add / Edit) */}
       {showForm && (
         <div style={overlayStyle} onClick={closeForm}>
-          <div
-            style={formModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={formModalStyle} onClick={(e) => e.stopPropagation()}>
             {/* Modal header */}
             <div
               style={{
@@ -244,7 +394,9 @@ export default function Vaccine() {
                   fontSize: "1.2rem",
                 }}
               >
-                Vaccine / Deworming Form
+                {isEditMode
+                  ? "Edit Vaccination / Deworming"
+                  : "Vaccine / Deworming Form"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -280,8 +432,8 @@ export default function Vaccine() {
                   <option value="">Select type</option>
                   <option value="Vaccination">Vaccination</option>
                   <option value="Deworming">Deworming</option>
-                  <option value="Tick Controlling">TICK CONTROLLING</option>
-                  <option value="Skin Infection">SKIN INFECTION</option>
+                  <option value="Tick Controlling">Tick Controlling</option>
+                  <option value="Skin Infection">Skin Infection</option>
                 </select>
               </Field>
 
@@ -295,7 +447,18 @@ export default function Vaccine() {
                 />
               </Field>
 
-              <Field label="Deworming / Vaccine Medicine">
+              <Field label="Vaccine Type">
+                <input
+                  type="text"
+                  name="vaccineType"
+                  value={form.vaccineType}
+                  onChange={handleFormChange}
+                  style={inputStyle}
+                  placeholder="e.g., FMD, HS, Dewormer type"
+                />
+              </Field>
+
+              <Field label="Medicine">
                 <input
                   type="text"
                   name="medicine"
@@ -333,10 +496,7 @@ export default function Vaccine() {
       {/* View Details Modal */}
       {selectedEntry && (
         <div style={overlayStyle} onClick={closeView}>
-          <div
-            style={viewModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div
               style={{
@@ -363,14 +523,10 @@ export default function Vaccine() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedEntry.date} – {selectedEntry.type}
+                  {formatDisplayDate(selectedEntry.date)} – {selectedEntry.type}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={closeView}
-                style={closeBtnStyle}
-              >
+              <button type="button" onClick={closeView} style={closeBtnStyle}>
                 ✕
               </button>
             </div>
@@ -384,8 +540,18 @@ export default function Vaccine() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Date" value={selectedEntry.date} />
-              <DetailItem label="Type" value={selectedEntry.type} />
+              <DetailItem
+                label="Date"
+                value={formatDisplayDate(selectedEntry.date)}
+              />
+              <DetailItem
+                label="Vaccination / Deworming"
+                value={selectedEntry.type}
+              />
+              <DetailItem
+                label="Vaccine Type"
+                value={selectedEntry.vaccineType}
+              />
               <DetailItem label="Medicine" value={selectedEntry.medicine} />
               <DetailItem label="Doctor Name" value={selectedEntry.doctorName} />
               <DetailItem label="Remarks" value={selectedEntry.remarks} />
@@ -401,8 +567,10 @@ export default function Vaccine() {
 
 function getEmptyForm() {
   return {
+    id: "",
     type: "",
     date: "",
+    vaccineType: "",
     medicine: "",
     doctorName: "",
     remarks: "",
@@ -431,6 +599,20 @@ const viewBtnStyle = {
   padding: "0.25rem 0.7rem",
   background: "#e0e7ff",
   color: "#1d4ed8",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+  marginRight: "0.25rem",
+};
+
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#fee2e2",
+  color: "#b91c1c",
   fontSize: "0.8rem",
   cursor: "pointer",
   display: "inline-flex",

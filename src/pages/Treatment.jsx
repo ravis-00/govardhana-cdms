@@ -1,6 +1,12 @@
 // src/pages/Treatment.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  getTreatments,
+  addTreatment,
+  updateTreatment,
+} from "../api/masterApi";
 
+/** Month helper (YYYY-MM) */
 function getCurrentYearMonth() {
   const d = new Date();
   const year = d.getFullYear();
@@ -8,48 +14,142 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-12
 }
 
-// TEMP sample data – later we will load from backend / Google Sheet
-const SAMPLE_TREATMENT = [
-  {
-    id: 1,
-    date: "2025-10-31",
-    cattleId: "273611",
-    diseaseSymptoms: "Fever, reduced appetite",
-    medicine: "Paracetamol, Multivitamin",
-    doctorName: "Dr. Manjunath",
-    photoUrl: "",
-    remarks: "Recovered in 2 days",
-  },
-  {
-    id: 2,
-    date: "2025-10-29",
-    cattleId: "077023",
-    diseaseSymptoms: "Bloated",
-    medicine: "Antigas bolus",
-    doctorName: "Dr. Kavya",
-    photoUrl: "",
-    remarks: "",
-  },
+/** Display date as dd/mm/yyyy (from YYYY-MM-DD or sheet formats) */
+function formatDateDisplay(value) {
+  if (!value) return "";
+  // handle 2025-10-31 or 2025-10-31T00:00:00Z
+  const isoMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${d}/${m}/${y}`;
+  }
+  // handle 31-10-2025 or 31/10/2025
+  const parts = String(value).split(/[\/\-]/);
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    return `${String(d).padStart(2, "0")}/${String(m).padStart(
+      2,
+      "0"
+    )}/${y}`;
+  }
+  return String(value);
+}
+
+/** Disease / Symptom EnumList options (from AppSheet) */
+const DISEASE_OPTIONS = [
+  "Anemic",
+  "Back Left Leg fracture",
+  "Back Right Leg fracture",
+  "Bloating",
+  "Broken Horn",
+  "Bronchitis",
+  "Fever",
+  "Front Left Leg fracture",
+  "Front Right Leg fracture",
+  "Indigestion",
+  "Inflammation",
+  "Injury",
+  "Pneumonia",
+  "Skin Infection",
+  "Sprain, Limping",
+  "Weakness",
+  "Wound",
 ];
 
 export default function Treatment() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_TREATMENT);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_TREATMENT.length + 1);
+  const [mode, setMode] = useState("add"); // "add" | "edit"
+  const [editingId, setEditingId] = useState(null);
 
   const [selectedEntry, setSelectedEntry] = useState(null);
 
+  // ───────────────── Fetch from backend ─────────────────
+  useEffect(() => {
+    loadTreatments();
+  }, []);
+
+  async function loadTreatments() {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await getTreatments(); // from masterApi.js
+      // normalise: ensure we have 'date' as YYYY-MM-DD
+      const normalised = (data || []).map((row) => ({
+        id: row.id,
+        cattleId: row.cattleId || row["Cattle ID"],
+        date: row.date || row.treatmentDate || row["Treatment Date"],
+        diseaseSymptoms:
+          row.diseaseSymptoms || row["Decease/Symptom"] || row.deceaseSymptom,
+        medicine: row.medicine || row["Medicine"],
+        doctorName: row.doctorName || row["Doctor Name"],
+        photoUrl: row.photoUrl || row["Photo"],
+        remarks: row.remarks || row["Remarks"],
+      }));
+      setRows(normalised);
+    } catch (err) {
+      console.error("Error loading treatments", err);
+      setError("Could not load medical treatment data.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // filter by month (YYYY-MM)
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.date.startsWith(month)),
+    () =>
+      rows.filter((r) => {
+        if (!r.date) return false;
+        const str = String(r.date);
+        // expect YYYY-MM-DD or similar
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+          return str.startsWith(month);
+        }
+        // if dd-mm-yyyy: convert
+        const parts = str.split(/[\/\-]/);
+        if (parts.length === 3) {
+          const [d, m, y] = parts;
+          const mm = String(m).padStart(2, "0");
+          return `${y}-${mm}` === month;
+        }
+        return false;
+      }),
     [rows, month]
   );
 
-  function openForm() {
+  // ───────────────── Form helpers ─────────────────
+  function openFormForAdd() {
+    setMode("add");
+    setEditingId(null);
     setForm({
       ...getEmptyForm(),
       date: month + "-01",
+    });
+    setShowForm(true);
+  }
+
+  function openFormForEdit(entry) {
+    setMode("edit");
+    setEditingId(entry.id);
+    setForm({
+      cattleId: entry.cattleId || "",
+      date: entry.date && String(entry.date).slice(0, 10),
+      // split string → array for multi-select
+      diseaseSymptoms: entry.diseaseSymptoms
+        ? String(entry.diseaseSymptoms)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+      medicine: entry.medicine || "",
+      doctorName: entry.doctorName || "",
+      photoUrl: entry.photoUrl || "",
+      remarks: entry.remarks || "",
     });
     setShowForm(true);
   }
@@ -63,17 +163,46 @@ export default function Treatment() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSubmit(e) {
+  // for multi-select Disease/Symptom
+  function handleDiseaseChange(e) {
+    const selected = Array.from(e.target.selectedOptions).map(
+      (opt) => opt.value
+    );
+    setForm((prev) => ({ ...prev, diseaseSymptoms: selected }));
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    const newRow = {
-      ...form,
-      id: nextId,
+    const payload = {
+      id: editingId,
+      cattleId: form.cattleId || "",
+      date: form.date || "",
+      diseaseSymptoms: (form.diseaseSymptoms || []).join(", "),
+      medicine: form.medicine || "",
+      doctorName: form.doctorName || "",
+      photoUrl: form.photoUrl || "",
+      remarks: form.remarks || "",
     };
 
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
-    setShowForm(false);
+    try {
+      setLoading(true);
+      setError("");
+
+      if (mode === "add") {
+        await addTreatment(payload);
+      } else {
+        await updateTreatment(payload);
+      }
+
+      await loadTreatments();
+      setShowForm(false);
+    } catch (err) {
+      console.error("Error saving treatment", err);
+      setError("Could not save treatment entry.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openView(entry) {
@@ -84,6 +213,7 @@ export default function Treatment() {
     setSelectedEntry(null);
   }
 
+  // ───────────────── Render ─────────────────
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
       {/* Header */}
@@ -132,7 +262,7 @@ export default function Treatment() {
 
           <button
             type="button"
-            onClick={openForm}
+            onClick={openFormForAdd}
             style={{
               padding: "0.45rem 0.95rem",
               borderRadius: "999px",
@@ -148,6 +278,21 @@ export default function Treatment() {
           </button>
         </div>
       </header>
+
+      {error && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.5rem",
+            background: "#fee2e2",
+            color: "#b91c1c",
+            fontSize: "0.85rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {/* Table */}
       <div
@@ -182,7 +327,20 @@ export default function Treatment() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {loading && rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  style={{
+                    padding: "0.9rem 1rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Loading medical treatment entries…
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={7}
@@ -203,7 +361,7 @@ export default function Treatment() {
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.date}</td>
+                  <td style={tdStyle}>{formatDateDisplay(row.date)}</td>
                   <td style={tdStyle}>{row.cattleId}</td>
                   <td style={tdStyle}>{row.diseaseSymptoms}</td>
                   <td style={tdStyle}>{row.medicine}</td>
@@ -221,6 +379,14 @@ export default function Treatment() {
                       title="View details"
                     >
                       👁️ View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openFormForEdit(row)}
+                      style={editBtnStyle}
+                      title="Edit entry"
+                    >
+                      ✏️ Edit
                     </button>
                   </td>
                 </tr>
@@ -252,7 +418,9 @@ export default function Treatment() {
                   fontSize: "1.2rem",
                 }}
               >
-                Health Form
+                {mode === "add"
+                  ? "Add Medical Treatment"
+                  : "Edit Medical Treatment"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -299,23 +467,35 @@ export default function Treatment() {
                 />
               </Field>
 
-              <Field label="Disease / Symptom">
-                {/* For now, simple text. Later you can change to multi-select using your disease master list */}
-                <textarea
+              <Field label="Disease / Symptom (EnumList)">
+                <select
+                  multiple
                   name="diseaseSymptoms"
                   value={form.diseaseSymptoms}
-                  onChange={handleFormChange}
+                  onChange={handleDiseaseChange}
                   style={{
                     ...inputStyle,
-                    minHeight: "70px",
-                    resize: "vertical",
+                    minHeight: "140px",
                   }}
-                  placeholder="Example: Bloating, back leg fracture"
-                />
+                >
+                  {DISEASE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <div
+                  style={{
+                    marginTop: "0.25rem",
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                  }}
+                >
+                  Hold <strong>Ctrl</strong> (Cmd on Mac) to select multiple.
+                </div>
               </Field>
 
               <Field label="Medicine *">
-                {/* Again simple text; later we can connect to Medicine master list */}
                 <textarea
                   name="medicine"
                   value={form.medicine}
@@ -339,14 +519,14 @@ export default function Treatment() {
                 />
               </Field>
 
-              <Field label="Photo (URL – placeholder for now)">
+              <Field label="Photo (URL – placeholder)">
                 <input
                   type="text"
                   name="photoUrl"
                   value={form.photoUrl}
                   onChange={handleFormChange}
                   style={inputStyle}
-                  placeholder="Later we will handle file upload"
+                  placeholder="Later we can support uploads"
                 />
               </Field>
 
@@ -397,7 +577,8 @@ export default function Treatment() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedEntry.date} – Cattle {selectedEntry.cattleId}
+                  {formatDateDisplay(selectedEntry.date)} – Cattle{" "}
+                  {selectedEntry.cattleId}
                 </div>
               </div>
               <button
@@ -418,7 +599,10 @@ export default function Treatment() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Date" value={selectedEntry.date} />
+              <DetailItem
+                label="Treatment Date"
+                value={formatDateDisplay(selectedEntry.date)}
+              />
               <DetailItem label="Cattle ID" value={selectedEntry.cattleId} />
               <DetailItem
                 label="Disease / Symptom"
@@ -445,7 +629,7 @@ function getEmptyForm() {
   return {
     cattleId: "",
     date: "",
-    diseaseSymptoms: "",
+    diseaseSymptoms: [],
     medicine: "",
     doctorName: "",
     photoUrl: "",
@@ -475,6 +659,20 @@ const viewBtnStyle = {
   padding: "0.25rem 0.7rem",
   background: "#e0e7ff",
   color: "#1d4ed8",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+  marginRight: "0.35rem",
+};
+
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#fee2e2",
+  color: "#b91c1c",
   fontSize: "0.8rem",
   cursor: "pointer",
   display: "inline-flex",
