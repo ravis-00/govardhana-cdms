@@ -1,5 +1,10 @@
 // src/pages/DattuYojana.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  getDattuYojana,
+  addDattuYojana,
+  updateDattuYojana,
+} from "../api/masterApi";
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -8,56 +13,117 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-12
 }
 
-// TEMP sample data – later we will load from backend / Google Sheet
-const SAMPLE_DATTU = [
-  {
-    id: 1,
-    date: "2025-12-01",
-    cattleId: "630668",
-    donorName: "Sharma Family",
-    address: "Bengaluru",
-    phone: "9876543210",
-    email: "sharma@example.com",
-    scheme: "Punyakoti",
-    paymentMode: "Online",
-    receiptNo: "R-2025-001",
-    birthDate: "2018-05-10",
-    remarks: "Monthly contribution",
-  },
-  {
-    id: 2,
-    date: "2025-12-03",
-    cattleId: "631491",
-    donorName: "Ravi Kumar",
-    address: "Mysuru",
-    phone: "9876501234",
-    email: "ravi@example.com",
-    scheme: "Samrakshana",
-    paymentMode: "Cash",
-    receiptNo: "R-2025-002",
-    birthDate: "2019-02-18",
-    remarks: "",
-  },
-];
+/**
+ * Convert a date string (dd/MM/yyyy or yyyy-MM-dd) to yyyy-MM for month filter.
+ */
+function extractYearMonth(dateStr) {
+  if (!dateStr) return "";
+  if (dateStr.includes("/")) {
+    const [dd, mm, yyyy] = dateStr.split("/");
+    if (!yyyy || !mm) return "";
+    return `${yyyy}-${String(mm).padStart(2, "0")}`;
+  }
+  if (dateStr.includes("-")) {
+    const [yyyy, mm] = dateStr.split("-");
+    if (!yyyy || !mm) return "";
+    return `${yyyy}-${String(mm).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+/**
+ * For <input type="date"> from display date.
+ * Accepts dd/MM/yyyy or yyyy-MM-dd (returns yyyy-MM-dd).
+ */
+function toInputDate(dateStr) {
+  if (!dateStr) return "";
+  if (dateStr.includes("/")) {
+    const [dd, mm, yyyy] = dateStr.split("/");
+    return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(
+      2,
+      "0"
+    )}`;
+  }
+  // assume already yyyy-MM-dd
+  return dateStr;
+}
+
+/**
+ * For table display from <input type="date"> value (yyyy-MM-dd)
+ * -> dd/MM/yyyy
+ */
+function toDisplayDateFromInput(isoStr) {
+  if (!isoStr) return "";
+  const [yyyy, mm, dd] = isoStr.split("-");
+  if (!yyyy || !mm || !dd) return isoStr;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/* ------------------------------------------------------------------ */
 
 export default function DattuYojana() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_DATTU);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_DATTU.length + 1);
+  const [editingRow, setEditingRow] = useState(null);
 
   const [selectedEntry, setSelectedEntry] = useState(null);
 
+  // --- Load data from backend once on mount ---
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getDattuYojana();
+        // data is expected as array of objects from Apps Script
+        setRows(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load Dattu Yojana data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.date.startsWith(month)),
+    () => rows.filter((r) => extractYearMonth(r.date) === month),
     [rows, month]
   );
 
-  function openForm() {
+  function openAddForm() {
+    setEditingRow(null);
     setForm({
       ...getEmptyForm(),
       date: month + "-01",
+    });
+    setShowForm(true);
+  }
+
+  function openEditForm(row) {
+    setEditingRow(row);
+    setForm({
+      id: row.id || "",
+      date: toInputDate(row.date),
+      cattleId: row.cattleId || "",
+      donorName: row.donorName || "",
+      address: row.address || "",
+      phone: row.phone || "",
+      email: row.email || "",
+      scheme: row.scheme || "",
+      amount: row.amount || "",
+      paymentMode: row.paymentMode || "",
+      chequeNumber: row.chequeNumber || "",
+      referenceNumber: row.referenceNumber || "",
+      receiptNo: row.receiptNo || row.receiptNumber || "",
+      schemeStatus: row.schemeStatus || "",
+      expiryDate: row.expiryDate ? toInputDate(row.expiryDate) : "",
+      remarks: row.remarks || "",
     });
     setShowForm(true);
   }
@@ -71,17 +137,49 @@ export default function DattuYojana() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    const newRow = {
-      ...form,
-      id: nextId,
+    const payload = {
+      id: editingRow?.id || form.id || undefined,
+      date: form.date, // yyyy-MM-dd
+      cattleId: form.cattleId,
+      donorName: form.donorName,
+      address: form.address,
+      phone: form.phone,
+      email: form.email,
+      scheme: form.scheme,
+      amount: form.amount,
+      paymentMode: form.paymentMode,
+      chequeNumber: form.chequeNumber,
+      referenceNumber: form.referenceNumber,
+      receiptNumber: form.receiptNo,
+      schemeStatus: form.schemeStatus,
+      expiryDate: form.expiryDate,
+      remarks: form.remarks,
     };
 
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
-    setShowForm(false);
+    try {
+      setLoading(true);
+      setError("");
+      if (editingRow) {
+        await updateDattuYojana(payload);
+      } else {
+        await addDattuYojana(payload);
+      }
+
+      // Reload list from backend so UI is in sync
+      const data = await getDattuYojana();
+      setRows(Array.isArray(data) ? data : []);
+      setShowForm(false);
+      setEditingRow(null);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to save Dattu Yojana entry");
+      // keep modal open so user doesn’t lose data
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openView(entry) {
@@ -91,6 +189,8 @@ export default function DattuYojana() {
   function closeView() {
     setSelectedEntry(null);
   }
+
+  const isEditMode = Boolean(editingRow);
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
@@ -140,7 +240,7 @@ export default function DattuYojana() {
 
           <button
             type="button"
-            onClick={openForm}
+            onClick={openAddForm}
             style={{
               padding: "0.45rem 0.95rem",
               borderRadius: "999px",
@@ -156,6 +256,21 @@ export default function DattuYojana() {
           </button>
         </div>
       </header>
+
+      {error && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.5rem",
+            background: "#fee2e2",
+            color: "#b91c1c",
+            fontSize: "0.85rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {/* Table */}
       <div
@@ -184,16 +299,30 @@ export default function DattuYojana() {
               <th style={thStyle}>Cattle ID</th>
               <th style={thStyle}>Donor Name</th>
               <th style={thStyle}>Scheme</th>
+              <th style={thStyle}>Amount</th>
               <th style={thStyle}>Payment Mode</th>
               <th style={thStyle}>Receipt No.</th>
               <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {loading && rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
+                  style={{
+                    padding: "0.9rem 1rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Loading...
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
                   style={{
                     padding: "0.9rem 1rem",
                     textAlign: "center",
@@ -206,7 +335,7 @@ export default function DattuYojana() {
             ) : (
               filteredRows.map((row, idx) => (
                 <tr
-                  key={row.id}
+                  key={row.id || `${row.date}-${idx}`}
                   style={{
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
@@ -215,16 +344,31 @@ export default function DattuYojana() {
                   <td style={tdStyle}>{row.cattleId}</td>
                   <td style={tdStyle}>{row.donorName}</td>
                   <td style={tdStyle}>{row.scheme}</td>
+                  <td style={tdStyle}>{row.amount}</td>
                   <td style={tdStyle}>{row.paymentMode}</td>
-                  <td style={tdStyle}>{row.receiptNo}</td>
-                  <td style={{ ...tdStyle, textAlign: "center" }}>
+                  <td style={tdStyle}>{row.receiptNo || row.receiptNumber}</td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={() => openView(row)}
-                      style={viewBtnStyle}
+                      style={{ ...viewBtnStyle, marginRight: "0.4rem" }}
                       title="View details"
                     >
                       👁️ View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(row)}
+                      style={editBtnStyle}
+                      title="Edit entry"
+                    >
+                      ✏️ Edit
                     </button>
                   </td>
                 </tr>
@@ -234,7 +378,7 @@ export default function DattuYojana() {
         </table>
       </div>
 
-      {/* Centered Form Modal */}
+      {/* Centered Form Modal (Add / Edit) */}
       {showForm && (
         <div style={overlayStyle} onClick={closeForm}>
           <div
@@ -256,13 +400,14 @@ export default function DattuYojana() {
                   fontSize: "1.2rem",
                 }}
               >
-                Dattu Yojana Form
+                {isEditMode ? "Edit Dattu Entry" : "Dattu Yojana Form"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
                   type="button"
                   onClick={closeForm}
                   style={headerButtonSecondary}
+                  disabled={loading}
                 >
                   Cancel
                 </button>
@@ -270,8 +415,9 @@ export default function DattuYojana() {
                   type="submit"
                   form="dattu-yojana-form"
                   style={headerButtonPrimary}
+                  disabled={loading}
                 >
-                  Save
+                  {isEditMode ? "Update" : "Save"}
                 </button>
               </div>
             </div>
@@ -289,6 +435,7 @@ export default function DattuYojana() {
                   value={form.date}
                   onChange={handleFormChange}
                   style={inputStyle}
+                  required
                 />
               </Field>
 
@@ -309,6 +456,7 @@ export default function DattuYojana() {
                   value={form.donorName}
                   onChange={handleFormChange}
                   style={inputStyle}
+                  required
                 />
               </Field>
 
@@ -348,6 +496,7 @@ export default function DattuYojana() {
                   value={form.scheme}
                   onChange={handleFormChange}
                   style={inputStyle}
+                  required
                 >
                   <option value="">Select Scheme</option>
                   <option value="Punyakoti">Punyakoti</option>
@@ -357,6 +506,17 @@ export default function DattuYojana() {
                     Shashwatha Dattu Sweekara
                   </option>
                 </select>
+              </Field>
+
+              <Field label="Amount">
+                <input
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleFormChange}
+                  style={inputStyle}
+                  step="0.01"
+                />
               </Field>
 
               <Field label="Payment Mode">
@@ -374,6 +534,26 @@ export default function DattuYojana() {
                 </select>
               </Field>
 
+              <Field label="Cheque Number">
+                <input
+                  type="text"
+                  name="chequeNumber"
+                  value={form.chequeNumber}
+                  onChange={handleFormChange}
+                  style={inputStyle}
+                />
+              </Field>
+
+              <Field label="Reference Number">
+                <input
+                  type="text"
+                  name="referenceNumber"
+                  value={form.referenceNumber}
+                  onChange={handleFormChange}
+                  style={inputStyle}
+                />
+              </Field>
+
               <Field label="Receipt Number">
                 <input
                   type="text"
@@ -384,11 +564,22 @@ export default function DattuYojana() {
                 />
               </Field>
 
-              <Field label="Birth Date of Cattle">
+              <Field label="Scheme Status">
+                <input
+                  type="text"
+                  name="schemeStatus"
+                  value={form.schemeStatus}
+                  onChange={handleFormChange}
+                  style={inputStyle}
+                  placeholder="Active / Expired / Stopped..."
+                />
+              </Field>
+
+              <Field label="Expiry Date">
                 <input
                   type="date"
-                  name="birthDate"
-                  value={form.birthDate}
+                  name="expiryDate"
+                  value={form.expiryDate}
                   onChange={handleFormChange}
                   style={inputStyle}
                 />
@@ -404,10 +595,7 @@ export default function DattuYojana() {
                 />
               </Field>
 
-              {/* Photo upload will be handled in a later phase */}
-              {/* <Field label="Photo">
-                <input type="file" name="photo" />
-              </Field> */}
+              {/* Picture columns will be handled later */}
             </form>
           </div>
         </div>
@@ -474,15 +662,28 @@ export default function DattuYojana() {
               <DetailItem label="Phone" value={selectedEntry.phone} />
               <DetailItem label="Email" value={selectedEntry.email} />
               <DetailItem label="Scheme" value={selectedEntry.scheme} />
+              <DetailItem label="Amount" value={selectedEntry.amount} />
               <DetailItem
                 label="Payment Mode"
                 value={selectedEntry.paymentMode}
               />
-              <DetailItem label="Receipt No." value={selectedEntry.receiptNo} />
               <DetailItem
-                label="Birth Date"
-                value={selectedEntry.birthDate}
+                label="Receipt No."
+                value={selectedEntry.receiptNo || selectedEntry.receiptNumber}
               />
+              <DetailItem
+                label="Cheque Number"
+                value={selectedEntry.chequeNumber}
+              />
+              <DetailItem
+                label="Reference Number"
+                value={selectedEntry.referenceNumber}
+              />
+              <DetailItem
+                label="Scheme Status"
+                value={selectedEntry.schemeStatus}
+              />
+              <DetailItem label="Expiry Date" value={selectedEntry.expiryDate} />
               <DetailItem label="Remarks" value={selectedEntry.remarks} />
             </div>
           </div>
@@ -496,6 +697,7 @@ export default function DattuYojana() {
 
 function getEmptyForm() {
   return {
+    id: "",
     date: "",
     cattleId: "",
     donorName: "",
@@ -503,9 +705,13 @@ function getEmptyForm() {
     phone: "",
     email: "",
     scheme: "",
+    amount: "",
     paymentMode: "",
+    chequeNumber: "",
+    referenceNumber: "",
     receiptNo: "",
-    birthDate: "",
+    schemeStatus: "",
+    expiryDate: "",
     remarks: "",
   };
 }
@@ -532,6 +738,19 @@ const viewBtnStyle = {
   padding: "0.25rem 0.7rem",
   background: "#e0e7ff",
   color: "#1d4ed8",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+};
+
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#fee2e2",
+  color: "#b91c1c",
   fontSize: "0.8rem",
   cursor: "pointer",
   display: "inline-flex",

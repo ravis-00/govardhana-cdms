@@ -1,50 +1,210 @@
 // src/pages/Dashboard.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
+import {
+  getCattle,
+  getMilkYield,
+  getNewBorn,
+  getDattuYojana,
+  getFeeding,
+} from "../api/masterApi";
 
-// TEMP – mock stats (replace with real API data later)
-const DASHBOARD_DATA = {
-  date: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
-  summaryCards: [
-    { label: "Active Cattle", value: 552 },
-    { label: "Female Cattle", value: 342 },
-    { label: "Hallikar Breed", value: 91 },
-    { label: "Deoni Breed", value: 113 },
-    { label: "Average Milk Yield / Day (L)", value: 126 },
-    { label: "Average Milk Sold / Day (L)", value: 91 },
-    { label: "New Born (Current Year)", value: 84 },
-    { label: "Active Dattu Yojana", value: 30 },
-  ],
-  breeds: [
-    { name: "Hallikar", count: 91 },
-    { name: "Deoni", count: 113 },
-    { name: "Kankrej", count: 58 },
-    { name: "Malenadu Gidda", count: 87 },
-    { name: "Gir", count: 124 },
-    { name: "Mix", count: 54 },
-  ],
-  categories: [
-    { name: "Cows", count: 194 },
-    { name: "Heifers", count: 59 },
-    { name: "Bulls", count: 140 },
-    { name: "Calves", count: 159 },
-  ],
-};
+function formatNumber(value) {
+  if (!isFinite(value)) return 0;
+  return Math.round(value);
+}
 
 export default function Dashboard() {
-  const { date, summaryCards, breeds, categories } = DASHBOARD_DATA;
+  const [stats, setStats] = useState({
+    activeCattle: 0,
+    femaleCattle: 0,
+    maleCattle: 0,
+    avgMilkYieldPerDay: 0,
+    avgMilkSoldPerDay: 0,
+    newBornCurrentYear: 0,
+    activeDattuYojana: 0,
+    avgFeedingPerDay: 0,
+  });
 
-  const maxBreed = Math.max(...breeds.map((b) => b.count));
-  const maxCategory = Math.max(...categories.map((c) => c.count));
+  const [breedData, setBreedData] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [cattle, milkYield, newBorn, dattu, feeding] = await Promise.all([
+          getCattle(),
+          getMilkYield(),
+          getNewBorn(),
+          getDattuYojana(),
+          getFeeding(),
+        ]);
+
+        const currentYear = new Date().getFullYear();
+
+        // ----------------- CATTLE STATS -----------------
+        const activeCattle = cattle.filter(
+          (c) => String(c.status || "").toLowerCase() === "active"
+        );
+
+        const femaleCattle = activeCattle.filter((c) =>
+          String(c.gender || "").toLowerCase().startsWith("f")
+        );
+        const maleCattle = activeCattle.filter((c) =>
+          String(c.gender || "").toLowerCase().startsWith("m")
+        );
+
+        // Breeds (Hallikar, Deoni, Kankrej, Malenadu Gidda, Gir, Mix)
+        const breedCounts = countBy(activeCattle, (c) =>
+          String(c.breed || "").trim().toLowerCase()
+        );
+
+        const breeds = [
+          { key: "hallikar", label: "Hallikar" },
+          { key: "deoni", label: "Deoni" },
+          { key: "kankrej", label: "Kankrej" },
+          { key: "malenadu gidda", label: "Malenadu Gidda" },
+          { key: "gir", label: "Gir" },
+          { key: "mix", label: "Mix" },
+        ].map((b) => ({
+          label: b.label,
+          value: breedCounts[b.key] || 0,
+        }));
+
+        // Cattle categories: Cows, Heifers, Calves, Bulls
+        const categoryCounts = countBy(activeCattle, (c) =>
+          String(c.cattleType || c.category || "").trim().toLowerCase()
+        );
+
+        const categories = [
+          { keys: ["cow", "cows"], label: "Cows" },
+          { keys: ["heifer", "heifers"], label: "Heifers" },
+          { keys: ["calf", "calves"], label: "Calves" },
+          { keys: ["bull", "bulls"], label: "Bulls" },
+        ].map((cat) => ({
+          label: cat.label,
+          value: cat.keys.reduce(
+            (sum, k) => sum + (categoryCounts[k] || 0),
+            0
+          ),
+        }));
+
+        // ----------------- MILK STATS -----------------
+        const milkByDate = new Map();
+
+        milkYield.forEach((row) => {
+          const day = String(row.date || "").slice(0, 10);
+          if (!day) return;
+
+          const existing = milkByDate.get(day) || {
+            yield: 0,
+            sold: 0,
+          };
+
+          // Some sheets use "Day Total Yeild"
+          const dayTotal = Number(
+            row.dayTotalYield || row.dayTotalYeild || 0
+          );
+          const sold = Number(row.outPass || 0);
+
+          existing.yield += isNaN(dayTotal) ? 0 : dayTotal;
+          existing.sold += isNaN(sold) ? 0 : sold;
+
+          milkByDate.set(day, existing);
+        });
+
+        const milkDayValues = Array.from(milkByDate.values());
+        let avgMilkYieldPerDay = 0;
+        let avgMilkSoldPerDay = 0;
+
+        if (milkDayValues.length > 0) {
+          const totalYield = milkDayValues.reduce(
+            (sum, d) => sum + d.yield,
+            0
+          );
+          const totalSold = milkDayValues.reduce(
+            (sum, d) => sum + d.sold,
+            0
+          );
+          avgMilkYieldPerDay = totalYield / milkDayValues.length;
+          avgMilkSoldPerDay = totalSold / milkDayValues.length;
+        }
+
+        // ----------------- NEW BORN (CURRENT YEAR) -----------------
+        const newBornCurrentYear = newBorn.filter((nb) => {
+          const dob = nb.dateOfBirth;
+          if (!dob) return false;
+          const d = new Date(dob);
+          return d.getFullYear() === currentYear;
+        });
+
+        // ----------------- DATTU YOJANA -----------------
+        const activeDattuYojana = dattu.filter((d) => {
+          const status = String(d.schemeStatus || "").toLowerCase();
+          return !status || status === "active";
+        });
+
+        // ----------------- FEEDING -----------------
+        const feedingByDate = new Map();
+        feeding.forEach((row) => {
+          const day = String(row.date || "").slice(0, 10);
+          if (!day) return;
+          const total = Number(row.totalKg || 0);
+          const existing = feedingByDate.get(day) || 0;
+          feedingByDate.set(
+            day,
+            existing + (isNaN(total) ? 0 : total)
+          );
+        });
+
+        const feedingValues = Array.from(feedingByDate.values());
+        let avgFeedingPerDay = 0;
+        if (feedingValues.length > 0) {
+          const totalFeeding = feedingValues.reduce((s, v) => s + v, 0);
+          avgFeedingPerDay = totalFeeding / feedingValues.length;
+        }
+
+        // ----------------- SET STATE -----------------
+        setStats({
+          activeCattle: activeCattle.length,
+          femaleCattle: femaleCattle.length,
+          maleCattle: maleCattle.length,
+          avgMilkYieldPerDay,
+          avgMilkSoldPerDay,
+          newBornCurrentYear: newBornCurrentYear.length,
+          activeDattuYojana: activeDattuYojana.length,
+          avgFeedingPerDay,
+        });
+
+        setBreedData(breeds);
+        setCategoryData(categories);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  const today = new Date().toLocaleDateString("en-GB");
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
-      {/* Header */}
+      {/* Header row */}
       <header
         style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "1.25rem",
+          justifyContent: "space-between",
+          marginBottom: "1.5rem",
         }}
       >
         <h1
@@ -59,237 +219,325 @@ export default function Dashboard() {
 
         <div
           style={{
-            padding: "0.5rem 1rem",
-            borderRadius: "999px",
-            border: "1px solid #e5e7eb",
             fontSize: "0.9rem",
-            background: "#f9fafb",
+            padding: "0.25rem 0.75rem",
+            borderRadius: "999px",
+            background: "#ffffff",
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
           }}
         >
-          <span style={{ color: "#6b7280", marginRight: "0.4rem" }}>Date:</span>
-          <strong>{formatDate(date)}</strong>
+          <strong>Date:</strong> {today}
         </div>
       </header>
 
-      {/* Summary cards */}
-      <section
+      {error && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.75rem",
+            background: "#fee2e2",
+            color: "#b91c1c",
+            fontSize: "0.9rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* =================== TOP 8 CARDS =================== */}
+      <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: "0.9rem",
-          marginBottom: "1.5rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "1rem",
+          marginBottom: "1.25rem",
         }}
       >
-        {summaryCards.map((card) => (
-          <div key={card.label} style={cardStyle}>
-            <div
-              style={{
-                fontSize: "0.8rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: "#6b7280",
-                marginBottom: "0.25rem",
-              }}
-            >
-              {card.label}
-            </div>
-            <div
-              style={{
-                fontSize: "1.4rem",
-                fontWeight: 700,
-                color: "#111827",
-              }}
-            >
-              {card.value}
-            </div>
-          </div>
-        ))}
-      </section>
+        <StatCard
+          label="Active Cattle"
+          value={formatNumber(stats.activeCattle)}
+          loading={loading}
+        />
+        <StatCard
+          label="Female Cattle"
+          value={formatNumber(stats.femaleCattle)}
+          loading={loading}
+        />
+        <StatCard
+          label="Male Cattle"
+          value={formatNumber(stats.maleCattle)}
+          loading={loading}
+        />
+        <StatCard
+          label="Avg Milk Yield / Day (L)"
+          value={formatNumber(stats.avgMilkYieldPerDay)}
+          loading={loading}
+        />
+        <StatCard
+          label="Avg Milk Sold / Day (L)"
+          value={formatNumber(stats.avgMilkSoldPerDay)}
+          loading={loading}
+        />
+        <StatCard
+          label="New Born (Current Year)"
+          value={formatNumber(stats.newBornCurrentYear)}
+          loading={loading}
+        />
+        <StatCard
+          label="Active Dattu Yojana"
+          value={formatNumber(stats.activeDattuYojana)}
+          loading={loading}
+        />
+        <StatCard
+          label="Avg Feeding / Day (Kg)"
+          value={formatNumber(stats.avgFeedingPerDay)}
+          loading={loading}
+        />
+      </div>
 
-      {/* Charts row */}
-      <section
+      {/* =================== GRAPHS SECTION =================== */}
+      <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
-          gap: "1.2rem",
-          alignItems: "stretch",
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1.1fr)",
+          gap: "1.25rem",
+          marginTop: "0.75rem",
         }}
       >
-        {/* Breed distribution chart */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelTitleStyle}>Breed Distribution</div>
-              <div style={panelSubtitleStyle}>
-                Number of cattle in each breed
-              </div>
-            </div>
-          </div>
+        {/* Vertical Breed Graph */}
+        <ChartCard title="Breed Distribution">
+          <VerticalBarChart data={breedData} />
+        </ChartCard>
 
-          <div style={{ paddingTop: "0.5rem" }}>
-            {/* Bars */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "0.75rem",
-                height: "220px",
-              }}
-            >
-              {breeds.map((breed) => {
-                const heightPct = (breed.count / maxBreed) * 100;
-                return (
-                  <div
-                    key={breed.name}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column-reverse",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "100%",
-                        borderRadius: "0.75rem 0.75rem 0.25rem 0.25rem",
-                        background:
-                          "linear-gradient(180deg, #22c55e, #16a34a, #15803d)",
-                        height: `${heightPct || 4}%`,
-                        minHeight: "6px",
-                        boxShadow: "0 6px 18px rgba(22,163,74,0.35)",
-                      }}
-                    />
-                    <div
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "#4b5563",
-                        textAlign: "center",
-                        minHeight: "2.1rem",
-                      }}
-                    >
-                      <div>{breed.name}</div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          color: "#111827",
-                          marginTop: "0.05rem",
-                        }}
-                      >
-                        {breed.count}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Cattle category chart */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelTitleStyle}>Cattle Categories</div>
-              <div style={panelSubtitleStyle}>
-                Distribution of cows, heifers, bulls & calves
-              </div>
-            </div>
-          </div>
-
-          <div style={{ paddingTop: "0.5rem" }}>
-            {categories.map((cat) => {
-              const widthPct = (cat.count / maxCategory) * 100;
-              return (
-                <div
-                  key={cat.name}
-                  style={{
-                    marginBottom: "0.7rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "0.15rem",
-                      fontSize: "0.8rem",
-                      color: "#4b5563",
-                    }}
-                  >
-                    <span>{cat.name}</span>
-                    <span style={{ fontWeight: 600, color: "#111827" }}>
-                      {cat.count}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      width: "100%",
-                      background: "#e5e7eb",
-                      borderRadius: "999px",
-                      height: "0.6rem",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${widthPct || 4}%`,
-                        height: "100%",
-                        borderRadius: "999px",
-                        background:
-                          "linear-gradient(90deg,#3b82f6,#2563eb,#1d4ed8)",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+        {/* Horizontal Category Graph */}
+        <ChartCard title="Cattle Categories">
+          <HorizontalBarChart data={categoryData} />
+        </ChartCard>
+      </div>
     </div>
   );
 }
 
-/* Helpers & styles */
+/* =================== SMALL HELPERS =================== */
 
-function formatDate(isoDate) {
-  // Expecting YYYY-MM-DD
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
+function countBy(items, keyFn) {
+  const out = {};
+  items.forEach((item) => {
+    const key = keyFn(item);
+    if (!key) return;
+    out[key] = (out[key] || 0) + 1;
+  });
+  return out;
 }
 
-const cardStyle = {
-  background: "#ffffff",
-  borderRadius: "0.9rem",
-  padding: "0.85rem 1rem",
-  boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
-  border: "1px solid #e5e7eb",
-};
+function StatCard({ label, value, loading }) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        borderRadius: "0.75rem",
+        padding: "1.1rem 1.4rem",
+        boxShadow: "0 10px 25px rgba(15,23,42,0.06)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        minHeight: "100px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.8rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: "#6b7280",
+          marginBottom: "0.35rem",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "2rem",
+          fontWeight: 700,
+          color: "#111827",
+        }}
+      >
+        {loading ? "…" : value}
+      </div>
+    </div>
+  );
+}
 
-const panelStyle = {
-  background: "#ffffff",
-  borderRadius: "0.9rem",
-  padding: "1rem 1.2rem 1.2rem",
-  boxShadow: "0 10px 25px rgba(15,23,42,0.06)",
-  border: "1px solid #e5e7eb",
-  minHeight: "260px",
-};
+function ChartCard({ title, children }) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        borderRadius: "0.75rem",
+        padding: "1.1rem 1.4rem 1.3rem",
+        boxShadow: "0 10px 25px rgba(15,23,42,0.06)",
+        minHeight: "260px",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.9rem",
+          fontWeight: 600,
+          marginBottom: "0.75rem",
+          color: "#111827",
+        }}
+      >
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
 
-const panelHeaderStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "0.4rem",
-};
+/* ============ VERTICAL BAR CHART (BREEDS) ============ */
 
-const panelTitleStyle = {
-  fontSize: "0.95rem",
-  fontWeight: 600,
-  color: "#111827",
-};
+function VerticalBarChart({ data }) {
+  if (!data || data.length === 0) {
+    return <EmptyChartPlaceholder />;
+  }
 
-const panelSubtitleStyle = {
-  fontSize: "0.78rem",
-  color: "#6b7280",
-  marginTop: "0.1rem",
-};
+  const max = Math.max(...data.map((d) => d.value), 1);
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "flex-end",
+        gap: "0.75rem",
+        padding: "0.5rem 0.25rem 0.25rem",
+      }}
+    >
+      {data.map((d) => (
+        <div
+          key={d.label}
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            fontSize: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              height: "180px",
+              width: "100%",
+              display: "flex",
+              alignItems: "flex-end",
+            }}
+          >
+            <div
+              style={{
+                width: "70%",
+                margin: "0 auto",
+                height: `${(d.value / max) * 100 || 0}%`,
+                borderRadius: "0.5rem 0.5rem 0 0",
+                background:
+                  "linear-gradient(180deg, #2563eb, #3b82f6)",
+                transition: "height 0.3s ease",
+              }}
+            />
+          </div>
+          <div style={{ marginTop: "0.35rem", color: "#111827" }}>
+            {d.value}
+          </div>
+          <div
+            style={{
+              marginTop: "0.1rem",
+              color: "#6b7280",
+              textAlign: "center",
+              lineHeight: 1.2,
+            }}
+          >
+            {d.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============ HORIZONTAL BAR CHART (CATEGORIES) ============ */
+
+function HorizontalBarChart({ data }) {
+  if (!data || data.length === 0) {
+    return <EmptyChartPlaceholder />;
+  }
+
+  const max = Math.max(...data.map((d) => d.value), 1);
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+        paddingTop: "0.25rem",
+      }}
+    >
+      {data.map((d) => (
+        <div
+          key={d.label}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            fontSize: "0.8rem",
+          }}
+        >
+          <div style={{ width: "70px", color: "#4b5563" }}>{d.label}</div>
+          <div
+            style={{
+              flex: 1,
+              height: "10px",
+              borderRadius: "999px",
+              background: "#e5e7eb",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${(d.value / max) * 100 || 0}%`,
+                height: "100%",
+                borderRadius: "999px",
+                background:
+                  "linear-gradient(90deg, #2563eb, #3b82f6)",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+          <div style={{ width: "36px", textAlign: "right", color: "#111827" }}>
+            {d.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyChartPlaceholder() {
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "0.8rem",
+        color: "#9ca3af",
+      }}
+    >
+      No data available
+    </div>
+  );
+}

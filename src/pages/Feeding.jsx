@@ -1,5 +1,6 @@
 // src/pages/Feeding.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getFeeding, addFeeding, updateFeeding } from "../api/masterApi";
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -8,49 +9,79 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-10
 }
 
-// TEMP sample data – later we will load from backend / Google Sheet
-const SAMPLE_FEEDING = [
-  {
-    id: 1,
-    date: "2025-10-10",
-    nandini: 120,
-    surabhi: 150,
-    kaveri: 180,
-    kamadhenu: 220,
-    jayadeva: 200,
-    nandiniOld: 20,
-    totalKg: 890,
-    remarks: "Normal feeding",
-  },
-  {
-    id: 2,
-    date: "2025-10-11",
-    nandini: 110,
-    surabhi: 140,
-    kaveri: 160,
-    kamadhenu: 210,
-    jayadeva: 200,
-    nandiniOld: 30,
-    totalKg: 850,
+// Format yyyy-MM-dd -> dd/MM/yyyy for display
+function formatDisplayDate(isoDate) {
+  if (!isoDate) return "";
+  const parts = String(isoDate).split("T")[0].split("-");
+  if (parts.length !== 3) return isoDate;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
+function getEmptyForm() {
+  return {
+    date: "",
+    nandini: "",
+    surabhi: "",
+    kaveri: "",
+    kamadhenu: "",
+    jayadeva: "",
+    nandiniOld: "",
+    totalKg: "",
     remarks: "",
-  },
-];
+  };
+}
 
 export default function Feeding() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_FEEDING);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_FEEDING.length + 1);
-
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null); // ← track edit vs add
+
+  // Load data from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getFeeding();
+
+        const normalised = (data || []).map((item, idx) => ({
+          id: item.id || `${item.date || ""}#${idx}`,
+          date: item.date || "",
+          nandini: Number(item.nandini || 0),
+          surabhi: Number(item.surabhi || 0),
+          kaveri: Number(item.kaveri || 0),
+          kamadhenu: Number(item.kamadhenu || 0),
+          jayadeva: Number(item.jayadeva || 0),
+          nandiniOld: Number(item.nandiniOld || 0),
+          totalKg: Number(item.totalKg || 0),
+          remarks: item.remarks || "",
+          rowIndex: item.rowIndex || null, // sheet row index for updates
+        }));
+
+        setRows(normalised);
+      } catch (err) {
+        console.error("Failed to load feeding data", err);
+        setError("Unable to load feeding data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.date.startsWith(month)),
+    () => rows.filter((r) => (r.date || "").startsWith(month)),
     [rows, month]
   );
 
   function openForm() {
+    setEditingEntry(null); // new entry
     setForm({
       ...getEmptyForm(),
       date: month + "-01",
@@ -62,17 +93,50 @@ export default function Feeding() {
     setShowForm(false);
   }
 
-  function handleFormChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  function recalcTotal(updated) {
+    const nandini = Number(updated.nandini || 0);
+    const surabhi = Number(updated.surabhi || 0);
+    const kaveri = Number(updated.kaveri || 0);
+    const kamadhenu = Number(updated.kamadhenu || 0);
+    const jayadeva = Number(updated.jayadeva || 0);
+    const nandiniOld = Number(updated.nandiniOld || 0);
+
+    return (
+      nandini +
+      surabhi +
+      kaveri +
+      kamadhenu +
+      jayadeva +
+      nandiniOld
+    );
   }
 
-  function handleSubmit(e) {
+  function handleFormChange(e) {
+    const { name, value } = e.target;
+    setForm((prev) => {
+      const updated = { ...prev, [name]: value };
+
+      const numericFields = [
+        "nandini",
+        "surabhi",
+        "kaveri",
+        "kamadhenu",
+        "jayadeva",
+        "nandiniOld",
+      ];
+      if (numericFields.includes(name)) {
+        updated.totalKg = recalcTotal(updated);
+      }
+
+      return updated;
+    });
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    const newRow = {
-      ...form,
-      id: nextId,
+    const payload = {
+      date: form.date,
       nandini: Number(form.nandini || 0),
       surabhi: Number(form.surabhi || 0),
       kaveri: Number(form.kaveri || 0),
@@ -80,11 +144,49 @@ export default function Feeding() {
       jayadeva: Number(form.jayadeva || 0),
       nandiniOld: Number(form.nandiniOld || 0),
       totalKg: Number(form.totalKg || 0),
+      remarks: form.remarks || "",
     };
 
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
-    setShowForm(false);
+    try {
+      if (editingEntry && editingEntry.rowIndex) {
+        // ---- UPDATE EXISTING ROW ----
+        const body = {
+          ...payload,
+          rowIndex: editingEntry.rowIndex,
+        };
+        await updateFeeding(body);
+
+        const updatedRow = {
+          ...editingEntry,
+          ...payload,
+        };
+
+        setRows((prev) =>
+          prev.map((r) =>
+            r.rowIndex === editingEntry.rowIndex ? updatedRow : r
+          )
+        );
+      } else {
+        // ---- ADD NEW ROW ----
+        const res = await addFeeding(payload);
+        const newId = res.id || `${form.date}#${rows.length + 1}`;
+        const rowIndex = res.rowIndex || null;
+
+        const newRow = {
+          id: newId,
+          rowIndex,
+          ...payload,
+        };
+
+        setRows((prev) => [...prev, newRow]);
+      }
+
+      setShowForm(false);
+      setEditingEntry(null);
+    } catch (err) {
+      console.error("Error saving feeding entry", err);
+      alert("Error saving feeding entry: " + err.message);
+    }
   }
 
   function openView(entry) {
@@ -93,6 +195,22 @@ export default function Feeding() {
 
   function closeView() {
     setSelectedEntry(null);
+  }
+
+  function openEdit(entry) {
+    setEditingEntry(entry);
+    setForm({
+      date: entry.date || "",
+      nandini: entry.nandini ?? "",
+      surabhi: entry.surabhi ?? "",
+      kaveri: entry.kaveri ?? "",
+      kamadhenu: entry.kamadhenu ?? "",
+      jayadeva: entry.jayadeva ?? "",
+      nandiniOld: entry.nandiniOld ?? "",
+      totalKg: entry.totalKg ?? recalcTotal(entry),
+      remarks: entry.remarks || "",
+    });
+    setShowForm(true);
   }
 
   return (
@@ -160,6 +278,22 @@ export default function Feeding() {
         </div>
       </header>
 
+      {/* Error / Loading */}
+      {error && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.5rem",
+            background: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: "0.85rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* Table */}
       <div
         style={{
@@ -195,7 +329,20 @@ export default function Feeding() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={9}
+                  style={{
+                    padding: "0.9rem 1rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Loading...
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={9}
@@ -216,7 +363,7 @@ export default function Feeding() {
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.date}</td>
+                  <td style={tdStyle}>{formatDisplayDate(row.date)}</td>
                   <td style={tdStyle}>{row.nandini}</td>
                   <td style={tdStyle}>{row.surabhi}</td>
                   <td style={tdStyle}>{row.kaveri}</td>
@@ -225,14 +372,30 @@ export default function Feeding() {
                   <td style={tdStyle}>{row.nandiniOld}</td>
                   <td style={tdStyle}>{row.totalKg}</td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => openView(row)}
-                      style={viewBtnStyle}
-                      title="View details"
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        gap: "0.4rem",
+                        alignItems: "center",
+                      }}
                     >
-                      👁️ View
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => openView(row)}
+                        style={viewBtnStyle}
+                        title="View details"
+                      >
+                        👁️ View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(row)}
+                        style={editBtnStyle}
+                        title="Edit entry"
+                      >
+                        ✏️ Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -263,7 +426,7 @@ export default function Feeding() {
                   fontSize: "1.2rem",
                 }}
               >
-                Feeding Form
+                {editingEntry ? "Edit Feeding Entry" : "Feeding Form"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -395,7 +558,7 @@ export default function Feeding() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedEntry.date}
+                  {formatDisplayDate(selectedEntry.date)}
                 </div>
               </div>
               <button
@@ -416,15 +579,30 @@ export default function Feeding() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Date" value={selectedEntry.date} />
-              <DetailItem label="Nandini Shed (kg)" value={selectedEntry.nandini} />
-              <DetailItem label="Surabhi Shed (kg)" value={selectedEntry.surabhi} />
-              <DetailItem label="Kaveri Shed (kg)" value={selectedEntry.kaveri} />
+              <DetailItem
+                label="Date"
+                value={formatDisplayDate(selectedEntry.date)}
+              />
+              <DetailItem
+                label="Nandini Shed (kg)"
+                value={selectedEntry.nandini}
+              />
+              <DetailItem
+                label="Surabhi Shed (kg)"
+                value={selectedEntry.surabhi}
+              />
+              <DetailItem
+                label="Kaveri Shed (kg)"
+                value={selectedEntry.kaveri}
+              />
               <DetailItem
                 label="Kamadhenu Shed (kg)"
                 value={selectedEntry.kamadhenu}
               />
-              <DetailItem label="Jayadeva Shed (kg)" value={selectedEntry.jayadeva} />
+              <DetailItem
+                label="Jayadeva Shed (kg)"
+                value={selectedEntry.jayadeva}
+              />
               <DetailItem
                 label="Nandini Old Shed (kg)"
                 value={selectedEntry.nandiniOld}
@@ -443,20 +621,6 @@ export default function Feeding() {
 }
 
 /* helpers and styles */
-
-function getEmptyForm() {
-  return {
-    date: "",
-    nandini: "",
-    surabhi: "",
-    kaveri: "",
-    kamadhenu: "",
-    jayadeva: "",
-    nandiniOld: "",
-    totalKg: "",
-    remarks: "",
-  };
-}
 
 const thStyle = {
   padding: "0.6rem 1rem",
@@ -480,6 +644,19 @@ const viewBtnStyle = {
   padding: "0.25rem 0.7rem",
   background: "#e0e7ff",
   color: "#1d4ed8",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+};
+
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#fef3c7",
+  color: "#b45309",
   fontSize: "0.8rem",
   cursor: "pointer",
   display: "inline-flex",

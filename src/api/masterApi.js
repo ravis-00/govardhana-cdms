@@ -1,11 +1,12 @@
 // web-cdms/src/api/masterApi.js
 
+// 🔗 Deployed Apps Script Web App URL (must end with /exec)
 const BASE_URL =
   "https://script.google.com/macros/s/AKfycbzcJJcBinxjKRVkkhjX66VqzmKVGhelSlHu6KB1mjBYOqQ2N0u1a-BZCNwLNU8ZNtFFMw/exec";
 // example: "https://script.googleusercontent.com/macros/s/AKfycb...../exec"
 
 /**
- * Small helper to build a URL with query parameters
+ * Small helper to build a URL with query parameters.
  */
 function buildUrl(action, params = {}) {
   const url = new URL(BASE_URL);
@@ -19,7 +20,10 @@ function buildUrl(action, params = {}) {
 }
 
 /**
- * Unified response handler for all API calls
+ * Unified response handler for all API calls.
+ * Supports both:
+ *   { success, data, error }
+ * and plain arrays/objects.
  */
 async function handleResponse(res) {
   if (!res.ok) {
@@ -44,7 +48,7 @@ async function handleResponse(res) {
 }
 
 /**
- * Generic GET wrapper
+ * Generic GET wrapper.
  */
 async function getRequest(action, params) {
   const res = await fetch(buildUrl(action, params), {
@@ -55,7 +59,7 @@ async function getRequest(action, params) {
 }
 
 /**
- * Generic POST wrapper
+ * Generic POST wrapper.
  */
 async function postRequest(action, body) {
   const res = await fetch(buildUrl(action), {
@@ -66,7 +70,15 @@ async function postRequest(action, body) {
   return handleResponse(res);
 }
 
-// === Public API functions used by the React app ===
+// ============================================================================
+// === Public API functions used by the React app =============================
+// ============================================================================
+//
+// New naming convention: getXxx / addXxx / updateXxx
+// Older pages sometimes use fetchXxx – we keep aliases later so both work.
+//
+
+// ---- CATTLE / MASTER ----
 
 export async function getCattle() {
   return getRequest("getCattle");
@@ -94,54 +106,120 @@ export async function updateCattle(payload) {
   return postRequest("updateCattle", payload);
 }
 
+// ---- MILK YIELD ----
+
 /**
- * Milk Yield – list all records from Milk Yield sheet
+ * Milk Yield – list all records from Milk Yield sheet.
  */
 export async function getMilkYield() {
   return getRequest("getMilkYield");
 }
 
+// ---- BIO WASTE ----
+
 export async function getBioWaste() {
   return getRequest("getBioWaste");
 }
+// (Later you can add addBioWaste / updateBioWaste if needed)
+
+// ---- VACCINATION / DEWORMING ----
 
 export async function getVaccine() {
   return getRequest("getVaccine");
 }
+// (Similarly, add addVaccine / updateVaccine when backend is ready)
 
-// --- Medical Treatment (Health sheet) ---
+// ---- MEDICAL TREATMENT (Health sheet) ----
 
 export async function getTreatments() {
-  const res = await fetch(`${BASE_URL}?action=getTreatments`);
-  const json = await res.json();
-  if (!json.success) {
-    throw new Error(json.error || "Failed to load medical treatment data");
-  }
-  return json.data || [];
+  return getRequest("getTreatments");
 }
 
 export async function addTreatment(payload) {
-  const res = await fetch(`${BASE_URL}?action=addTreatment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json();
-  if (!json.success) {
-    throw new Error(json.error || "Failed to add treatment entry");
-  }
-  return json;
+  return postRequest("addTreatment", payload);
 }
 
 export async function updateTreatment(payload) {
-  const res = await fetch(`${BASE_URL}?action=updateTreatment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json();
-  if (!json.success) {
-    throw new Error(json.error || "Failed to update treatment entry");
-  }
-  return json;
+  return postRequest("updateTreatment", payload);
 }
+
+// ---- NEW BORN (New Born sheet) ----
+
+export async function getNewBorn() {
+  return getRequest("getNewBorn");
+}
+
+export async function addNewBorn(payload) {
+  // backend returns { success: true, id: ... }
+  return postRequest("addNewBorn", payload);
+}
+
+export async function updateNewBorn(payload) {
+  return postRequest("updateNewBorn", payload);
+}
+
+// ---- FEEDING (Feeding sheet) ----
+
+export async function getFeeding() {
+  return getRequest("getFeeding");
+}
+
+export async function addFeeding(payload) {
+  // backend returns { success: true, id: ... }
+  return postRequest("addFeeding", payload);
+}
+
+export async function updateFeeding(payload) {
+  return postRequest("updateFeeding", payload);
+}
+
+// ---- DATTU YOJANA (Dattu sheet) ----
+
+export async function getDattuYojana() {
+  return getRequest("getDattuYojana");
+}
+
+export async function addDattuYojana(payload) {
+  return postRequest("addDattuYojana", payload);
+}
+
+export async function updateDattuYojana(payload) {
+  return postRequest("updateDattuYojana", payload);
+}
+
+// ============================================================================
+// === Backwards-compatibility aliases =======================================
+// ============================================================================
+//
+// Older pages might still import these names:
+//   fetchCattle, fetchActiveCattle, fetchDeathRecords,
+//   fetchMilkYield, fetchBioWaste, fetchVaccine,
+//   fetchTreatments, fetchNewBorn, fetchFeeding, fetchDattuYojana, ...
+// To avoid having to touch every page, we simply re-export them here.
+//
+
+// Cattle / master
+export const fetchCattle = getCattle;
+export const fetchActiveCattle = getActiveCattle;
+export const fetchDeathRecords = getDeathRecords;
+
+// Milk yield
+export const fetchMilkYield = getMilkYield;
+
+// Bio waste
+export const fetchBioWaste = getBioWaste;
+
+// Vaccine / deworming
+export const fetchVaccine = getVaccine;
+
+// Medical treatment
+export const fetchTreatments = getTreatments;
+
+// New born
+export const fetchNewBorn = getNewBorn;
+
+// Feeding
+export const fetchFeeding = getFeeding;
+
+// Dattu Yojana
+export const fetchDattuYojana = getDattuYojana;

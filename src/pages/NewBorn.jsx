@@ -1,5 +1,10 @@
 // src/pages/NewBorn.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  getNewBorn,
+  addNewBorn,
+  updateNewBorn,
+} from "../api/masterApi"; // adjust path if needed
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -8,59 +13,97 @@ function getCurrentYearMonth() {
   return `${year}-${month}`; // e.g. 2025-12
 }
 
-// TEMP sample data – later load from backend / sheet
-const SAMPLE_NEWBORN = [
-  {
-    id: 1,
-    birthDate: "2025-12-01",
-    cattleId: "630668",
-    calfId: "NB-2025-001",
-    calfName: "Ganga Calf",
-    shed: "Punyakoti",
-    gender: "Female",
-    colour: "White",
-    breed: "Hallikar",
-    birthType: "Single",
-    deliveryType: "Normal",
-    healthyAtBirth: "Yes",
-    remarks: "Active and feeding well",
-  },
-  {
-    id: 2,
-    birthDate: "2025-12-03",
-    cattleId: "631491",
-    calfId: "NB-2025-002",
-    calfName: "Shiva Calf",
-    shed: "Samrakshana",
-    gender: "Male",
-    colour: "Brown",
-    breed: "Gir",
-    birthType: "Single",
-    deliveryType: "Assisted",
-    healthyAtBirth: "Yes",
+// Format yyyy-MM-dd -> dd/MM/yyyy for display
+function formatDisplayDate(isoDate) {
+  if (!isoDate) return "";
+  const parts = String(isoDate).split("T")[0].split("-");
+  if (parts.length !== 3) return isoDate;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
+function getEmptyForm() {
+  return {
+    birthDate: "",
+    cattleId: "", // Mother Cow Cattle ID
+    calfId: "", // Calf Cattle ID
+    calfName: "",
+    shed: "",
+    gender: "",
+    colour: "",
+    breed: "",
+    birthType: "",
+    deliveryType: "",
+    healthyAtBirth: "",
     remarks: "",
-  },
-];
+  };
+}
 
 export default function NewBorn() {
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState(SAMPLE_NEWBORN);
-  const [showForm, setShowForm] = useState(false);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(getEmptyForm());
-  const [nextId, setNextId] = useState(SAMPLE_NEWBORN.length + 1);
-
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [error, setError] = useState("");
+
+  // Load from backend once
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getNewBorn();
+
+        // Normalise backend fields -> UI shape
+        const normalised = (data || []).map((item) => ({
+          id: item.id,
+          birthDate: item.dateOfBirth || "", // yyyy-MM-dd
+          cattleId: item.motherCattleId || "", // Mother Cow Cattle ID
+          calfId: item.cattleId || "", // Calf Cattle ID
+          calfName: item.cattleName || "",
+          shed: item.locationShed || "",
+          gender: item.gender || item.cattleGender || "",
+          colour: item.colour || "",
+          breed: item.breed || "",
+          birthType: "", // not in sheet currently
+          deliveryType: "", // not in sheet currently
+          healthyAtBirth: item.calfStatus || "",
+          remarks: item.remarks || "",
+        }));
+
+        setRows(normalised);
+      } catch (err) {
+        console.error("Failed to load New Born data", err);
+        setError("Unable to load New Born data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.birthDate.startsWith(month)),
+    () =>
+      rows.filter((r) =>
+        (r.birthDate || "").startsWith(month) // birthDate is yyyy-MM-dd
+      ),
     [rows, month]
   );
 
   function openForm() {
+    setEditingEntry(null);
     setForm({
       ...getEmptyForm(),
       birthDate: month + "-01",
     });
+    setShowForm(true);
+  }
+
+  function openEdit(entry) {
+    setEditingEntry(entry);
+    setForm({ ...entry });
     setShowForm(true);
   }
 
@@ -73,25 +116,66 @@ export default function NewBorn() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-
-    const newRow = {
-      ...form,
-      id: nextId,
-    };
-
-    setRows((prev) => [...prev, newRow]);
-    setNextId((id) => id + 1);
-    setShowForm(false);
-  }
-
   function openView(entry) {
     setSelectedEntry(entry);
   }
 
   function closeView() {
     setSelectedEntry(null);
+  }
+
+  // Map UI form -> backend payload
+  function buildPayload() {
+    return {
+      id: editingEntry?.id,
+      // Sheet columns:
+      // ID, Cattle Name, Colour, Cattle Gender, Breed,
+      // Date of Birth, Time of Birth, Weight at Birth,
+      // Mother Cow Cattle ID, Father Bull Cattle Breed, Father Bull Cattle ID,
+      // Any Permanent Disability at Birth?, Permanent Disability details,
+      // Location/Shed, Calf Status, Cattle ID, Date of Death, Time of Death,
+      // Cause of Death Details, Picture, Picture 2, Remarks
+
+      cattleName: form.calfName,
+      colour: form.colour,
+      gender: form.gender,
+      breed: form.breed,
+      dateOfBirth: form.birthDate, // yyyy-MM-dd
+      motherCattleId: form.cattleId,
+      locationShed: form.shed,
+      calfStatus: form.healthyAtBirth,
+      cattleId: form.calfId,
+      remarks: form.remarks,
+      // other columns left blank / unchanged
+    };
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    try {
+      const payload = buildPayload();
+
+      if (editingEntry) {
+        await updateNewBorn(payload);
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === editingEntry.id ? { ...row, ...form } : row
+          )
+        );
+      } else {
+        const res = await addNewBorn(payload);
+        const newId = res.id || payload.id;
+        const newRow = { ...form, id: newId };
+        setRows((prev) => [...prev, newRow]);
+      }
+
+      setShowForm(false);
+      setEditingEntry(null);
+    } catch (err) {
+      console.error("Error saving New Born entry", err);
+      alert("Error saving entry: " + err.message);
+    }
   }
 
   return (
@@ -159,6 +243,22 @@ export default function NewBorn() {
         </div>
       </header>
 
+      {/* Error / Loading */}
+      {error && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.5rem",
+            background: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: "0.85rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* Table */}
       <div
         style={{
@@ -194,7 +294,20 @@ export default function NewBorn() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={9}
+                  style={{
+                    padding: "0.9rem 1rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Loading...
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={9}
@@ -215,7 +328,7 @@ export default function NewBorn() {
                     backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
                   }}
                 >
-                  <td style={tdStyle}>{row.birthDate}</td>
+                  <td style={tdStyle}>{formatDisplayDate(row.birthDate)}</td>
                   <td style={tdStyle}>{row.cattleId}</td>
                   <td style={tdStyle}>{row.calfId}</td>
                   <td style={tdStyle}>{row.calfName}</td>
@@ -231,6 +344,14 @@ export default function NewBorn() {
                       title="View details"
                     >
                       👁️ View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(row)}
+                      style={editBtnStyle}
+                      title="Edit entry"
+                    >
+                      ✏️ Edit
                     </button>
                   </td>
                 </tr>
@@ -262,7 +383,7 @@ export default function NewBorn() {
                   fontSize: "1.2rem",
                 }}
               >
-                New Born Form
+                {editingEntry ? "Edit New Born" : "New Born Form"}
               </h2>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -426,8 +547,9 @@ export default function NewBorn() {
                   style={inputStyle}
                 >
                   <option value="">Select</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
+                  <option value="Healthy">Healthy</option>
+                  <option value="Weak">Weak</option>
+                  <option value="Died at Birth">Died at Birth</option>
                 </select>
               </Field>
 
@@ -478,7 +600,8 @@ export default function NewBorn() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedEntry.birthDate} – {selectedEntry.calfId}
+                  {formatDisplayDate(selectedEntry.birthDate)} –{" "}
+                  {selectedEntry.calfId}
                 </div>
               </div>
               <button
@@ -499,7 +622,10 @@ export default function NewBorn() {
                 fontSize: "0.85rem",
               }}
             >
-              <DetailItem label="Birth Date" value={selectedEntry.birthDate} />
+              <DetailItem
+                label="Birth Date"
+                value={formatDisplayDate(selectedEntry.birthDate)}
+              />
               <DetailItem
                 label="Mother Cattle ID"
                 value={selectedEntry.cattleId}
@@ -530,23 +656,6 @@ export default function NewBorn() {
 
 /* helpers and styles */
 
-function getEmptyForm() {
-  return {
-    birthDate: "",
-    cattleId: "",
-    calfId: "",
-    calfName: "",
-    shed: "",
-    gender: "",
-    colour: "",
-    breed: "",
-    birthType: "",
-    deliveryType: "",
-    healthyAtBirth: "",
-    remarks: "",
-  };
-}
-
 const thStyle = {
   padding: "0.6rem 1rem",
   borderBottom: "1px solid #e5e7eb",
@@ -574,6 +683,20 @@ const viewBtnStyle = {
   display: "inline-flex",
   alignItems: "center",
   gap: "0.2rem",
+};
+
+const editBtnStyle = {
+  border: "none",
+  borderRadius: "999px",
+  padding: "0.25rem 0.7rem",
+  background: "#fee2e2",
+  color: "#b91c1c",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.2rem",
+  marginLeft: "0.35rem",
 };
 
 const overlayStyle = {
