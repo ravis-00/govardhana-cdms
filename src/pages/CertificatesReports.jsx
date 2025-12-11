@@ -1,5 +1,17 @@
 // src/pages/CertificatesReports.jsx
 import React, { useState, useRef } from "react";
+import { fetchBirthReport } from "../api/masterApi";
+
+/** Helper: parse "dd-MM-yyyy" into Date (or null if invalid) */
+function parseDdMmYyyy(dateStr) {
+  if (!dateStr) return null;
+  const parts = String(dateStr).split("-");
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts.map((p) => Number(p));
+  if (!d || !m || !y) return null;
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt.getTime()) ? null : dt;
+}
 
 export default function CertificatesReports() {
   // Which certificate modal is open: 'birth' | 'death' | 'incoming' | 'dattu' | null
@@ -13,12 +25,16 @@ export default function CertificatesReports() {
   const [currentReportTitle, setCurrentReportTitle] = useState("");
   const [reportRows, setReportRows] = useState([]);
 
-  // For filters, we keep one simple state object (demo only)
+  // Generic filter state (used by the modal)
   const [filter, setFilter] = useState({
     fromDate: "",
     toDate: "",
     extra: "",
   });
+
+  // Loading + error for current report (mainly used for Birth Report)
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   // ref for the current report table (used by Print / PDF)
   const tableRef = useRef(null);
@@ -40,20 +56,8 @@ export default function CertificatesReports() {
         "Father bull breed",
         "Father ear tag number",
       ],
-      sampleRows: [
-        [
-          "02-11-2025",
-          "5:08 PM",
-          "RAGHU NATHA",
-          "Mix",
-          "Male",
-          "BROWN WITH WHITE",
-          "Kankrej",
-          "634445",
-          "Devani",
-          "000000",
-        ],
-      ],
+      // sampleRows are kept only as fallback, not used normally
+      sampleRows: [],
     },
     death: {
       id: "death",
@@ -163,12 +167,14 @@ export default function CertificatesReports() {
     },
   };
 
+  /** Open a non-birth report using static sample rows for now */
   function openReport(id) {
     const cfg = REPORT_CONFIG[id];
     if (!cfg) return;
     setCurrentReportId(id);
     setCurrentReportTitle(cfg.title);
-    setReportRows(cfg.sampleRows); // currently using sample data
+    setReportRows(cfg.sampleRows || []);
+    setErrorMsg("");
   }
 
   function handleFilterChange(e) {
@@ -176,16 +182,80 @@ export default function CertificatesReports() {
     setFilter((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleReportFilterSubmit(e) {
-    e.preventDefault();
-    if (!openReportFilter) return;
-    // For now we ignore filter values and just load the sample rows
-    openReport(openReportFilter);
-    setOpenReportFilter(null);
-  }
-
   function resetFilter() {
     setFilter({ fromDate: "", toDate: "", extra: "" });
+  }
+
+  /** Apply filters for Birth Report on the client side */
+  function applyBirthFilters(allRows, filterState) {
+    let rows = Array.isArray(allRows) ? [...allRows] : [];
+
+    const { fromDate, toDate, extra } = filterState;
+    let from = fromDate ? new Date(fromDate) : null;
+    let to = toDate ? new Date(toDate) : null;
+    if (to) {
+      // include entire 'to' day
+      to.setHours(23, 59, 59, 999);
+    }
+
+    rows = rows.filter((row) => {
+      const d = parseDdMmYyyy(row[0]); // first col is "dd-MM-yyyy"
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+
+    if (extra) {
+      const term = extra.toLowerCase();
+      // Breed is column index 3 in our array
+      rows = rows.filter((row) =>
+        String(row[3] || "").toLowerCase().includes(term)
+      );
+    }
+
+    return rows;
+  }
+
+  /** Load Birth Report from Apps Script + apply filters */
+  async function loadBirthReportWithFilters(filterState) {
+    setLoading(true);
+    setErrorMsg("");
+    setCurrentReportId("birth");
+    setCurrentReportTitle(REPORT_CONFIG.birth.title);
+
+    try {
+      const allRows = await fetchBirthReport(); // array of arrays from backend
+      const filtered = applyBirthFilters(allRows, filterState);
+
+      setReportRows(filtered);
+      // No error if there are simply no records; table will show the empty message
+    } catch (err) {
+      console.error("Birth report error:", err);
+      setReportRows([]);
+      setErrorMsg(
+        "Unable to load Birth Report from Google Sheets. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** When user clicks "Apply Filters" in the modal */
+  async function handleReportFilterSubmit(e) {
+    e.preventDefault();
+    if (!openReportFilter) return;
+
+    const id = openReportFilter;
+    setOpenReportFilter(null);
+
+    if (id === "birth") {
+      // Real data from Google Sheets
+      await loadBirthReportWithFilters(filter);
+    } else {
+      // Other reports still use local sample data
+      openReport(id);
+    }
   }
 
   // Helper for report filter label
@@ -508,12 +578,35 @@ export default function CertificatesReports() {
                   Data loaded from Google Sheets for the selected period and
                   filters.
                 </p>
+                {loading && (
+                  <p
+                    style={{
+                      margin: "0.25rem 0 0",
+                      fontSize: "0.8rem",
+                      color: "#2563eb",
+                    }}
+                  >
+                    Loading data… please wait.
+                  </p>
+                )}
+                {!!errorMsg && (
+                  <p
+                    style={{
+                      margin: "0.25rem 0 0",
+                      fontSize: "0.8rem",
+                      color: "#b91c1c",
+                    }}
+                  >
+                    {errorMsg}
+                  </p>
+                )}
               </div>
               <div style={{ display: "flex", gap: "0.4rem" }}>
                 <button
                   style={secondaryButtonStyle}
                   type="button"
                   onClick={handleDownloadCsv}
+                  disabled={loading}
                 >
                   Download CSV
                 </button>
@@ -521,6 +614,7 @@ export default function CertificatesReports() {
                   style={secondaryButtonStyle}
                   type="button"
                   onClick={handleDownloadPdf}
+                  disabled={loading}
                 >
                   Download PDF
                 </button>
@@ -528,6 +622,7 @@ export default function CertificatesReports() {
                   style={secondaryButtonStyle}
                   type="button"
                   onClick={handlePrint}
+                  disabled={loading}
                 >
                   Print
                 </button>
@@ -554,7 +649,9 @@ export default function CertificatesReports() {
                         }
                         style={emptyCellStyle}
                       >
-                        No records found for selected filters.
+                        {loading
+                          ? "Loading..."
+                          : "No records found for selected filters."}
                       </td>
                     </tr>
                   ) : (

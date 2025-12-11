@@ -106,6 +106,20 @@ export async function updateCattle(payload) {
   return postRequest("updateCattle", payload);
 }
 
+// ---- BIRTH REPORT (Certificates & Reports page) ----
+
+/**
+ * Birth Report – returns an array of rows (arrays) from Apps Script
+ * Each row: [
+ *   Date, Time, Name, Breed, Gender, Colour,
+ *   Mother cow breed, Mother ear tag number,
+ *   Father bull breed, Father ear tag number
+ * ]
+ */
+export async function getBirthReport() {
+  return getRequest("getBirthReport");
+}
+
 // ---- MILK YIELD ----
 
 /**
@@ -202,6 +216,9 @@ export async function updateDattuYojana(payload) {
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
+
+// Birth Report (used in CertificatesReports.jsx)
+export const fetchBirthReport = getBirthReport;
 
 // Milk yield
 export const fetchMilkYield = getMilkYield;
