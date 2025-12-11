@@ -1,5 +1,5 @@
 // src/pages/CertificatesReports.jsx
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 export default function CertificatesReports() {
   // Which certificate modal is open: 'birth' | 'death' | 'incoming' | 'dattu' | null
@@ -8,7 +8,7 @@ export default function CertificatesReports() {
   // Which report filter modal is open: reportId or null
   const [openReportFilter, setOpenReportFilter] = useState(null);
 
-  // Current report being displayed + mock rows
+  // Current report being displayed + rows
   const [currentReportId, setCurrentReportId] = useState(null);
   const [currentReportTitle, setCurrentReportTitle] = useState("");
   const [reportRows, setReportRows] = useState([]);
@@ -20,21 +20,53 @@ export default function CertificatesReports() {
     extra: "",
   });
 
+  // ref for the current report table (used by Print / PDF)
+  const tableRef = useRef(null);
+
   // Report config (columns + sample rows)
   const REPORT_CONFIG = {
     birth: {
       id: "birth",
       title: "Date-wise Birth Report",
-      columns: ["Date", "Calf ID", "Tag No", "Name", "Sex", "Breed", "Dam", "Sire"],
+      columns: [
+        "Date",
+        "Time",
+        "Name",
+        "Breed",
+        "Gender",
+        "Colour",
+        "Mother cow breed",
+        "Mother ear tag number",
+        "Father bull breed",
+        "Father ear tag number",
+      ],
       sampleRows: [
-        ["2025-01-02", "NB-001", "700101", "Shiva", "Male", "Hallikar", "Vasundara", "Rudra"],
-        ["2025-01-05", "NB-002", "700102", "Lakshmi", "Female", "Hallikar", "Ganga", "Rudra"],
+        [
+          "02-11-2025",
+          "5:08 PM",
+          "RAGHU NATHA",
+          "Mix",
+          "Male",
+          "BROWN WITH WHITE",
+          "Kankrej",
+          "634445",
+          "Devani",
+          "000000",
+        ],
       ],
     },
     death: {
       id: "death",
       title: "Date-wise Death Report",
-      columns: ["Date", "Animal ID", "Tag No", "Name", "Breed", "Age (yrs)", "Cause"],
+      columns: [
+        "Date",
+        "Animal ID",
+        "Tag No",
+        "Name",
+        "Breed",
+        "Age (yrs)",
+        "Cause",
+      ],
       sampleRows: [
         ["2025-01-03", "A-501001", "650201", "Gouri", "Hallikar", "9", "Old age"],
       ],
@@ -42,25 +74,73 @@ export default function CertificatesReports() {
     sales: {
       id: "sales",
       title: "Cattle Sales Report",
-      columns: ["Sale Date", "Animal ID", "Tag No", "Name", "Buyer Name", "Amount", "Mode"],
+      columns: [
+        "Sale Date",
+        "Animal ID",
+        "Tag No",
+        "Name",
+        "Buyer Name",
+        "Amount",
+        "Mode",
+      ],
       sampleRows: [
-        ["2025-01-10", "A-601010", "680101", "Surabhi", "Shree Dairy", "45000", "NEFT"],
+        [
+          "2025-01-10",
+          "A-601010",
+          "680101",
+          "Surabhi",
+          "Shree Dairy",
+          "45000",
+          "NEFT",
+        ],
       ],
     },
     incoming: {
       id: "incoming",
       title: "Incoming Cattle Report",
-      columns: ["Date", "Animal ID", "Tag No", "Name", "Breed", "Source", "Type"],
+      columns: [
+        "Date",
+        "Animal ID",
+        "Tag No",
+        "Name",
+        "Breed",
+        "Source",
+        "Type",
+      ],
       sampleRows: [
-        ["2025-01-01", "A-700900", "690101", "Kamala", "Hallikar", "Chamarajanagar Farmer", "Purchase"],
+        [
+          "2025-01-01",
+          "A-700900",
+          "690101",
+          "Kamala",
+          "Hallikar",
+          "Chamarajanagar Farmer",
+          "Purchase",
+        ],
       ],
     },
     dattu: {
       id: "dattu",
       title: "Dattu Yojana Report",
-      columns: ["Date", "Adopter Name", "Cattle Tag", "Cattle Name", "Breed", "Amount", "Type"],
+      columns: [
+        "Date",
+        "Adopter Name",
+        "Cattle Tag",
+        "Cattle Name",
+        "Breed",
+        "Amount",
+        "Type",
+      ],
       sampleRows: [
-        ["2025-01-04", "Smt. Meera Rao", "631228", "Vasundara", "Hallikar", "25000", "Shashwatha Dattu"],
+        [
+          "2025-01-04",
+          "Smt. Meera Rao",
+          "631228",
+          "Vasundara",
+          "Hallikar",
+          "25000",
+          "Shashwatha Dattu",
+        ],
       ],
     },
     milk: {
@@ -88,7 +168,7 @@ export default function CertificatesReports() {
     if (!cfg) return;
     setCurrentReportId(id);
     setCurrentReportTitle(cfg.title);
-    setReportRows(cfg.sampleRows);
+    setReportRows(cfg.sampleRows); // currently using sample data
   }
 
   function handleFilterChange(e) {
@@ -151,6 +231,119 @@ export default function CertificatesReports() {
     }
   }
 
+  /* ---------- EXPORT / PRINT HELPERS ---------- */
+
+  function escapeCsvValue(value) {
+    if (value == null) return "";
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  function handleDownloadCsv() {
+    if (!currentReportId) {
+      alert("Please open a report first.");
+      return;
+    }
+    if (!reportRows || reportRows.length === 0) {
+      alert("No data available to download.");
+      return;
+    }
+
+    const cfg = REPORT_CONFIG[currentReportId];
+    const header = cfg.columns || [];
+
+    const lines = [];
+    lines.push(header.map(escapeCsvValue).join(","));
+    reportRows.forEach((row) => {
+      lines.push(row.map(escapeCsvValue).join(","));
+    });
+
+    const csvContent = lines.join("\r\n");
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download =
+      (cfg.title || "report").toLowerCase().replace(/\s+/g, "-") + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function openPrintWindow() {
+    if (!currentReportId || !tableRef.current) {
+      alert("Please open a report first.");
+      return;
+    }
+
+    const title = currentReportTitle || "Report";
+    const html = `
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              padding: 24px;
+            }
+            h1 {
+              font-size: 18px;
+              margin-bottom: 16px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+            th, td {
+              border: 1px solid #ccc;
+              padding: 4px 6px;
+              text-align: left;
+            }
+            th {
+              background: #f5f5f5;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          ${tableRef.current.outerHTML}
+        </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank", "width=1024,height=768");
+    if (!printWin) {
+      alert(
+        "Popup blocked. Please allow popups for this site to print/download PDF."
+      );
+      return;
+    }
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    printWin.print(); // user can choose printer or 'Save as PDF'
+  }
+
+  function handleDownloadPdf() {
+    // Use browser print dialog; user can choose "Save as PDF"
+    openPrintWindow();
+  }
+
+  function handlePrint() {
+    openPrintWindow();
+  }
+
+  /* ---------- RENDER ---------- */
+
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
       {/* Header */}
@@ -163,9 +356,18 @@ export default function CertificatesReports() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Certificates & Reports</h1>
-          <p style={{ margin: "0.3rem 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
-            Generate standard certificates and view key operational reports for Govardhana Goshala.
+          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>
+            Certificates &amp; Reports
+          </h1>
+          <p
+            style={{
+              margin: "0.3rem 0 0",
+              fontSize: "0.9rem",
+              color: "#6b7280",
+            }}
+          >
+            Generate standard certificates and view key operational reports for
+            Govardhana Goshala.
           </p>
         </div>
       </header>
@@ -175,7 +377,8 @@ export default function CertificatesReports() {
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Certificates</h2>
           <p style={sectionSubtitleStyle}>
-            These certificates will be generated in fixed formats for donors and record-keeping.
+            These certificates will be generated in fixed formats for donors and
+            record-keeping.
           </p>
         </div>
 
@@ -208,7 +411,8 @@ export default function CertificatesReports() {
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Reports</h2>
           <p style={sectionSubtitleStyle}>
-            View date-wise performance and activity across key operations. Later these will be driven by Google Sheets.
+            View date-wise performance and activity across key operations.
+            Filters are applied on the data loaded from Google Sheets.
           </p>
         </div>
 
@@ -285,7 +489,13 @@ export default function CertificatesReports() {
               }}
             >
               <div>
-                <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "1rem",
+                    fontWeight: 600,
+                  }}
+                >
                   {currentReportTitle}
                 </h2>
                 <p
@@ -295,18 +505,37 @@ export default function CertificatesReports() {
                     color: "#6b7280",
                   }}
                 >
-                  Showing sample data only. Later, this will apply your selected filters on Google Sheets.
+                  Data loaded from Google Sheets for the selected period and
+                  filters.
                 </p>
               </div>
               <div style={{ display: "flex", gap: "0.4rem" }}>
-                <button style={secondaryButtonStyle}>Download CSV</button>
-                <button style={secondaryButtonStyle}>Download PDF</button>
-                <button style={secondaryButtonStyle}>Print</button>
+                <button
+                  style={secondaryButtonStyle}
+                  type="button"
+                  onClick={handleDownloadCsv}
+                >
+                  Download CSV
+                </button>
+                <button
+                  style={secondaryButtonStyle}
+                  type="button"
+                  onClick={handleDownloadPdf}
+                >
+                  Download PDF
+                </button>
+                <button
+                  style={secondaryButtonStyle}
+                  type="button"
+                  onClick={handlePrint}
+                >
+                  Print
+                </button>
               </div>
             </div>
 
             <div style={{ overflowX: "auto" }}>
-              <table style={tableStyle}>
+              <table ref={tableRef} style={tableStyle}>
                 <thead>
                   <tr>
                     {REPORT_CONFIG[currentReportId].columns.map((col) => (
@@ -319,7 +548,12 @@ export default function CertificatesReports() {
                 <tbody>
                   {reportRows.length === 0 ? (
                     <tr>
-                      <td colSpan={REPORT_CONFIG[currentReportId].columns.length} style={emptyCellStyle}>
+                      <td
+                        colSpan={
+                          REPORT_CONFIG[currentReportId].columns.length
+                        }
+                        style={emptyCellStyle}
+                      >
                         No records found for selected filters.
                       </td>
                     </tr>
@@ -343,22 +577,34 @@ export default function CertificatesReports() {
 
       {/* CERTIFICATE MODALS */}
       {openCertModal === "birth" && (
-        <CertModal title="Birth Certificate" onClose={() => setOpenCertModal(null)}>
+        <CertModal
+          title="Birth Certificate"
+          onClose={() => setOpenCertModal(null)}
+        >
           <CertificateBirthForm />
         </CertModal>
       )}
       {openCertModal === "death" && (
-        <CertModal title="Death Certificate" onClose={() => setOpenCertModal(null)}>
+        <CertModal
+          title="Death Certificate"
+          onClose={() => setOpenCertModal(null)}
+        >
           <CertificateDeathForm />
         </CertModal>
       )}
       {openCertModal === "incoming" && (
-        <CertModal title="Incoming Cow Certificate" onClose={() => setOpenCertModal(null)}>
+        <CertModal
+          title="Incoming Cow Certificate"
+          onClose={() => setOpenCertModal(null)}
+        >
           <CertificateIncomingForm />
         </CertModal>
       )}
       {openCertModal === "dattu" && (
-        <CertModal title="Dattu Yojana Certificate" onClose={() => setOpenCertModal(null)}>
+        <CertModal
+          title="Dattu Yojana Certificate"
+          onClose={() => setOpenCertModal(null)}
+        >
           <CertificateDattuForm />
         </CertModal>
       )}
@@ -383,13 +629,31 @@ export default function CertificatesReports() {
 function CertificateCard({ title, description, onClick }) {
   return (
     <button type="button" onClick={onClick} style={certCardStyle}>
-      <div style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+      <div
+        style={{
+          fontSize: "1.1rem",
+          fontWeight: 600,
+          marginBottom: "0.25rem",
+        }}
+      >
         {title}
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.6rem" }}>
+      <div
+        style={{
+          fontSize: "0.8rem",
+          color: "#6b7280",
+          marginBottom: "0.6rem",
+        }}
+      >
         {description}
       </div>
-      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#2563eb" }}>
+      <div
+        style={{
+          fontSize: "0.75rem",
+          fontWeight: 500,
+          color: "#2563eb",
+        }}
+      >
         Generate →
       </div>
     </button>
@@ -399,13 +663,31 @@ function CertificateCard({ title, description, onClick }) {
 function ReportCard({ title, description, onClick }) {
   return (
     <button type="button" onClick={onClick} style={reportCardStyle}>
-      <div style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.15rem" }}>
+      <div
+        style={{
+          fontSize: "1rem",
+          fontWeight: 600,
+          marginBottom: "0.15rem",
+        }}
+      >
         {title}
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.6rem" }}>
+      <div
+        style={{
+          fontSize: "0.8rem",
+          color: "#6b7280",
+          marginBottom: "0.6rem",
+        }}
+      >
         {description}
       </div>
-      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#2563eb" }}>
+      <div
+        style={{
+          fontSize: "0.75rem",
+          fontWeight: 500,
+          color: "#2563eb",
+        }}
+      >
         View / Download →
       </div>
     </button>
@@ -417,10 +699,7 @@ function ReportCard({ title, description, onClick }) {
 function CertModal({ title, children, onClose }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
-      <div
-        style={modalStyle}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div
           style={{
             display: "flex",
@@ -452,13 +731,17 @@ function CertModal({ title, children, onClose }) {
   );
 }
 
-function ReportFilterModal({ title, filter, extraLabel, onChange, onClose, onSubmit }) {
+function ReportFilterModal({
+  title,
+  filter,
+  extraLabel,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
   return (
     <div style={overlayStyle} onClick={onClose}>
-      <div
-        style={modalStyle}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div
           style={{
             display: "flex",
@@ -569,7 +852,9 @@ function Field({ label, children }) {
 function CertificateBirthForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert("Birth certificate generation will be implemented later (PDF via Apps Script).");
+    alert(
+      "Birth certificate generation will be implemented later (PDF via Apps Script)."
+    );
   }
 
   return (
@@ -578,7 +863,11 @@ function CertificateBirthForm() {
       style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}
     >
       <Field label="Calf ID / Tag No">
-        <input type="text" style={inputStyle} placeholder="Search / enter calf ID or tag" />
+        <input
+          type="text"
+          style={inputStyle}
+          placeholder="Search / enter calf ID or tag"
+        />
       </Field>
       <Field label="Calf Name">
         <input type="text" style={inputStyle} />
@@ -600,9 +889,19 @@ function CertificateBirthForm() {
         <input type="text" style={inputStyle} placeholder="Name / tag" />
       </Field>
       <Field label="Sire (Bull / Straw)">
-        <input type="text" style={inputStyle} placeholder="Name / tag / straw code" />
+        <input
+          type="text"
+          style={inputStyle}
+          placeholder="Name / tag / straw code"
+        />
       </Field>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "0.4rem",
+        }}
+      >
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -614,7 +913,9 @@ function CertificateBirthForm() {
 function CertificateDeathForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert("Death certificate generation will be implemented later (PDF via Apps Script).");
+    alert(
+      "Death certificate generation will be implemented later (PDF via Apps Script)."
+    );
   }
 
   return (
@@ -643,7 +944,13 @@ function CertificateDeathForm() {
       <Field label="Certifying Authority Name">
         <input type="text" style={inputStyle} />
       </Field>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "0.4rem",
+        }}
+      >
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -655,7 +962,9 @@ function CertificateDeathForm() {
 function CertificateIncomingForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert("Incoming cow certificate generation will be implemented later (PDF via Apps Script).");
+    alert(
+      "Incoming cow certificate generation will be implemented later (PDF via Apps Script)."
+    );
   }
 
   return (
@@ -687,9 +996,17 @@ function CertificateIncomingForm() {
         <input type="date" style={inputStyle} />
       </Field>
       <Field label="Remarks">
-        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
+        <textarea
+          style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }}
+        />
       </Field>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "0.4rem",
+        }}
+      >
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -701,7 +1018,9 @@ function CertificateIncomingForm() {
 function CertificateDattuForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert("Dattu Yojana certificate generation will be implemented later (PDF via Apps Script).");
+    alert(
+      "Dattu Yojana certificate generation will be implemented later (PDF via Apps Script)."
+    );
   }
 
   return (
@@ -713,7 +1032,9 @@ function CertificateDattuForm() {
         <input type="text" style={inputStyle} />
       </Field>
       <Field label="Address">
-        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
+        <textarea
+          style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }}
+        />
       </Field>
       <Field label="Cattle Tag / Name">
         <input type="text" style={inputStyle} />
@@ -732,7 +1053,13 @@ function CertificateDattuForm() {
       <Field label="Donation Amount">
         <input type="number" style={inputStyle} />
       </Field>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: "0.4rem",
+        }}
+      >
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
