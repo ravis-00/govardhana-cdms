@@ -1,6 +1,6 @@
 // src/pages/CertificatesReports.jsx
 import React, { useState, useRef } from "react";
-import { fetchBirthReport } from "../api/masterApi";
+import { fetchBirthReport, fetchSalesReport } from "../api/masterApi";
 
 /** Helper: parse "dd-MM-yyyy" into Date (or null if invalid) */
 function parseDdMmYyyy(dateStr) {
@@ -32,7 +32,7 @@ export default function CertificatesReports() {
     extra: "",
   });
 
-  // Loading + error for current report (mainly used for Birth Report)
+  // Loading + error for current report (used by Birth & Sales Reports)
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -79,25 +79,22 @@ export default function CertificatesReports() {
       id: "sales",
       title: "Cattle Sales Report",
       columns: [
-        "Sale Date",
-        "Animal ID",
-        "Tag No",
-        "Name",
-        "Buyer Name",
-        "Amount",
-        "Mode",
+        "Sl. No",
+        "Date (ddmmyyyy)",
+        "Cattle name",
+        "Tag number",
+        "Breed",
+        "Gender",
+        "Colour",
+        "Cattle type",
+        "Customer name",
+        "Customer address",
+        "Customer contact number",
+        "Gate pass number",
+        "Sale price",
       ],
-      sampleRows: [
-        [
-          "2025-01-10",
-          "A-601010",
-          "680101",
-          "Surabhi",
-          "Shree Dairy",
-          "45000",
-          "NEFT",
-        ],
-      ],
+      // fallback sample (not used once real data is wired)
+      sampleRows: [],
     },
     incoming: {
       id: "incoming",
@@ -167,7 +164,7 @@ export default function CertificatesReports() {
     },
   };
 
-  /** Open a non-birth report using static sample rows for now */
+  /** Open a non-birth/non-sales report using static sample rows for now */
   function openReport(id) {
     const cfg = REPORT_CONFIG[id];
     if (!cfg) return;
@@ -217,6 +214,65 @@ export default function CertificatesReports() {
     return rows;
   }
 
+  /** Apply filters + transform for Sales Report (array of objects -> table rows) */
+  function applySalesFilters(allItems, filterState) {
+    if (!Array.isArray(allItems)) return [];
+
+    const { fromDate, toDate, extra } = filterState;
+    let from = fromDate ? new Date(fromDate) : null;
+    let to = toDate ? new Date(toDate) : null;
+    if (to) {
+      to.setHours(23, 59, 59, 999);
+    }
+
+    let filtered = allItems.filter((item) => {
+      const d = parseDdMmYyyy(item.saleDate);
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+
+    if (extra) {
+      const term = extra.toLowerCase();
+      filtered = filtered.filter((item) => {
+        const buyer = String(item.customerName || "").toLowerCase();
+        const address = String(item.customerAddress || "").toLowerCase();
+        const loc = String(item.locationShed || "").toLowerCase();
+        return (
+          buyer.includes(term) ||
+          address.includes(term) ||
+          loc.includes(term)
+        );
+      });
+    }
+
+    // Map objects → array rows in the order of REPORT_CONFIG.sales.columns
+    const rows = filtered.map((item, idx) => {
+      const dateRaw = item.saleDate || "";
+      const dateDdmmyyyy =
+        typeof dateRaw === "string" ? dateRaw.replace(/-/g, "") : dateRaw;
+
+      return [
+        idx + 1, // Sl. No
+        dateDdmmyyyy,
+        item.name || "",
+        item.tagNumber || "",
+        item.breed || "",
+        item.gender || "",
+        item.colour || item.color || "",
+        item.cattleType || "",
+        item.customerName || "",
+        item.customerAddress || "",
+        item.customerPhone || "",
+        item.gatePassNumber || "",
+        item.salePrice || "",
+      ];
+    });
+
+    return rows;
+  }
+
   /** Load Birth Report from Apps Script + apply filters */
   async function loadBirthReportWithFilters(filterState) {
     setLoading(true);
@@ -241,6 +297,29 @@ export default function CertificatesReports() {
     }
   }
 
+  /** Load Cattle Sales Report from Apps Script + apply filters */
+  async function loadSalesReportWithFilters(filterState) {
+    setLoading(true);
+    setErrorMsg("");
+    setCurrentReportId("sales");
+    setCurrentReportTitle(REPORT_CONFIG.sales.title);
+
+    try {
+      const allItems = await fetchSalesReport(); // array of objects
+      const filteredRows = applySalesFilters(allItems, filterState);
+      setReportRows(filteredRows);
+      // empty rows just show "No records..." message
+    } catch (err) {
+      console.error("Sales report error:", err);
+      setReportRows([]);
+      setErrorMsg(
+        "Unable to load Cattle Sales Report from Google Sheets. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   /** When user clicks "Apply Filters" in the modal */
   async function handleReportFilterSubmit(e) {
     e.preventDefault();
@@ -252,6 +331,9 @@ export default function CertificatesReports() {
     if (id === "birth") {
       // Real data from Google Sheets
       await loadBirthReportWithFilters(filter);
+    } else if (id === "sales") {
+      // Real data for Cattle Sales Report
+      await loadSalesReportWithFilters(filter);
     } else {
       // Other reports still use local sample data
       openReport(id);

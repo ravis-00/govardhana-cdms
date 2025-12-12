@@ -1,9 +1,13 @@
 // web-cdms/src/api/masterApi.js
 
 // 🔗 Deployed Apps Script Web App URL (must end with /exec)
+// 🔗 Deployed Apps Script Web App URL (must end with /exec)
+// 🔗 Deployed Apps Script Web App URL (must end with /exec)
 const BASE_URL =
-  "https://script.google.com/macros/s/AKfycbzcJJcBinxjKRVkkhjX66VqzmKVGhelSlHu6KB1mjBYOqQ2N0u1a-BZCNwLNU8ZNtFFMw/exec";
+  "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
+
 // example: "https://script.googleusercontent.com/macros/s/AKfycb...../exec"
+
 
 /**
  * Small helper to build a URL with query parameters.
@@ -120,6 +124,16 @@ export async function getBirthReport() {
   return getRequest("getBirthReport");
 }
 
+// ---- SALES REPORT (Cattle Sales Report – NEW) ----
+
+/**
+ * Cattle Sales Report – returns an array of objects from Apps Script.
+ * Filtering by date / buyer is done on the frontend for now.
+ */
+export async function getSalesReport() {
+  return getRequest("getSalesReport");
+}
+
 // ---- MILK YIELD ----
 
 /**
@@ -219,6 +233,9 @@ export const fetchDeathRecords = getDeathRecords;
 
 // Birth Report (used in CertificatesReports.jsx)
 export const fetchBirthReport = getBirthReport;
+
+// 🔹 NEW: Cattle Sales Report alias
+export const fetchSalesReport = getSalesReport;
 
 // Milk yield
 export const fetchMilkYield = getMilkYield;

@@ -13,6 +13,14 @@ function formatNumber(value) {
   return Math.round(value);
 }
 
+// 🔹 Small helper to safely convert any API response into an array
+function toArray(result) {
+  if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.data)) return result.data;
+  if (result && Array.isArray(result.items)) return result.items;
+  return [];
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     activeCattle: 0,
@@ -37,13 +45,26 @@ export default function Dashboard() {
         setLoading(true);
         setError("");
 
-        const [cattle, milkYield, newBorn, dattu, feeding] = await Promise.all([
+        const [
+          cattleResult,
+          milkYieldResult,
+          newBornResult,
+          dattuResult,
+          feedingResult,
+        ] = await Promise.all([
           getCattle(),
           getMilkYield(),
           getNewBorn(),
           getDattuYojana(),
           getFeeding(),
         ]);
+
+        // ✅ Normalise all responses into arrays so .filter/.forEach never crash
+        const cattle = toArray(cattleResult);
+        const milkYield = toArray(milkYieldResult);
+        const newBorn = toArray(newBornResult);
+        const dattu = toArray(dattuResult);
+        const feeding = toArray(feedingResult);
 
         const currentYear = new Date().getFullYear();
 
@@ -323,7 +344,7 @@ export default function Dashboard() {
 
 function countBy(items, keyFn) {
   const out = {};
-  items.forEach((item) => {
+  (items || []).forEach((item) => {
     const key = keyFn(item);
     if (!key) return;
     out[key] = (out[key] || 0) + 1;
