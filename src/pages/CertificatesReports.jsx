@@ -2,16 +2,13 @@
 import React, { useState, useRef } from "react";
 import { fetchBirthReport, fetchSalesReport } from "../api/masterApi";
 
-/** Helper: parse "dd-MM-yyyy" into Date (or null if invalid) */
-function parseDdMmYyyy(dateStr) {
-  if (!dateStr) return null;
-  const parts = String(dateStr).split("-");
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts.map((p) => Number(p));
-  if (!d || !m || !y) return null;
-  const dt = new Date(y, m - 1, d);
-  return isNaN(dt.getTime()) ? null : dt;
-}
+// ✅ New universal date helpers (you said you added these)
+import {
+  ddMmYyyyToDate,
+  formatDateDisplay,
+  formatPeriod,
+  isoToDdMmYyyy,
+} from "../utils/dateUtils";
 
 export default function CertificatesReports() {
   // Which certificate modal is open: 'birth' | 'death' | 'incoming' | 'dattu' | null
@@ -25,7 +22,15 @@ export default function CertificatesReports() {
   const [currentReportTitle, setCurrentReportTitle] = useState("");
   const [reportRows, setReportRows] = useState([]);
 
+  // Keep the last-applied filter for header/printing period
+  const [lastAppliedFilter, setLastAppliedFilter] = useState({
+    fromDate: "",
+    toDate: "",
+    extra: "",
+  });
+
   // Generic filter state (used by the modal)
+  // NOTE: fromDate/toDate are ISO because <input type="date"> returns ISO.
   const [filter, setFilter] = useState({
     fromDate: "",
     toDate: "",
@@ -39,7 +44,10 @@ export default function CertificatesReports() {
   // ref for the current report table (used by Print / PDF)
   const tableRef = useRef(null);
 
-  // Report config (columns + sample rows)
+  // ✅ Print header constants
+  const PRINT_H1 = "MADHAVA SRUSTI RASHTROTTHANA GOSHALA";
+
+  // Report config (columns + sample rows + dateColumns for formatting)
   const REPORT_CONFIG = {
     birth: {
       id: "birth",
@@ -56,7 +64,7 @@ export default function CertificatesReports() {
         "Father bull breed",
         "Father ear tag number",
       ],
-      // sampleRows are kept only as fallback, not used normally
+      dateColumns: [0], // Date column index
       sampleRows: [],
     },
     death: {
@@ -64,16 +72,24 @@ export default function CertificatesReports() {
       title: "Date-wise Death Report",
       columns: [
         "Date",
-        "Animal ID",
-        "Tag No",
+        "Time",
         "Name",
         "Breed",
-        "Age (yrs)",
-        "Cause",
+        "Ear tage number",
+        "Date of Birth",
+        "Birth time",
+        "Teeth",
+        "Age",
+        "Gender",
+        "Colour",
+        "Mother cow breed",
+        "Mother ear tag number",
+        "Father bull breed",
+        "Father ear tag number",
+        "Reason for death",
       ],
-      sampleRows: [
-        ["2025-01-03", "A-501001", "650201", "Gouri", "Hallikar", "9", "Old age"],
-      ],
+      dateColumns: [0],
+      sampleRows: [],
     },
     sales: {
       id: "sales",
@@ -93,24 +109,18 @@ export default function CertificatesReports() {
         "Gate pass number",
         "Sale price",
       ],
-      // fallback sample (not used once real data is wired)
+      // date in this table is a ddmmyyyy string; we don't auto-format it as dd-mm-yyyy
+      dateColumns: [],
       sampleRows: [],
     },
     incoming: {
       id: "incoming",
       title: "Incoming Cattle Report",
-      columns: [
-        "Date",
-        "Animal ID",
-        "Tag No",
-        "Name",
-        "Breed",
-        "Source",
-        "Type",
-      ],
+      columns: ["Date", "Animal ID", "Tag No", "Name", "Breed", "Source", "Type"],
+      dateColumns: [0],
       sampleRows: [
         [
-          "2025-01-01",
+          "01-01-2025",
           "A-700900",
           "690101",
           "Kamala",
@@ -123,43 +133,30 @@ export default function CertificatesReports() {
     dattu: {
       id: "dattu",
       title: "Dattu Yojana Report",
-      columns: [
-        "Date",
-        "Adopter Name",
-        "Cattle Tag",
-        "Cattle Name",
-        "Breed",
-        "Amount",
-        "Type",
-      ],
+      columns: ["Date", "Adopter Name", "Cattle Tag", "Cattle Name", "Breed", "Amount", "Type"],
+      dateColumns: [0],
       sampleRows: [
-        [
-          "2025-01-04",
-          "Smt. Meera Rao",
-          "631228",
-          "Vasundara",
-          "Hallikar",
-          "25000",
-          "Shashwatha Dattu",
-        ],
+        ["04-01-2025", "Smt. Meera Rao", "631228", "Vasundara", "Hallikar", "25000", "Shashwatha Dattu"],
       ],
     },
     milk: {
       id: "milk",
       title: "Daily Milk Yield Report",
       columns: ["Date", "Shed", "Morning (L)", "Evening (L)", "Total (L)"],
+      dateColumns: [0],
       sampleRows: [
-        ["2025-01-01", "Punyakoti", "120", "100", "220"],
-        ["2025-01-02", "Punyakoti", "125", "105", "230"],
+        ["01-01-2025", "Punyakoti", "120", "100", "220"],
+        ["02-01-2025", "Punyakoti", "125", "105", "230"],
       ],
     },
     byproducts: {
       id: "byproducts",
       title: "Outgoing By-products Report",
       columns: ["Date", "Item", "Quantity", "Unit", "Receiver / Purpose"],
+      dateColumns: [0],
       sampleRows: [
-        ["2025-01-02", "Gomaya cakes", "200", "Nos", "Temple supply"],
-        ["2025-01-03", "Gomutra", "50", "L", "Medicinal unit"],
+        ["02-01-2025", "Gomaya cakes", "200", "Nos", "Temple supply"],
+        ["03-01-2025", "Gomutra", "50", "L", "Medicinal unit"],
       ],
     },
   };
@@ -168,10 +165,12 @@ export default function CertificatesReports() {
   function openReport(id) {
     const cfg = REPORT_CONFIG[id];
     if (!cfg) return;
+
     setCurrentReportId(id);
     setCurrentReportTitle(cfg.title);
     setReportRows(cfg.sampleRows || []);
     setErrorMsg("");
+    setLastAppliedFilter({ ...filter });
   }
 
   function handleFilterChange(e) {
@@ -188,15 +187,13 @@ export default function CertificatesReports() {
     let rows = Array.isArray(allRows) ? [...allRows] : [];
 
     const { fromDate, toDate, extra } = filterState;
-    let from = fromDate ? new Date(fromDate) : null;
+    let from = fromDate ? new Date(fromDate) : null; // fromDate is ISO
     let to = toDate ? new Date(toDate) : null;
-    if (to) {
-      // include entire 'to' day
-      to.setHours(23, 59, 59, 999);
-    }
+    if (to) to.setHours(23, 59, 59, 999);
 
     rows = rows.filter((row) => {
-      const d = parseDdMmYyyy(row[0]); // first col is "dd-MM-yyyy"
+      // backend provides "dd-MM-yyyy" for birth report
+      const d = ddMmYyyyToDate(row[0]); // Date string in dd-mm-yyyy
       if (!d) return false;
       if (from && d < from) return false;
       if (to && d > to) return false;
@@ -206,9 +203,7 @@ export default function CertificatesReports() {
     if (extra) {
       const term = extra.toLowerCase();
       // Breed is column index 3 in our array
-      rows = rows.filter((row) =>
-        String(row[3] || "").toLowerCase().includes(term)
-      );
+      rows = rows.filter((row) => String(row[3] || "").toLowerCase().includes(term));
     }
 
     return rows;
@@ -221,12 +216,11 @@ export default function CertificatesReports() {
     const { fromDate, toDate, extra } = filterState;
     let from = fromDate ? new Date(fromDate) : null;
     let to = toDate ? new Date(toDate) : null;
-    if (to) {
-      to.setHours(23, 59, 59, 999);
-    }
+    if (to) to.setHours(23, 59, 59, 999);
 
     let filtered = allItems.filter((item) => {
-      const d = parseDdMmYyyy(item.saleDate);
+      // backend provides saleDate as "dd-MM-yyyy" (as per your code.gs)
+      const d = ddMmYyyyToDate(item.saleDate);
       if (!d) return false;
       if (from && d < from) return false;
       if (to && d > to) return false;
@@ -239,19 +233,15 @@ export default function CertificatesReports() {
         const buyer = String(item.customerName || "").toLowerCase();
         const address = String(item.customerAddress || "").toLowerCase();
         const loc = String(item.locationShed || "").toLowerCase();
-        return (
-          buyer.includes(term) ||
-          address.includes(term) ||
-          loc.includes(term)
-        );
+        return buyer.includes(term) || address.includes(term) || loc.includes(term);
       });
     }
 
     // Map objects → array rows in the order of REPORT_CONFIG.sales.columns
     const rows = filtered.map((item, idx) => {
-      const dateRaw = item.saleDate || "";
-      const dateDdmmyyyy =
-        typeof dateRaw === "string" ? dateRaw.replace(/-/g, "") : dateRaw;
+      // Requirement: Date (ddmmyyyy) in table
+      const dateRaw = item.saleDate || ""; // dd-MM-yyyy
+      const dateDdmmyyyy = String(dateRaw).replace(/-/g, ""); // ddMMyyyy
 
       return [
         idx + 1, // Sl. No
@@ -283,15 +273,13 @@ export default function CertificatesReports() {
     try {
       const allRows = await fetchBirthReport(); // array of arrays from backend
       const filtered = applyBirthFilters(allRows, filterState);
-
       setReportRows(filtered);
-      // No error if there are simply no records; table will show the empty message
+      setLastAppliedFilter({ ...filterState });
     } catch (err) {
       console.error("Birth report error:", err);
       setReportRows([]);
-      setErrorMsg(
-        "Unable to load Birth Report from Google Sheets. Please try again."
-      );
+      setLastAppliedFilter({ ...filterState });
+      setErrorMsg("Unable to load Birth Report from Google Sheets. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -308,13 +296,12 @@ export default function CertificatesReports() {
       const allItems = await fetchSalesReport(); // array of objects
       const filteredRows = applySalesFilters(allItems, filterState);
       setReportRows(filteredRows);
-      // empty rows just show "No records..." message
+      setLastAppliedFilter({ ...filterState });
     } catch (err) {
       console.error("Sales report error:", err);
       setReportRows([]);
-      setErrorMsg(
-        "Unable to load Cattle Sales Report from Google Sheets. Please try again."
-      );
+      setLastAppliedFilter({ ...filterState });
+      setErrorMsg("Unable to load Cattle Sales Report from Google Sheets. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -329,13 +316,10 @@ export default function CertificatesReports() {
     setOpenReportFilter(null);
 
     if (id === "birth") {
-      // Real data from Google Sheets
       await loadBirthReportWithFilters(filter);
     } else if (id === "sales") {
-      // Real data for Cattle Sales Report
       await loadSalesReportWithFilters(filter);
     } else {
-      // Other reports still use local sample data
       openReport(id);
     }
   }
@@ -421,12 +405,21 @@ export default function CertificatesReports() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download =
-      (cfg.title || "report").toLowerCase().replace(/\s+/g, "-") + ".csv";
+    a.download = (cfg.title || "report").toLowerCase().replace(/\s+/g, "-") + ".csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function buildPrintTitleLines() {
+    const cfg = currentReportId ? REPORT_CONFIG[currentReportId] : null;
+    const baseTitle = cfg?.title || currentReportTitle || "Report";
+
+    const periodText = formatPeriod(lastAppliedFilter.fromDate, lastAppliedFilter.toDate);
+    const subtitle = `${baseTitle} (${periodText})`;
+
+    return { h1: PRINT_H1, subtitle };
   }
 
   function openPrintWindow() {
@@ -435,58 +428,99 @@ export default function CertificatesReports() {
       return;
     }
 
-    const title = currentReportTitle || "Report";
+    const { h1, subtitle } = buildPrintTitleLines();
+
+    // Apply date formatting in print too (for configured dateColumns)
+    const cfg = REPORT_CONFIG[currentReportId];
+    const dateCols = cfg?.dateColumns || [];
+
+    // Clone table HTML and patch date cells
+    const temp = document.createElement("div");
+    temp.innerHTML = tableRef.current.outerHTML;
+
+    if (dateCols.length > 0) {
+      const tbodyRows = temp.querySelectorAll("tbody tr");
+      tbodyRows.forEach((tr) => {
+        const tds = tr.querySelectorAll("td");
+        dateCols.forEach((colIdx) => {
+          if (tds[colIdx]) {
+            const raw = tds[colIdx].textContent;
+            tds[colIdx].textContent = formatDateDisplay(raw);
+          }
+        });
+      });
+    }
+
     const html = `
       <html>
         <head>
-          <title>${title}</title>
+          <title>${subtitle}</title>
           <style>
             body {
               font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
               padding: 24px;
+              color: #111827;
             }
-            h1 {
-              font-size: 18px;
+            .print-header {
+              text-align: center;
               margin-bottom: 16px;
+            }
+            .print-header h1 {
+              font-size: 20px;
+              margin: 0;
+              font-weight: 800;
+              letter-spacing: 0.02em;
+            }
+            .print-header .subtitle {
+              margin-top: 6px;
+              font-size: 14px;
+              font-weight: 600;
+              color: #374151;
             }
             table {
               width: 100%;
               border-collapse: collapse;
               font-size: 12px;
+              margin-top: 10px;
             }
             th, td {
               border: 1px solid #ccc;
               padding: 4px 6px;
               text-align: left;
+              vertical-align: top;
             }
             th {
               background: #f5f5f5;
             }
+            @media print {
+              body { padding: 0; }
+              .print-header { margin-bottom: 10px; }
+            }
           </style>
         </head>
         <body>
-          <h1>${title}</h1>
-          ${tableRef.current.outerHTML}
+          <div class="print-header">
+            <h1>${h1}</h1>
+            <div class="subtitle">${subtitle}</div>
+          </div>
+          ${temp.innerHTML}
         </body>
       </html>
     `;
 
     const printWin = window.open("", "_blank", "width=1024,height=768");
     if (!printWin) {
-      alert(
-        "Popup blocked. Please allow popups for this site to print/download PDF."
-      );
+      alert("Popup blocked. Please allow popups for this site to print/download PDF.");
       return;
     }
     printWin.document.open();
     printWin.document.write(html);
     printWin.document.close();
     printWin.focus();
-    printWin.print(); // user can choose printer or 'Save as PDF'
+    printWin.print();
   }
 
   function handleDownloadPdf() {
-    // Use browser print dialog; user can choose "Save as PDF"
     openPrintWindow();
   }
 
@@ -495,6 +529,9 @@ export default function CertificatesReports() {
   }
 
   /* ---------- RENDER ---------- */
+
+  // For on-screen header: show dd-mm-yyyy in the filter summary (if any)
+  const currentPeriodText = formatPeriod(lastAppliedFilter.fromDate, lastAppliedFilter.toDate);
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
@@ -508,18 +545,9 @@ export default function CertificatesReports() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>
-            Certificates &amp; Reports
-          </h1>
-          <p
-            style={{
-              margin: "0.3rem 0 0",
-              fontSize: "0.9rem",
-              color: "#6b7280",
-            }}
-          >
-            Generate standard certificates and view key operational reports for
-            Govardhana Goshala.
+          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Certificates &amp; Reports</h1>
+          <p style={{ margin: "0.3rem 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
+            Generate standard certificates and view key operational reports for Govardhana Goshala.
           </p>
         </div>
       </header>
@@ -529,8 +557,7 @@ export default function CertificatesReports() {
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Certificates</h2>
           <p style={sectionSubtitleStyle}>
-            These certificates will be generated in fixed formats for donors and
-            record-keeping.
+            These certificates will be generated in fixed formats for donors and record-keeping.
           </p>
         </div>
 
@@ -563,8 +590,8 @@ export default function CertificatesReports() {
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Reports</h2>
           <p style={sectionSubtitleStyle}>
-            View date-wise performance and activity across key operations.
-            Filters are applied on the data loaded from Google Sheets.
+            View date-wise performance and activity across key operations. Filters are applied on
+            the data loaded from Google Sheets.
           </p>
         </div>
 
@@ -632,6 +659,30 @@ export default function CertificatesReports() {
       {currentReportId && (
         <section style={{ marginTop: "1.75rem" }}>
           <div style={cardStyle}>
+            {/* ✅ Centered report heading: H1 line + subtitle line */}
+            <div style={{ textAlign: "center", marginBottom: "0.9rem" }}>
+              <div
+                style={{
+                  fontSize: "1.2rem",
+                  fontWeight: 800,
+                  letterSpacing: "0.02em",
+                  lineHeight: 1.2,
+                }}
+              >
+                {PRINT_H1}
+              </div>
+              <div
+                style={{
+                  marginTop: "0.35rem",
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color: "#374151",
+                }}
+              >
+                {currentReportTitle} ({currentPeriodText})
+              </div>
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -641,48 +692,21 @@ export default function CertificatesReports() {
               }}
             >
               <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "1rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  {currentReportTitle}
-                </h2>
-                <p
-                  style={{
-                    margin: "0.25rem 0 0",
-                    fontSize: "0.8rem",
-                    color: "#6b7280",
-                  }}
-                >
-                  Data loaded from Google Sheets for the selected period and
-                  filters.
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#6b7280" }}>
+                  Data loaded from Google Sheets for the selected period and filters.
                 </p>
                 {loading && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0",
-                      fontSize: "0.8rem",
-                      color: "#2563eb",
-                    }}
-                  >
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#2563eb" }}>
                     Loading data… please wait.
                   </p>
                 )}
                 {!!errorMsg && (
-                  <p
-                    style={{
-                      margin: "0.25rem 0 0",
-                      fontSize: "0.8rem",
-                      color: "#b91c1c",
-                    }}
-                  >
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#b91c1c" }}>
                     {errorMsg}
                   </p>
                 )}
               </div>
+
               <div style={{ display: "flex", gap: "0.4rem" }}>
                 <button
                   style={secondaryButtonStyle}
@@ -722,28 +746,36 @@ export default function CertificatesReports() {
                     ))}
                   </tr>
                 </thead>
+
                 <tbody>
                   {reportRows.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={
-                          REPORT_CONFIG[currentReportId].columns.length
-                        }
-                        style={emptyCellStyle}
-                      >
-                        {loading
-                          ? "Loading..."
-                          : "No records found for selected filters."}
+                      <td colSpan={REPORT_CONFIG[currentReportId].columns.length} style={emptyCellStyle}>
+                        {loading ? "Loading..." : "No records found for selected filters."}
                       </td>
                     </tr>
                   ) : (
                     reportRows.map((row, idx) => (
                       <tr key={idx}>
-                        {row.map((cell, cIdx) => (
-                          <td key={cIdx} style={tdStyle}>
-                            {cell}
-                          </td>
-                        ))}
+                        {row.map((cell, cIdx) => {
+                          const cfg = REPORT_CONFIG[currentReportId];
+                          const isDateCol = (cfg.dateColumns || []).includes(cIdx);
+
+                          // Sales report uses ddmmyyyy. Keep it as-is.
+                          if (currentReportId === "sales" && cIdx === 1) {
+                            return (
+                              <td key={cIdx} style={tdStyle}>
+                                {cell}
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={cIdx} style={tdStyle}>
+                              {isDateCol ? formatDateDisplay(cell) : cell}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))
                   )}
@@ -756,34 +788,22 @@ export default function CertificatesReports() {
 
       {/* CERTIFICATE MODALS */}
       {openCertModal === "birth" && (
-        <CertModal
-          title="Birth Certificate"
-          onClose={() => setOpenCertModal(null)}
-        >
+        <CertModal title="Birth Certificate" onClose={() => setOpenCertModal(null)}>
           <CertificateBirthForm />
         </CertModal>
       )}
       {openCertModal === "death" && (
-        <CertModal
-          title="Death Certificate"
-          onClose={() => setOpenCertModal(null)}
-        >
+        <CertModal title="Death Certificate" onClose={() => setOpenCertModal(null)}>
           <CertificateDeathForm />
         </CertModal>
       )}
       {openCertModal === "incoming" && (
-        <CertModal
-          title="Incoming Cow Certificate"
-          onClose={() => setOpenCertModal(null)}
-        >
+        <CertModal title="Incoming Cow Certificate" onClose={() => setOpenCertModal(null)}>
           <CertificateIncomingForm />
         </CertModal>
       )}
       {openCertModal === "dattu" && (
-        <CertModal
-          title="Dattu Yojana Certificate"
-          onClose={() => setOpenCertModal(null)}
-        >
+        <CertModal title="Dattu Yojana Certificate" onClose={() => setOpenCertModal(null)}>
           <CertificateDattuForm />
         </CertModal>
       )}
@@ -808,33 +828,9 @@ export default function CertificatesReports() {
 function CertificateCard({ title, description, onClick }) {
   return (
     <button type="button" onClick={onClick} style={certCardStyle}>
-      <div
-        style={{
-          fontSize: "1.1rem",
-          fontWeight: 600,
-          marginBottom: "0.25rem",
-        }}
-      >
-        {title}
-      </div>
-      <div
-        style={{
-          fontSize: "0.8rem",
-          color: "#6b7280",
-          marginBottom: "0.6rem",
-        }}
-      >
-        {description}
-      </div>
-      <div
-        style={{
-          fontSize: "0.75rem",
-          fontWeight: 500,
-          color: "#2563eb",
-        }}
-      >
-        Generate →
-      </div>
+      <div style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.25rem" }}>{title}</div>
+      <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.6rem" }}>{description}</div>
+      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#2563eb" }}>Generate →</div>
     </button>
   );
 }
@@ -842,33 +838,9 @@ function CertificateCard({ title, description, onClick }) {
 function ReportCard({ title, description, onClick }) {
   return (
     <button type="button" onClick={onClick} style={reportCardStyle}>
-      <div
-        style={{
-          fontSize: "1rem",
-          fontWeight: 600,
-          marginBottom: "0.15rem",
-        }}
-      >
-        {title}
-      </div>
-      <div
-        style={{
-          fontSize: "0.8rem",
-          color: "#6b7280",
-          marginBottom: "0.6rem",
-        }}
-      >
-        {description}
-      </div>
-      <div
-        style={{
-          fontSize: "0.75rem",
-          fontWeight: 500,
-          color: "#2563eb",
-        }}
-      >
-        View / Download →
-      </div>
+      <div style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.15rem" }}>{title}</div>
+      <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.6rem" }}>{description}</div>
+      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#2563eb" }}>View / Download →</div>
     </button>
   );
 }
@@ -879,23 +851,9 @@ function CertModal({ title, children, onClose }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "0.6rem",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
           <div>
-            <div
-              style={{
-                fontSize: "0.8rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "#6b7280",
-              }}
-            >
+            <div style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6b7280" }}>
               Certificate
             </div>
             <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</div>
@@ -910,34 +868,13 @@ function CertModal({ title, children, onClose }) {
   );
 }
 
-function ReportFilterModal({
-  title,
-  filter,
-  extraLabel,
-  onChange,
-  onClose,
-  onSubmit,
-}) {
+function ReportFilterModal({ title, filter, extraLabel, onChange, onClose, onSubmit }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "0.6rem",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
           <div>
-            <div
-              style={{
-                fontSize: "0.8rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "#6b7280",
-              }}
-            >
+            <div style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6b7280" }}>
               Report Filters
             </div>
             <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</div>
@@ -947,55 +884,26 @@ function ReportFilterModal({
           </button>
         </div>
 
-        <form
-          onSubmit={onSubmit}
-          style={{
-            display: "grid",
-            gap: "0.8rem",
-            marginTop: "0.4rem",
-          }}
-        >
+        {/* ✅ Help users: date inputs are ISO but display is dd-mm-yyyy everywhere else */}
+        <div style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: "0.5rem" }}>
+          Note: Select dates using the date picker. Reports will display dates in dd-mm-yyyy format.
+        </div>
+
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
           <Field label="From Date">
-            <input
-              type="date"
-              name="fromDate"
-              value={filter.fromDate}
-              onChange={onChange}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="To Date">
-            <input
-              type="date"
-              name="toDate"
-              value={filter.toDate}
-              onChange={onChange}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label={extraLabel}>
-            <input
-              type="text"
-              name="extra"
-              value={filter.extra}
-              onChange={onChange}
-              style={inputStyle}
-            />
+            <input type="date" name="fromDate" value={filter.fromDate} onChange={onChange} style={inputStyle} />
           </Field>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "0.5rem",
-              marginTop: "0.4rem",
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              style={secondaryButtonStyle}
-            >
+          <Field label="To Date">
+            <input type="date" name="toDate" value={filter.toDate} onChange={onChange} style={inputStyle} />
+          </Field>
+
+          <Field label={extraLabel}>
+            <input type="text" name="extra" value={filter.extra} onChange={onChange} style={inputStyle} />
+          </Field>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.4rem" }}>
+            <button type="button" onClick={onClose} style={secondaryButtonStyle}>
               Cancel
             </button>
             <button type="submit" style={primaryButtonStyle}>
@@ -1013,16 +921,7 @@ function ReportFilterModal({
 function Field({ label, children }) {
   return (
     <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.8rem",
-          marginBottom: "0.2rem",
-          color: "#374151",
-        }}
-      >
-        {label}
-      </label>
+      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.2rem", color: "#374151" }}>{label}</label>
       {children}
     </div>
   );
@@ -1031,22 +930,13 @@ function Field({ label, children }) {
 function CertificateBirthForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert(
-      "Birth certificate generation will be implemented later (PDF via Apps Script)."
-    );
+    alert("Birth certificate generation will be implemented later (PDF via Apps Script).");
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}
-    >
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
       <Field label="Calf ID / Tag No">
-        <input
-          type="text"
-          style={inputStyle}
-          placeholder="Search / enter calf ID or tag"
-        />
+        <input type="text" style={inputStyle} placeholder="Search / enter calf ID or tag" />
       </Field>
       <Field label="Calf Name">
         <input type="text" style={inputStyle} />
@@ -1068,19 +958,9 @@ function CertificateBirthForm() {
         <input type="text" style={inputStyle} placeholder="Name / tag" />
       </Field>
       <Field label="Sire (Bull / Straw)">
-        <input
-          type="text"
-          style={inputStyle}
-          placeholder="Name / tag / straw code"
-        />
+        <input type="text" style={inputStyle} placeholder="Name / tag / straw code" />
       </Field>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: "0.4rem",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -1092,16 +972,11 @@ function CertificateBirthForm() {
 function CertificateDeathForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert(
-      "Death certificate generation will be implemented later (PDF via Apps Script)."
-    );
+    alert("Death certificate generation will be implemented later (PDF via Apps Script).");
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}
-    >
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
       <Field label="Animal ID / Tag No">
         <input type="text" style={inputStyle} placeholder="Search / enter" />
       </Field>
@@ -1123,13 +998,7 @@ function CertificateDeathForm() {
       <Field label="Certifying Authority Name">
         <input type="text" style={inputStyle} />
       </Field>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: "0.4rem",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -1141,16 +1010,11 @@ function CertificateDeathForm() {
 function CertificateIncomingForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert(
-      "Incoming cow certificate generation will be implemented later (PDF via Apps Script)."
-    );
+    alert("Incoming cow certificate generation will be implemented later (PDF via Apps Script).");
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}
-    >
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
       <Field label="Animal ID / Tag No">
         <input type="text" style={inputStyle} />
       </Field>
@@ -1175,17 +1039,9 @@ function CertificateIncomingForm() {
         <input type="date" style={inputStyle} />
       </Field>
       <Field label="Remarks">
-        <textarea
-          style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }}
-        />
+        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
       </Field>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: "0.4rem",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>
@@ -1197,23 +1053,16 @@ function CertificateIncomingForm() {
 function CertificateDattuForm() {
   function handleSubmit(e) {
     e.preventDefault();
-    alert(
-      "Dattu Yojana certificate generation will be implemented later (PDF via Apps Script)."
-    );
+    alert("Dattu Yojana certificate generation will be implemented later (PDF via Apps Script).");
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}
-    >
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
       <Field label="Adopter Name">
         <input type="text" style={inputStyle} />
       </Field>
       <Field label="Address">
-        <textarea
-          style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }}
-        />
+        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
       </Field>
       <Field label="Cattle Tag / Name">
         <input type="text" style={inputStyle} />
@@ -1232,13 +1081,7 @@ function CertificateDattuForm() {
       <Field label="Donation Amount">
         <input type="number" style={inputStyle} />
       </Field>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: "0.4rem",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="submit" style={primaryButtonStyle}>
           Generate Certificate (Demo)
         </button>

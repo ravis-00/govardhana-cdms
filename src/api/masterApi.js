@@ -1,13 +1,21 @@
 // web-cdms/src/api/masterApi.js
 
 // 🔗 Deployed Apps Script Web App URL (must end with /exec)
-// 🔗 Deployed Apps Script Web App URL (must end with /exec)
-// 🔗 Deployed Apps Script Web App URL (must end with /exec)
 const BASE_URL =
   "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
-// example: "https://script.googleusercontent.com/macros/s/AKfycb...../exec"
-
+/**
+ * Remove undefined / null / empty string params so URL stays clean.
+ */
+function cleanParams(params = {}) {
+  const out = {};
+  Object.entries(params).forEach(([k, v]) => {
+    if (v === undefined || v === null) return;
+    if (typeof v === "string" && v.trim() === "") return;
+    out[k] = v;
+  });
+  return out;
+}
 
 /**
  * Small helper to build a URL with query parameters.
@@ -15,12 +23,27 @@ const BASE_URL =
 function buildUrl(action, params = {}) {
   const url = new URL(BASE_URL);
   url.searchParams.set("action", action);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      url.searchParams.set(key, String(value));
-    }
+
+  const cleaned = cleanParams(params);
+  Object.entries(cleaned).forEach(([key, value]) => {
+    url.searchParams.set(key, String(value));
   });
+
   return url.toString();
+}
+
+/**
+ * Adds timeout to fetch (Apps Script sometimes hangs).
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 /**
@@ -31,7 +54,6 @@ function buildUrl(action, params = {}) {
  */
 async function handleResponse(res) {
   if (!res.ok) {
-    // Network / HTTP level error
     const text = await res.text().catch(() => "");
     throw new Error(
       `HTTP ${res.status} – ${text || res.statusText || "Network error"}`
@@ -42,12 +64,10 @@ async function handleResponse(res) {
     throw new Error("Invalid JSON response from server");
   });
 
-  // Our Apps Script wraps data as { success, data, error }
   if (json && json.success === false) {
     throw new Error(json.error || "Unknown API error");
   }
 
-  // Support both {success, data} and plain arrays/objects
   return json.data ?? json;
 }
 
@@ -55,10 +75,12 @@ async function handleResponse(res) {
  * Generic GET wrapper.
  */
 async function getRequest(action, params) {
-  const res = await fetch(buildUrl(action, params), {
-    method: "GET",
-    cache: "no-cache",
-  });
+  const url = buildUrl(action, params);
+  const res = await fetchWithTimeout(
+    url,
+    { method: "GET", cache: "no-cache" },
+    30000
+  );
   return handleResponse(res);
 }
 
@@ -66,24 +88,24 @@ async function getRequest(action, params) {
  * Generic POST wrapper.
  */
 async function postRequest(action, body) {
-  const res = await fetch(buildUrl(action), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {}),
-  });
+  const url = buildUrl(action);
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    },
+    30000
+  );
   return handleResponse(res);
 }
 
 // ============================================================================
 // === Public API functions used by the React app =============================
 // ============================================================================
-//
-// New naming convention: getXxx / addXxx / updateXxx
-// Older pages sometimes use fetchXxx – we keep aliases later so both work.
-//
 
 // ---- CATTLE / MASTER ----
-
 export async function getCattle() {
   return getRequest("getCattle");
 }
@@ -92,73 +114,66 @@ export async function getActiveCattle() {
   return getRequest("getActiveCattle");
 }
 
-export async function getDeathRecords(fromDate = "2024-01-01") {
-  return getRequest("getDeathRecords", { fromDate });
+/**
+ * Death records from Master.
+ * Backend expects: action=getDeathRecords&fromDate=YYYY-MM-DD
+ */
+export async function getDeathRecords(fromDate, toDate) {
+  return getRequest("getDeathRecords", { fromDate, toDate });
 }
 
+
+/**
+ * NOTE: Your Apps Script doGet currently DOES NOT have getCattleById route.
+ * This function is kept for future, but it will fail unless backend adds it.
+ */
 export async function getCattleById(id) {
   return getRequest("getCattleById", { id });
 }
 
 export async function addCattle(payload) {
-  // returns { success, id }
   return postRequest("addCattle", payload);
 }
 
 export async function updateCattle(payload) {
-  // returns { success, id }
   return postRequest("updateCattle", payload);
 }
 
 // ---- BIRTH REPORT (Certificates & Reports page) ----
-
 /**
- * Birth Report – returns an array of rows (arrays) from Apps Script
- * Each row: [
- *   Date, Time, Name, Breed, Gender, Colour,
- *   Mother cow breed, Mother ear tag number,
- *   Father bull breed, Father ear tag number
- * ]
+ * Backend supports optional filters:
+ *   action=getBirthReport&fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
  */
-export async function getBirthReport() {
-  return getRequest("getBirthReport");
+export async function getBirthReport(params = {}) {
+  // params can include { fromDate, toDate }
+  return getRequest("getBirthReport", params);
 }
 
-// ---- SALES REPORT (Cattle Sales Report – NEW) ----
-
+// ---- SALES REPORT (Cattle Sales Report) ----
 /**
- * Cattle Sales Report – returns an array of objects from Apps Script.
- * Filtering by date / buyer is done on the frontend for now.
+ * Backend currently returns all sales rows.
+ * We accept optional params for future use (frontend can filter).
  */
-export async function getSalesReport() {
-  return getRequest("getSalesReport");
+export async function getSalesReport(params = {}) {
+  return getRequest("getSalesReport", params);
 }
 
 // ---- MILK YIELD ----
-
-/**
- * Milk Yield – list all records from Milk Yield sheet.
- */
 export async function getMilkYield() {
   return getRequest("getMilkYield");
 }
 
 // ---- BIO WASTE ----
-
 export async function getBioWaste() {
   return getRequest("getBioWaste");
 }
-// (Later you can add addBioWaste / updateBioWaste if needed)
 
 // ---- VACCINATION / DEWORMING ----
-
 export async function getVaccine() {
   return getRequest("getVaccine");
 }
-// (Similarly, add addVaccine / updateVaccine when backend is ready)
 
 // ---- MEDICAL TREATMENT (Health sheet) ----
-
 export async function getTreatments() {
   return getRequest("getTreatments");
 }
@@ -172,13 +187,11 @@ export async function updateTreatment(payload) {
 }
 
 // ---- NEW BORN (New Born sheet) ----
-
 export async function getNewBorn() {
   return getRequest("getNewBorn");
 }
 
 export async function addNewBorn(payload) {
-  // backend returns { success: true, id: ... }
   return postRequest("addNewBorn", payload);
 }
 
@@ -187,13 +200,11 @@ export async function updateNewBorn(payload) {
 }
 
 // ---- FEEDING (Feeding sheet) ----
-
 export async function getFeeding() {
   return getRequest("getFeeding");
 }
 
 export async function addFeeding(payload) {
-  // backend returns { success: true, id: ... }
   return postRequest("addFeeding", payload);
 }
 
@@ -202,7 +213,6 @@ export async function updateFeeding(payload) {
 }
 
 // ---- DATTU YOJANA (Dattu sheet) ----
-
 export async function getDattuYojana() {
   return getRequest("getDattuYojana");
 }
@@ -218,23 +228,14 @@ export async function updateDattuYojana(payload) {
 // ============================================================================
 // === Backwards-compatibility aliases =======================================
 // ============================================================================
-//
-// Older pages might still import these names:
-//   fetchCattle, fetchActiveCattle, fetchDeathRecords,
-//   fetchMilkYield, fetchBioWaste, fetchVaccine,
-//   fetchTreatments, fetchNewBorn, fetchFeeding, fetchDattuYojana, ...
-// To avoid having to touch every page, we simply re-export them here.
-//
 
 // Cattle / master
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
 
-// Birth Report (used in CertificatesReports.jsx)
+// Reports
 export const fetchBirthReport = getBirthReport;
-
-// 🔹 NEW: Cattle Sales Report alias
 export const fetchSalesReport = getSalesReport;
 
 // Milk yield
