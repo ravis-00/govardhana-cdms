@@ -118,9 +118,11 @@ export async function getActiveCattle() {
  * Death records from Master.
  * Backend expects: action=getDeathRecords&fromDate=YYYY-MM-DD
  */
-export async function getDeathRecords(fromDate, toDate) {
+export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") {
   return getRequest("getDeathRecords", { fromDate, toDate });
 }
+
+
 
 
 /**

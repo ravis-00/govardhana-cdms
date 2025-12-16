@@ -1,53 +1,43 @@
 // src/pages/CertificatesReports.jsx
 import React, { useState, useRef } from "react";
-import { fetchBirthReport, fetchSalesReport } from "../api/masterApi";
-
-// ✅ New universal date helpers (you said you added these)
 import {
-  ddMmYyyyToDate,
-  formatDateDisplay,
-  formatPeriod,
-  isoToDdMmYyyy,
-} from "../utils/dateUtils";
+  fetchBirthReport,
+  fetchSalesReport,
+  fetchDeathRecords,
+  fetchCattle,
+} from "../api/masterApi";
+
+// ✅ Universal date helpers
+import { ddMmYyyyToDate, formatDateDisplay, formatPeriod } from "../utils/dateUtils";
 
 export default function CertificatesReports() {
-  // Which certificate modal is open: 'birth' | 'death' | 'incoming' | 'dattu' | null
   const [openCertModal, setOpenCertModal] = useState(null);
-
-  // Which report filter modal is open: reportId or null
   const [openReportFilter, setOpenReportFilter] = useState(null);
 
-  // Current report being displayed + rows
   const [currentReportId, setCurrentReportId] = useState(null);
   const [currentReportTitle, setCurrentReportTitle] = useState("");
   const [reportRows, setReportRows] = useState([]);
 
-  // Keep the last-applied filter for header/printing period
   const [lastAppliedFilter, setLastAppliedFilter] = useState({
     fromDate: "",
     toDate: "",
     extra: "",
   });
 
-  // Generic filter state (used by the modal)
-  // NOTE: fromDate/toDate are ISO because <input type="date"> returns ISO.
   const [filter, setFilter] = useState({
     fromDate: "",
     toDate: "",
     extra: "",
   });
 
-  // Loading + error for current report (used by Birth & Sales Reports)
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // ref for the current report table (used by Print / PDF)
   const tableRef = useRef(null);
 
-  // ✅ Print header constants
   const PRINT_H1 = "MADHAVA SRUSTI RASHTROTTHANA GOSHALA";
 
-  // Report config (columns + sample rows + dateColumns for formatting)
+  // ✅ Paper-format Death Report columns (Option A: placeholders for missing fields)
   const REPORT_CONFIG = {
     birth: {
       id: "birth",
@@ -64,9 +54,10 @@ export default function CertificatesReports() {
         "Father bull breed",
         "Father ear tag number",
       ],
-      dateColumns: [0], // Date column index
+      dateColumns: [0],
       sampleRows: [],
     },
+
     death: {
       id: "death",
       title: "Date-wise Death Report",
@@ -75,7 +66,7 @@ export default function CertificatesReports() {
         "Time",
         "Name",
         "Breed",
-        "Ear tage number",
+        "Ear tag number",
         "Date of Birth",
         "Birth time",
         "Teeth",
@@ -88,15 +79,17 @@ export default function CertificatesReports() {
         "Father ear tag number",
         "Reason for death",
       ],
-      dateColumns: [],
+      // Date columns: Date + Date of Birth
+      dateColumns: [0, 5],
       sampleRows: [],
     },
+
     sales: {
       id: "sales",
       title: "Cattle Sales Report",
       columns: [
         "Sl. No",
-        "Date",
+        "Date (ddmmyyyy)",
         "Cattle name",
         "Tag number",
         "Breed",
@@ -109,34 +102,35 @@ export default function CertificatesReports() {
         "Gate pass number",
         "Sale price",
       ],
-      // date in this table is a ddmmyyyy string; we don't auto-format it as dd-mm-yyyy
       dateColumns: [],
       sampleRows: [],
     },
+
     incoming: {
       id: "incoming",
       title: "Incoming Cattle Report",
       columns: [
         "Sl. No",
         "Date",
-        "Tag No", 
-        "Name", 
-        "Breed", 
-        "Gender", 
+        "Tag No",
+        "Name",
+        "Breed",
+        "Gender",
         "Colour",
         "Cattle type",
         "Age",
         "Party name",
-        "Address",],
-        
-      dateColumns: [0],
+        "Address",
+      ],
+      dateColumns: [1],
       sampleRows: [],
     },
+
     dattu: {
       id: "dattu",
       title: "Dattu Yojana Report",
       columns: [
-        "Date", 
+        "Date",
         "Breed",
         "Tag No",
         "Cattle Name",
@@ -147,16 +141,17 @@ export default function CertificatesReports() {
         "Payment Mode",
         "Receipt Number",
         "Expiry date",
-        "Amount",],
-
-      dateColumns: [0],
+        "Amount",
+      ],
+      dateColumns: [0, 10],
       sampleRows: [],
     },
+
     milk: {
       id: "milk",
       title: "Daily Milk Yield Report",
       columns: [
-        "Date", 
+        "Date",
         "Morning Milk Yield",
         "Good Milk Morning",
         "Colostrum Milk Morning",
@@ -170,16 +165,17 @@ export default function CertificatesReports() {
         "Total Milk Yield",
         "Total Colostrum Milk",
         "Total Free Milk",
-        "Total left to By-products",],
-
-        dateColumns: [0],
-        sampleRows: [],
+        "Total left to By-products",
+      ],
+      dateColumns: [0],
+      sampleRows: [],
     },
+
     byproducts: {
       id: "byproducts",
       title: "Outgoing By-products Report",
       columns: [
-        "Date", 
+        "Date",
         "Invoice Number",
         "Sector",
         "Milk",
@@ -195,13 +191,13 @@ export default function CertificatesReports() {
         "INR",
         "Others",
         "INR",
-        "Total INR"],
+        "Total INR",
+      ],
       dateColumns: [0],
       sampleRows: [],
     },
   };
 
-  /** Open a non-birth/non-sales report using static sample rows for now */
   function openReport(id) {
     const cfg = REPORT_CONFIG[id];
     if (!cfg) return;
@@ -222,18 +218,18 @@ export default function CertificatesReports() {
     setFilter({ fromDate: "", toDate: "", extra: "" });
   }
 
-  /** Apply filters for Birth Report on the client side */
+  // ---------------- BIRTH REPORT ----------------
+
   function applyBirthFilters(allRows, filterState) {
     let rows = Array.isArray(allRows) ? [...allRows] : [];
 
     const { fromDate, toDate, extra } = filterState;
-    let from = fromDate ? new Date(fromDate) : null; // fromDate is ISO
+    let from = fromDate ? new Date(fromDate) : null;
     let to = toDate ? new Date(toDate) : null;
     if (to) to.setHours(23, 59, 59, 999);
 
     rows = rows.filter((row) => {
-      // backend provides "dd-MM-yyyy" for birth report
-      const d = ddMmYyyyToDate(row[0]); // Date string in dd-mm-yyyy
+      const d = ddMmYyyyToDate(row[0]);
       if (!d) return false;
       if (from && d < from) return false;
       if (to && d > to) return false;
@@ -242,14 +238,113 @@ export default function CertificatesReports() {
 
     if (extra) {
       const term = extra.toLowerCase();
-      // Breed is column index 3 in our array
-      rows = rows.filter((row) => String(row[3] || "").toLowerCase().includes(term));
+      rows = rows.filter((row) =>
+        String(row[3] || "").toLowerCase().includes(term)
+      );
     }
 
     return rows;
   }
 
-  /** Apply filters + transform for Sales Report (array of objects -> table rows) */
+  async function loadBirthReportWithFilters(filterState) {
+    setLoading(true);
+    setErrorMsg("");
+    setCurrentReportId("birth");
+    setCurrentReportTitle(REPORT_CONFIG.birth.title);
+
+    try {
+      const allRows = await fetchBirthReport();
+      const filtered = applyBirthFilters(allRows, filterState);
+      setReportRows(filtered);
+      setLastAppliedFilter({ ...filterState });
+    } catch (err) {
+      console.error("Birth report error:", err);
+      setReportRows([]);
+      setLastAppliedFilter({ ...filterState });
+      setErrorMsg(
+        "Unable to load Birth Report from Google Sheets. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ---------------- INCOMING REPORT (NEW) ----------------
+
+  function applyIncomingFilters(items, filterState) {
+    if (!Array.isArray(items)) return [];
+
+    const { fromDate, toDate, extra } = filterState;
+
+    let from = fromDate ? new Date(fromDate) : null;
+    let to = toDate ? new Date(toDate) : null;
+    if (to) to.setHours(23, 59, 59, 999);
+
+    let filtered = items.filter((item) => {
+      // ✅ Only ACTIVE cattle (as requested)
+      const status = String(item.status || "").toLowerCase().trim();
+      if (status !== "active") return false;
+
+      // ✅ DateOfAdmission filter
+      const d = new Date(item.dateOfAdmission);
+      if (isNaN(d.getTime())) return false;
+
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+
+      return true;
+    });
+
+    // ✅ extra filter = TypeOfAdmission (Purchase/Donation/Transfer/Farmer etc.)
+    if (extra) {
+      const term = extra.toLowerCase().trim();
+      filtered = filtered.filter((item) =>
+        String(item.typeOfAdmission || "").toLowerCase().includes(term)
+      );
+    }
+
+    // Map objects → table rows (same order as REPORT_CONFIG.incoming.columns)
+    return filtered.map((item, idx) => [
+      idx + 1,
+      item.dateOfAdmission || "",
+      item.tagNumber || "",
+      item.name || "",
+      item.breed || "",
+      item.gender || "",
+      item.colour || item.color || "",
+      item.cattleType || "",
+      item.ageYears ?? item.age ?? "",
+      "-", // Party name (not available yet)
+      "-", // Address (not available yet)
+    ]);
+  }
+
+  async function loadIncomingReportWithFilters(filterState) {
+    setLoading(true);
+    setErrorMsg("");
+    setCurrentReportId("incoming");
+    setCurrentReportTitle(REPORT_CONFIG.incoming.title);
+
+    try {
+      const allItems = await fetchCattle(); // ✅ comes from Master sheet
+      const rows = applyIncomingFilters(allItems, filterState);
+
+      setReportRows(rows);
+      setLastAppliedFilter({ ...filterState });
+    } catch (err) {
+      console.error("Incoming report error:", err);
+      setReportRows([]);
+      setLastAppliedFilter({ ...filterState });
+      setErrorMsg(
+        "Unable to load Incoming Cattle Report from Google Sheets. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ---------------- SALES REPORT ----------------
+
   function applySalesFilters(allItems, filterState) {
     if (!Array.isArray(allItems)) return [];
 
@@ -259,7 +354,6 @@ export default function CertificatesReports() {
     if (to) to.setHours(23, 59, 59, 999);
 
     let filtered = allItems.filter((item) => {
-      // backend provides saleDate as "dd-MM-yyyy" (as per your code.gs)
       const d = ddMmYyyyToDate(item.saleDate);
       if (!d) return false;
       if (from && d < from) return false;
@@ -277,14 +371,12 @@ export default function CertificatesReports() {
       });
     }
 
-    // Map objects → array rows in the order of REPORT_CONFIG.sales.columns
-    const rows = filtered.map((item, idx) => {
-      // Requirement: Date (ddmmyyyy) in table
+    return filtered.map((item, idx) => {
       const dateRaw = item.saleDate || ""; // dd-MM-yyyy
-      const dateDdmmyyyy = String(dateRaw).replace(/-/g, ""); // ddMMyyyy
+      const dateDdmmyyyy = String(dateRaw).replace(/-/g, "");
 
       return [
-        idx + 1, // Sl. No
+        idx + 1,
         dateDdmmyyyy,
         item.name || "",
         item.tagNumber || "",
@@ -299,33 +391,8 @@ export default function CertificatesReports() {
         item.salePrice || "",
       ];
     });
-
-    return rows;
   }
 
-  /** Load Birth Report from Apps Script + apply filters */
-  async function loadBirthReportWithFilters(filterState) {
-    setLoading(true);
-    setErrorMsg("");
-    setCurrentReportId("birth");
-    setCurrentReportTitle(REPORT_CONFIG.birth.title);
-
-    try {
-      const allRows = await fetchBirthReport(); // array of arrays from backend
-      const filtered = applyBirthFilters(allRows, filterState);
-      setReportRows(filtered);
-      setLastAppliedFilter({ ...filterState });
-    } catch (err) {
-      console.error("Birth report error:", err);
-      setReportRows([]);
-      setLastAppliedFilter({ ...filterState });
-      setErrorMsg("Unable to load Birth Report from Google Sheets. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /** Load Cattle Sales Report from Apps Script + apply filters */
   async function loadSalesReportWithFilters(filterState) {
     setLoading(true);
     setErrorMsg("");
@@ -333,7 +400,7 @@ export default function CertificatesReports() {
     setCurrentReportTitle(REPORT_CONFIG.sales.title);
 
     try {
-      const allItems = await fetchSalesReport(); // array of objects
+      const allItems = await fetchSalesReport();
       const filteredRows = applySalesFilters(allItems, filterState);
       setReportRows(filteredRows);
       setLastAppliedFilter({ ...filterState });
@@ -341,13 +408,110 @@ export default function CertificatesReports() {
       console.error("Sales report error:", err);
       setReportRows([]);
       setLastAppliedFilter({ ...filterState });
-      setErrorMsg("Unable to load Cattle Sales Report from Google Sheets. Please try again.");
+      setErrorMsg(
+        "Unable to load Cattle Sales Report from Google Sheets. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  /** When user clicks "Apply Filters" in the modal */
+  // ---------------- DEATH REPORT ----------------
+
+  function pick(v, fallback = "-") {
+    const s = String(v ?? "").trim();
+    return s ? s : fallback;
+  }
+
+  function normalizeReason(item) {
+    const cat = String(item.deathCauseCat || item.deathCauseCategory || "").trim();
+    const det = String(item.deathCause || item.deathCauseDetails || "").trim();
+    if (cat && det) return `${cat} - ${det}`;
+    return pick(cat || det, "-");
+  }
+
+  function applyDeathFilters(items, filterState) {
+    if (!Array.isArray(items)) return [];
+
+    const { extra } = filterState;
+    let filtered = [...items];
+
+    if (extra) {
+      const term = extra.toLowerCase();
+      filtered = filtered.filter((item) => {
+        const reason = normalizeReason(item).toLowerCase();
+        const cat = String(item.deathCauseCat || item.deathCauseCategory || "").toLowerCase();
+        return reason.includes(term) || cat.includes(term);
+      });
+    }
+
+    return filtered.map((item) => {
+      const deathDate =
+        item.deathDate ||
+        item.dateOfDeath ||
+        item.dateOfDeAdmission ||
+        item.dateOfDeAdmit ||
+        "";
+      const time = item.timeOfDeath || item.time || "-";
+
+      // placeholders not available in Master
+      const birthTime = "-";
+      const teeth = "-";
+      const motherBreed = "-";
+      const motherTag = "-";
+      const fatherBreed = "-";
+      const fatherTag = "-";
+
+      return [
+        pick(deathDate, "-"),
+        pick(time, "-"),
+        pick(item.name, "-"),
+        pick(item.breed, "-"),
+        pick(item.tagNumber, "-"),
+        pick(item.dateOfBirth, "-"),
+        birthTime,
+        teeth,
+        pick(item.ageYears, "-"),
+        pick(item.gender, "-"),
+        pick(item.colour || item.color, "-"),
+        motherBreed,
+        motherTag,
+        fatherBreed,
+        fatherTag,
+        normalizeReason(item),
+      ];
+    });
+  }
+
+  async function loadDeathReportWithFilters(filterState) {
+    setLoading(true);
+    setErrorMsg("");
+    setCurrentReportId("death");
+    setCurrentReportTitle(REPORT_CONFIG.death.title);
+
+    try {
+      const allItems = await fetchDeathRecords(
+        filterState.fromDate || "2024-01-01",
+        filterState.toDate || ""
+      );
+
+      const rows = applyDeathFilters(allItems, filterState);
+      setReportRows(rows);
+      setLastAppliedFilter({ ...filterState });
+    } catch (err) {
+      console.error("Death report error:", err);
+      setReportRows([]);
+      setLastAppliedFilter({ ...filterState });
+      setErrorMsg(
+        "Unable to load Death Report from Google Sheets. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ---------------- FILTER SUBMIT ----------------
+
   async function handleReportFilterSubmit(e) {
     e.preventDefault();
     if (!openReportFilter) return;
@@ -359,12 +523,16 @@ export default function CertificatesReports() {
       await loadBirthReportWithFilters(filter);
     } else if (id === "sales") {
       await loadSalesReportWithFilters(filter);
+    } else if (id === "death") {
+      await loadDeathReportWithFilters(filter);
+    } else if (id === "incoming") {
+      // ✅ IMPORTANT: this was missing earlier
+      await loadIncomingReportWithFilters(filter);
     } else {
       openReport(id);
     }
   }
 
-  // Helper for report filter label
   function reportFilterTitle(id) {
     switch (id) {
       case "birth":
@@ -395,7 +563,7 @@ export default function CertificatesReports() {
       case "sales":
         return "Buyer / Location (optional)";
       case "incoming":
-        return "Source type (Purchase / Donation)";
+        return "Type of admission (optional)"; // Purchase / Donation / Farmer etc.
       case "dattu":
         return "Dattu type (Shashwatha / Yearly)";
       case "milk":
@@ -407,42 +575,29 @@ export default function CertificatesReports() {
     }
   }
 
-  /* ---------- EXPORT / PRINT HELPERS ---------- */
+  // ---------------- EXPORT / PRINT ----------------
 
   function escapeCsvValue(value) {
     if (value == null) return "";
     const str = String(value);
-    if (/[",\n]/.test(str)) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
+    if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
   }
 
   function handleDownloadCsv() {
-    if (!currentReportId) {
-      alert("Please open a report first.");
-      return;
-    }
-    if (!reportRows || reportRows.length === 0) {
-      alert("No data available to download.");
-      return;
-    }
+    if (!currentReportId) return alert("Please open a report first.");
+    if (!reportRows || reportRows.length === 0) return alert("No data available to download.");
 
     const cfg = REPORT_CONFIG[currentReportId];
     const header = cfg.columns || [];
 
     const lines = [];
     lines.push(header.map(escapeCsvValue).join(","));
-    reportRows.forEach((row) => {
-      lines.push(row.map(escapeCsvValue).join(","));
-    });
+    reportRows.forEach((row) => lines.push(row.map(escapeCsvValue).join(",")));
 
-    const csvContent = lines.join("\r\n");
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
     a.href = url;
     a.download = (cfg.title || "report").toLowerCase().replace(/\s+/g, "-") + ".csv";
@@ -455,26 +610,17 @@ export default function CertificatesReports() {
   function buildPrintTitleLines() {
     const cfg = currentReportId ? REPORT_CONFIG[currentReportId] : null;
     const baseTitle = cfg?.title || currentReportTitle || "Report";
-
     const periodText = formatPeriod(lastAppliedFilter.fromDate, lastAppliedFilter.toDate);
-    const subtitle = `${baseTitle} (${periodText})`;
-
-    return { h1: PRINT_H1, subtitle };
+    return { h1: PRINT_H1, subtitle: `${baseTitle} (${periodText})` };
   }
 
   function openPrintWindow() {
-    if (!currentReportId || !tableRef.current) {
-      alert("Please open a report first.");
-      return;
-    }
+    if (!currentReportId || !tableRef.current) return alert("Please open a report first.");
 
     const { h1, subtitle } = buildPrintTitleLines();
-
-    // Apply date formatting in print too (for configured dateColumns)
     const cfg = REPORT_CONFIG[currentReportId];
     const dateCols = cfg?.dateColumns || [];
 
-    // Clone table HTML and patch date cells
     const temp = document.createElement("div");
     temp.innerHTML = tableRef.current.outerHTML;
 
@@ -496,46 +642,14 @@ export default function CertificatesReports() {
         <head>
           <title>${subtitle}</title>
           <style>
-            body {
-              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-              padding: 24px;
-              color: #111827;
-            }
-            .print-header {
-              text-align: center;
-              margin-bottom: 16px;
-            }
-            .print-header h1 {
-              font-size: 20px;
-              margin: 0;
-              font-weight: 800;
-              letter-spacing: 0.02em;
-            }
-            .print-header .subtitle {
-              margin-top: 6px;
-              font-size: 14px;
-              font-weight: 600;
-              color: #374151;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 12px;
-              margin-top: 10px;
-            }
-            th, td {
-              border: 1px solid #ccc;
-              padding: 4px 6px;
-              text-align: left;
-              vertical-align: top;
-            }
-            th {
-              background: #f5f5f5;
-            }
-            @media print {
-              body { padding: 0; }
-              .print-header { margin-bottom: 10px; }
-            }
+            body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 24px; color: #111827; }
+            .print-header { text-align: center; margin-bottom: 16px; }
+            .print-header h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: 0.02em; }
+            .print-header .subtitle { margin-top: 6px; font-size: 14px; font-weight: 600; color: #374151; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+            th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+            th { background: #f5f5f5; }
+            @media print { body { padding: 0; } .print-header { margin-bottom: 10px; } }
           </style>
         </head>
         <body>
@@ -549,10 +663,8 @@ export default function CertificatesReports() {
     `;
 
     const printWin = window.open("", "_blank", "width=1024,height=768");
-    if (!printWin) {
-      alert("Popup blocked. Please allow popups for this site to print/download PDF.");
-      return;
-    }
+    if (!printWin) return alert("Popup blocked. Please allow popups for this site to print/download PDF.");
+
     printWin.document.open();
     printWin.document.write(html);
     printWin.document.close();
@@ -568,22 +680,13 @@ export default function CertificatesReports() {
     openPrintWindow();
   }
 
-  /* ---------- RENDER ---------- */
+  // ---------------- RENDER ----------------
 
-  // For on-screen header: show dd-mm-yyyy in the filter summary (if any)
   const currentPeriodText = formatPeriod(lastAppliedFilter.fromDate, lastAppliedFilter.toDate);
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Certificates &amp; Reports</h1>
           <p style={{ margin: "0.3rem 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
@@ -592,7 +695,7 @@ export default function CertificatesReports() {
         </div>
       </header>
 
-      {/* Certificates section */}
+      {/* Certificates */}
       <section style={sectionStyle}>
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Certificates</h2>
@@ -602,96 +705,30 @@ export default function CertificatesReports() {
         </div>
 
         <div style={cardGridStyle}>
-          <CertificateCard
-            title="Birth Certificate"
-            description="For new-born calves with dam & sire details."
-            onClick={() => setOpenCertModal("birth")}
-          />
-          <CertificateCard
-            title="Death Certificate"
-            description="For deceased cattle with cause of death."
-            onClick={() => setOpenCertModal("death")}
-          />
-          <CertificateCard
-            title="Incoming Cow Certificate"
-            description="For newly purchased / donated cattle."
-            onClick={() => setOpenCertModal("incoming")}
-          />
-          <CertificateCard
-            title="Dattu Yojana Certificate"
-            description="For adopters under Dattu Yojana."
-            onClick={() => setOpenCertModal("dattu")}
-          />
+          <CertificateCard title="Birth Certificate" description="For new-born calves with dam & sire details." onClick={() => setOpenCertModal("birth")} />
+          <CertificateCard title="Death Certificate" description="For deceased cattle with cause of death." onClick={() => setOpenCertModal("death")} />
+          <CertificateCard title="Incoming Cow Certificate" description="For newly purchased / donated cattle." onClick={() => setOpenCertModal("incoming")} />
+          <CertificateCard title="Dattu Yojana Certificate" description="For adopters under Dattu Yojana." onClick={() => setOpenCertModal("dattu")} />
         </div>
       </section>
 
-      {/* Reports section */}
+      {/* Reports */}
       <section style={{ ...sectionStyle, marginTop: "1.75rem" }}>
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Reports</h2>
           <p style={sectionSubtitleStyle}>
-            View date-wise performance and activity across key operations. Filters are applied on
-            the data loaded from Google Sheets.
+            View date-wise performance and activity across key operations. Filters are applied on the data loaded from Google Sheets.
           </p>
         </div>
 
         <div style={cardGridStyle}>
-          <ReportCard
-            title="Birth Report"
-            description="Date-wise list of calves born."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("birth");
-            }}
-          />
-          <ReportCard
-            title="Death Report"
-            description="Date-wise list of cattle deaths."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("death");
-            }}
-          />
-          <ReportCard
-            title="Cattle Sales Report"
-            description="Summary of all cattle sold."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("sales");
-            }}
-          />
-          <ReportCard
-            title="Incoming Cattle Report"
-            description="All purchased / donated cattle."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("incoming");
-            }}
-          />
-          <ReportCard
-            title="Dattu Yojana Report"
-            description="Adoptions and related details."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("dattu");
-            }}
-          />
-          <ReportCard
-            title="Daily Milk Yield Report"
-            description="Day-wise milk yield by shed."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("milk");
-            }}
-          />
-          <ReportCard
-            title="Outgoing By-products Report"
-            description="Gomaya, Gomutra and other by-products."
-            onClick={() => {
-              resetFilter();
-              setOpenReportFilter("byproducts");
-            }}
-          />
+          <ReportCard title="Birth Report" description="Date-wise list of calves born." onClick={() => { resetFilter(); setOpenReportFilter("birth"); }} />
+          <ReportCard title="Death Report" description="Date-wise list of cattle deaths." onClick={() => { resetFilter(); setOpenReportFilter("death"); }} />
+          <ReportCard title="Cattle Sales Report" description="Summary of all cattle sold." onClick={() => { resetFilter(); setOpenReportFilter("sales"); }} />
+          <ReportCard title="Incoming Cattle Report" description="All purchased / donated cattle." onClick={() => { resetFilter(); setOpenReportFilter("incoming"); }} />
+          <ReportCard title="Dattu Yojana Report" description="Adoptions and related details." onClick={() => { resetFilter(); setOpenReportFilter("dattu"); }} />
+          <ReportCard title="Daily Milk Yield Report" description="Day-wise milk yield by shed." onClick={() => { resetFilter(); setOpenReportFilter("milk"); }} />
+          <ReportCard title="Outgoing By-products Report" description="Gomaya, Gomutra and other by-products." onClick={() => { resetFilter(); setOpenReportFilter("byproducts"); }} />
         </div>
       </section>
 
@@ -699,38 +736,16 @@ export default function CertificatesReports() {
       {currentReportId && (
         <section style={{ marginTop: "1.75rem" }}>
           <div style={cardStyle}>
-            {/* ✅ Centered report heading: H1 line + subtitle line */}
             <div style={{ textAlign: "center", marginBottom: "0.9rem" }}>
-              <div
-                style={{
-                  fontSize: "1.2rem",
-                  fontWeight: 800,
-                  letterSpacing: "0.02em",
-                  lineHeight: 1.2,
-                }}
-              >
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, letterSpacing: "0.02em", lineHeight: 1.2 }}>
                 {PRINT_H1}
               </div>
-              <div
-                style={{
-                  marginTop: "0.35rem",
-                  fontSize: "0.95rem",
-                  fontWeight: 700,
-                  color: "#374151",
-                }}
-              >
+              <div style={{ marginTop: "0.35rem", fontSize: "0.95rem", fontWeight: 700, color: "#374151" }}>
                 {currentReportTitle} ({currentPeriodText})
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.5rem",
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
               <div>
                 <p style={{ margin: 0, fontSize: "0.8rem", color: "#6b7280" }}>
                   Data loaded from Google Sheets for the selected period and filters.
@@ -748,28 +763,13 @@ export default function CertificatesReports() {
               </div>
 
               <div style={{ display: "flex", gap: "0.4rem" }}>
-                <button
-                  style={secondaryButtonStyle}
-                  type="button"
-                  onClick={handleDownloadCsv}
-                  disabled={loading}
-                >
+                <button style={secondaryButtonStyle} type="button" onClick={handleDownloadCsv} disabled={loading}>
                   Download CSV
                 </button>
-                <button
-                  style={secondaryButtonStyle}
-                  type="button"
-                  onClick={handleDownloadPdf}
-                  disabled={loading}
-                >
+                <button style={secondaryButtonStyle} type="button" onClick={handleDownloadPdf} disabled={loading}>
                   Download PDF
                 </button>
-                <button
-                  style={secondaryButtonStyle}
-                  type="button"
-                  onClick={handlePrint}
-                  disabled={loading}
-                >
+                <button style={secondaryButtonStyle} type="button" onClick={handlePrint} disabled={loading}>
                   Print
                 </button>
               </div>
@@ -780,9 +780,7 @@ export default function CertificatesReports() {
                 <thead>
                   <tr>
                     {REPORT_CONFIG[currentReportId].columns.map((col) => (
-                      <th key={col} style={thStyle}>
-                        {col}
-                      </th>
+                      <th key={col} style={thStyle}>{col}</th>
                     ))}
                   </tr>
                 </thead>
@@ -801,13 +799,9 @@ export default function CertificatesReports() {
                           const cfg = REPORT_CONFIG[currentReportId];
                           const isDateCol = (cfg.dateColumns || []).includes(cIdx);
 
-                          // Sales report uses ddmmyyyy. Keep it as-is.
+                          // Sales report uses ddmmyyyy in column 1; keep as-is
                           if (currentReportId === "sales" && cIdx === 1) {
-                            return (
-                              <td key={cIdx} style={tdStyle}>
-                                {cell}
-                              </td>
-                            );
+                            return <td key={cIdx} style={tdStyle}>{cell}</td>;
                           }
 
                           return (
@@ -826,7 +820,7 @@ export default function CertificatesReports() {
         </section>
       )}
 
-      {/* CERTIFICATE MODALS */}
+      {/* CERTIFICATE MODALS (UI-only) */}
       {openCertModal === "birth" && (
         <CertModal title="Birth Certificate" onClose={() => setOpenCertModal(null)}>
           <CertificateBirthForm />
@@ -863,7 +857,7 @@ export default function CertificatesReports() {
   );
 }
 
-/* ---------------- CERTIFICATE CARDS / REPORT CARDS ---------------- */
+/* ---------------- COMPONENTS ---------------- */
 
 function CertificateCard({ title, description, onClick }) {
   return (
@@ -885,8 +879,6 @@ function ReportCard({ title, description, onClick }) {
   );
 }
 
-/* ---------------- GENERIC MODALS ---------------- */
-
 function CertModal({ title, children, onClose }) {
   return (
     <div style={overlayStyle} onClick={onClose}>
@@ -898,9 +890,7 @@ function CertModal({ title, children, onClose }) {
             </div>
             <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</div>
           </div>
-          <button type="button" onClick={onClose} style={closeBtnStyle}>
-            ✕
-          </button>
+          <button type="button" onClick={onClose} style={closeBtnStyle}>✕</button>
         </div>
         {children}
       </div>
@@ -919,12 +909,9 @@ function ReportFilterModal({ title, filter, extraLabel, onChange, onClose, onSub
             </div>
             <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</div>
           </div>
-          <button type="button" onClick={onClose} style={closeBtnStyle}>
-            ✕
-          </button>
+          <button type="button" onClick={onClose} style={closeBtnStyle}>✕</button>
         </div>
 
-        {/* ✅ Help users: date inputs are ISO but display is dd-mm-yyyy everywhere else */}
         <div style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: "0.5rem" }}>
           Note: Select dates using the date picker. Reports will display dates in dd-mm-yyyy format.
         </div>
@@ -943,12 +930,8 @@ function ReportFilterModal({ title, filter, extraLabel, onChange, onClose, onSub
           </Field>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.4rem" }}>
-            <button type="button" onClick={onClose} style={secondaryButtonStyle}>
-              Cancel
-            </button>
-            <button type="submit" style={primaryButtonStyle}>
-              Apply Filters
-            </button>
+            <button type="button" onClick={onClose} style={secondaryButtonStyle}>Cancel</button>
+            <button type="submit" style={primaryButtonStyle}>Apply Filters</button>
           </div>
         </form>
       </div>
@@ -972,38 +955,21 @@ function CertificateBirthForm() {
     e.preventDefault();
     alert("Birth certificate generation will be implemented later (PDF via Apps Script).");
   }
-
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
-      <Field label="Calf ID / Tag No">
-        <input type="text" style={inputStyle} placeholder="Search / enter calf ID or tag" />
-      </Field>
-      <Field label="Calf Name">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Date of Birth">
-        <input type="date" style={inputStyle} />
-      </Field>
+      <Field label="Calf ID / Tag No"><input type="text" style={inputStyle} placeholder="Search / enter calf ID or tag" /></Field>
+      <Field label="Calf Name"><input type="text" style={inputStyle} /></Field>
+      <Field label="Date of Birth"><input type="date" style={inputStyle} /></Field>
       <Field label="Sex">
         <select style={inputStyle}>
-          <option value="">Select</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
+          <option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option>
         </select>
       </Field>
-      <Field label="Breed">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Dam (Mother)">
-        <input type="text" style={inputStyle} placeholder="Name / tag" />
-      </Field>
-      <Field label="Sire (Bull / Straw)">
-        <input type="text" style={inputStyle} placeholder="Name / tag / straw code" />
-      </Field>
+      <Field label="Breed"><input type="text" style={inputStyle} /></Field>
+      <Field label="Dam (Mother)"><input type="text" style={inputStyle} placeholder="Name / tag" /></Field>
+      <Field label="Sire (Bull / Straw)"><input type="text" style={inputStyle} placeholder="Name / tag / straw code" /></Field>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
-        <button type="submit" style={primaryButtonStyle}>
-          Generate Certificate (Demo)
-        </button>
+        <button type="submit" style={primaryButtonStyle}>Generate Certificate (Demo)</button>
       </div>
     </form>
   );
@@ -1014,34 +980,17 @@ function CertificateDeathForm() {
     e.preventDefault();
     alert("Death certificate generation will be implemented later (PDF via Apps Script).");
   }
-
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
-      <Field label="Animal ID / Tag No">
-        <input type="text" style={inputStyle} placeholder="Search / enter" />
-      </Field>
-      <Field label="Name">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Breed">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Age (Years)">
-        <input type="number" style={inputStyle} />
-      </Field>
-      <Field label="Date of Death">
-        <input type="date" style={inputStyle} />
-      </Field>
-      <Field label="Cause of Death">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Certifying Authority Name">
-        <input type="text" style={inputStyle} />
-      </Field>
+      <Field label="Animal ID / Tag No"><input type="text" style={inputStyle} placeholder="Search / enter" /></Field>
+      <Field label="Name"><input type="text" style={inputStyle} /></Field>
+      <Field label="Breed"><input type="text" style={inputStyle} /></Field>
+      <Field label="Age (Years)"><input type="number" style={inputStyle} /></Field>
+      <Field label="Date of Death"><input type="date" style={inputStyle} /></Field>
+      <Field label="Cause of Death"><input type="text" style={inputStyle} /></Field>
+      <Field label="Certifying Authority Name"><input type="text" style={inputStyle} /></Field>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
-        <button type="submit" style={primaryButtonStyle}>
-          Generate Certificate (Demo)
-        </button>
+        <button type="submit" style={primaryButtonStyle}>Generate Certificate (Demo)</button>
       </div>
     </form>
   );
@@ -1052,39 +1001,21 @@ function CertificateIncomingForm() {
     e.preventDefault();
     alert("Incoming cow certificate generation will be implemented later (PDF via Apps Script).");
   }
-
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
-      <Field label="Animal ID / Tag No">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Name">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Breed">
-        <input type="text" style={inputStyle} />
-      </Field>
+      <Field label="Animal ID / Tag No"><input type="text" style={inputStyle} /></Field>
+      <Field label="Name"><input type="text" style={inputStyle} /></Field>
+      <Field label="Breed"><input type="text" style={inputStyle} /></Field>
       <Field label="Type of Incoming">
         <select style={inputStyle}>
-          <option value="">Select</option>
-          <option value="Purchase">Purchase</option>
-          <option value="Donation">Donation</option>
-          <option value="Transfer">Transfer</option>
+          <option value="">Select</option><option value="Purchase">Purchase</option><option value="Donation">Donation</option><option value="Transfer">Transfer</option>
         </select>
       </Field>
-      <Field label="Source (Farmer / Ashrama / Donor)">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Date of Incoming">
-        <input type="date" style={inputStyle} />
-      </Field>
-      <Field label="Remarks">
-        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
-      </Field>
+      <Field label="Source (Farmer / Ashrama / Donor)"><input type="text" style={inputStyle} /></Field>
+      <Field label="Date of Incoming"><input type="date" style={inputStyle} /></Field>
+      <Field label="Remarks"><textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} /></Field>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
-        <button type="submit" style={primaryButtonStyle}>
-          Generate Certificate (Demo)
-        </button>
+        <button type="submit" style={primaryButtonStyle}>Generate Certificate (Demo)</button>
       </div>
     </form>
   );
@@ -1095,36 +1026,20 @@ function CertificateDattuForm() {
     e.preventDefault();
     alert("Dattu Yojana certificate generation will be implemented later (PDF via Apps Script).");
   }
-
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.8rem", marginTop: "0.4rem" }}>
-      <Field label="Adopter Name">
-        <input type="text" style={inputStyle} />
-      </Field>
-      <Field label="Address">
-        <textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
-      </Field>
-      <Field label="Cattle Tag / Name">
-        <input type="text" style={inputStyle} />
-      </Field>
+      <Field label="Adopter Name"><input type="text" style={inputStyle} /></Field>
+      <Field label="Address"><textarea style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} /></Field>
+      <Field label="Cattle Tag / Name"><input type="text" style={inputStyle} /></Field>
       <Field label="Dattu Type">
         <select style={inputStyle}>
-          <option value="">Select</option>
-          <option value="Shashwatha">Shashwatha Dattu</option>
-          <option value="Yearly">Yearly Dattu</option>
-          <option value="Monthly">Monthly Support</option>
+          <option value="">Select</option><option value="Shashwatha">Shashwatha Dattu</option><option value="Yearly">Yearly Dattu</option><option value="Monthly">Monthly Support</option>
         </select>
       </Field>
-      <Field label="Adoption Date">
-        <input type="date" style={inputStyle} />
-      </Field>
-      <Field label="Donation Amount">
-        <input type="number" style={inputStyle} />
-      </Field>
+      <Field label="Adoption Date"><input type="date" style={inputStyle} /></Field>
+      <Field label="Donation Amount"><input type="number" style={inputStyle} /></Field>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
-        <button type="submit" style={primaryButtonStyle}>
-          Generate Certificate (Demo)
-        </button>
+        <button type="submit" style={primaryButtonStyle}>Generate Certificate (Demo)</button>
       </div>
     </form>
   );
@@ -1139,21 +1054,9 @@ const sectionStyle = {
   boxShadow: "0 10px 25px rgba(15,23,42,0.03)",
 };
 
-const sectionHeaderStyle = {
-  marginBottom: "0.75rem",
-};
-
-const sectionTitleStyle = {
-  margin: 0,
-  fontSize: "1.1rem",
-  fontWeight: 600,
-};
-
-const sectionSubtitleStyle = {
-  margin: "0.25rem 0 0",
-  fontSize: "0.8rem",
-  color: "#6b7280",
-};
+const sectionHeaderStyle = { marginBottom: "0.75rem" };
+const sectionTitleStyle = { margin: 0, fontSize: "1.1rem", fontWeight: 600 };
+const sectionSubtitleStyle = { margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#6b7280" };
 
 const cardGridStyle = {
   display: "grid",
@@ -1170,9 +1073,7 @@ const certCardStyle = {
   cursor: "pointer",
 };
 
-const reportCardStyle = {
-  ...certCardStyle,
-};
+const reportCardStyle = { ...certCardStyle };
 
 const cardStyle = {
   background: "#ffffff",
@@ -1203,12 +1104,7 @@ const secondaryButtonStyle = {
   cursor: "pointer",
 };
 
-const tableStyle = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: "0.85rem",
-};
-
+const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" };
 const thStyle = {
   textAlign: "left",
   padding: "0.45rem 0.6rem",
@@ -1218,18 +1114,8 @@ const thStyle = {
   fontWeight: 600,
   color: "#4b5563",
 };
-
-const tdStyle = {
-  padding: "0.45rem 0.6rem",
-  borderBottom: "1px solid #e5e7eb",
-  color: "#111827",
-};
-
-const emptyCellStyle = {
-  padding: "0.6rem 0.6rem",
-  textAlign: "center",
-  color: "#6b7280",
-};
+const tdStyle = { padding: "0.45rem 0.6rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
+const emptyCellStyle = { padding: "0.6rem 0.6rem", textAlign: "center", color: "#6b7280" };
 
 const overlayStyle = {
   position: "fixed",
