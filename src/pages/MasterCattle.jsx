@@ -221,7 +221,7 @@ export default function MasterCattle() {
                 <th style={thStyle}>Tag No</th>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Breed</th>
-                <th style={thStyle}>Sex</th>
+                <th style={thStyle}>Gender</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Reason</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
@@ -388,7 +388,7 @@ function CattleDetailsPanel({ selected }) {
         />
         <DetailItem label="Name" value={selected.name} />
         <DetailItem label="Breed" value={selected.breed} />
-        <DetailItem label="Sex" value={selected.gender} />
+        <DetailItem label="Gender" value={selected.gender} />
         <DetailItem
           label="Colour"
           value={selected.colour || selected.color}
