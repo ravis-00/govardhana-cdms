@@ -48,9 +48,6 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
 
 /**
  * Unified response handler for all API calls.
- * Supports both:
- *   { success, data, error }
- * and plain arrays/objects.
  */
 async function handleResponse(res) {
   if (!res.ok) {
@@ -114,21 +111,10 @@ export async function getActiveCattle() {
   return getRequest("getActiveCattle");
 }
 
-/**
- * Death records from Master.
- * Backend expects: action=getDeathRecords&fromDate=YYYY-MM-DD
- */
 export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") {
   return getRequest("getDeathRecords", { fromDate, toDate });
 }
 
-
-
-
-/**
- * NOTE: Your Apps Script doGet currently DOES NOT have getCattleById route.
- * This function is kept for future, but it will fail unless backend adds it.
- */
 export async function getCattleById(id) {
   return getRequest("getCattleById", { id });
 }
@@ -141,33 +127,32 @@ export async function updateCattle(payload) {
   return postRequest("updateCattle", payload);
 }
 
-// ---- BIRTH REPORT (Certificates & Reports page) ----
-/**
- * Backend supports optional filters:
- *   action=getBirthReport&fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
- */
+// ---- BIRTH REPORT ----
 export async function getBirthReport(params = {}) {
-  // params can include { fromDate, toDate }
   return getRequest("getBirthReport", params);
 }
 
-// ---- SALES REPORT (Cattle Sales Report) ----
-/**
- * Backend currently returns all sales rows.
- * We accept optional params for future use (frontend can filter).
- */
+// ---- SALES REPORT ----
 export async function getSalesReport(params = {}) {
   return getRequest("getSalesReport", params);
 }
 
+// ---- DATTU REPORT (MISSING IN YOUR ORIGINAL FILE) ----
+// This is required for the Certificates & Reports page to work
+export async function getDattuReport(fromDate, toDate) {
+  return getRequest("getDattuReport", { fromDate, toDate });
+}
+
 // ---- MILK YIELD ----
-export async function getMilkYield() {
-  return getRequest("getMilkYield");
+// Updated to accept params so you can filter Milk Report by date too
+export async function getMilkYield(params = {}) {
+  return getRequest("getMilkYield", params);
 }
 
 // ---- BIO WASTE ----
-export async function getBioWaste() {
-  return getRequest("getBioWaste");
+// Updated to accept params so you can filter Bio Report by date too
+export async function getBioWaste(params = {}) {
+  return getRequest("getBioWaste", params);
 }
 
 // ---- VACCINATION / DEWORMING ----
@@ -175,7 +160,7 @@ export async function getVaccine() {
   return getRequest("getVaccine");
 }
 
-// ---- MEDICAL TREATMENT (Health sheet) ----
+// ---- MEDICAL TREATMENT ----
 export async function getTreatments() {
   return getRequest("getTreatments");
 }
@@ -188,7 +173,7 @@ export async function updateTreatment(payload) {
   return postRequest("updateTreatment", payload);
 }
 
-// ---- NEW BORN (New Born sheet) ----
+// ---- NEW BORN ----
 export async function getNewBorn() {
   return getRequest("getNewBorn");
 }
@@ -201,7 +186,7 @@ export async function updateNewBorn(payload) {
   return postRequest("updateNewBorn", payload);
 }
 
-// ---- FEEDING (Feeding sheet) ----
+// ---- FEEDING ----
 export async function getFeeding() {
   return getRequest("getFeeding");
 }
@@ -214,7 +199,7 @@ export async function updateFeeding(payload) {
   return postRequest("updateFeeding", payload);
 }
 
-// ---- DATTU YOJANA (Dattu sheet) ----
+// ---- DATTU YOJANA (Data Entry List) ----
 export async function getDattuYojana() {
   return getRequest("getDattuYojana");
 }
@@ -226,6 +211,19 @@ export async function addDattuYojana(payload) {
 export async function updateDattuYojana(payload) {
   return postRequest("updateDattuYojana", payload);
 }
+
+// ... inside masterApi.js ...
+
+export async function getMilkReport(fromDate, toDate) {
+  return getRequest("getMilkReport", { fromDate, toDate });
+}
+
+export async function getBioReport(fromDate, toDate) {
+  return getRequest("getBioReport", { fromDate, toDate });
+}
+
+
+
 
 // ============================================================================
 // === Backwards-compatibility aliases =======================================
@@ -239,6 +237,7 @@ export const fetchDeathRecords = getDeathRecords;
 // Reports
 export const fetchBirthReport = getBirthReport;
 export const fetchSalesReport = getSalesReport;
+export const fetchDattuReport = getDattuReport; // <--- ADDED THIS ALIAS
 
 // Milk yield
 export const fetchMilkYield = getMilkYield;
@@ -258,5 +257,8 @@ export const fetchNewBorn = getNewBorn;
 // Feeding
 export const fetchFeeding = getFeeding;
 
-// Dattu Yojana
+// Dattu Yojana (Data Entry)
 export const fetchDattuYojana = getDattuYojana;
+
+export const fetchMilkReport = getMilkReport;
+export const fetchBioReport = getBioReport;
