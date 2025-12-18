@@ -1,9 +1,11 @@
 // src/pages/CattleRegistration.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { addCattle } from "../api/masterApi"; // <--- IMPORT API
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false); // <--- ADD LOADING STATE
 
   const [form, setForm] = useState({
     cattleId: "",
@@ -40,15 +42,56 @@ export default function CattleRegistration() {
   }
 
   function handleCancel() {
-    // For now go back to Active Cattle list (you can change target later)
     navigate("/cattle/active");
   }
 
-  function handleSubmit(e) {
+  // --- UPDATED SUBMIT HANDLER ---
+  async function handleSubmit(e) {
     e.preventDefault();
-    // For now just log; later we will call Apps Script API
-    console.log("Cattle registration data:", form);
-    alert("Cattle registration data captured (not yet saved to backend).");
+    setLoading(true);
+
+    try {
+      // 1. Prepare Payload (match backend expectation)
+      const payload = {
+        cattleId: form.cattleId, // Backend maps this to Tag Number
+        govtId: form.govtId,
+        name: form.name,
+        colour: form.colour,
+        gender: form.gender,
+        breed: form.breed,
+        typeOfAdmission: form.typeOfAdmission,
+        disability: form.disabilityFlag,
+        adoptionStatus: form.adoptionStatus, // Ensure backend stores this if needed
+        locationShed: form.locationShed,     // Ensure backend stores this if needed
+        remarks: form.remarks,
+        // Default admission date to today if not provided in form
+        admissionDate: new Date().toISOString().split('T')[0] 
+      };
+
+      // 2. Send to Backend
+      console.log("Sending payload:", payload);
+      const response = await addCattle(payload);
+
+      // 3. Handle Response
+      if (response && response.success) {
+        alert("Cattle Registered Successfully!");
+        // Optional: Reset form or navigate away
+        setForm({
+          cattleId: "", govtId: "", name: "", colour: "", gender: "", breed: "",
+          typeOfAdmission: "", disabilityFlag: "N", adoptionStatus: "", 
+          locationShed: "", remarks: "", picture: null, newTagNumber: "", 
+          newCattleId: "", newGovtId: "", reactiveReason: "", reactiveDate: ""
+        });
+        navigate("/cattle/active"); // Go to list after save
+      } else {
+        alert("Failed to save: " + (response.error || "Unknown error"));
+      }
+    } catch (error) {
+      console.error("Save Error:", error);
+      alert("Error connecting to server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -81,6 +124,7 @@ export default function CattleRegistration() {
           <button
             type="button"
             onClick={handleCancel}
+            disabled={loading}
             style={{
               padding: "0.4rem 0.85rem",
               borderRadius: "999px",
@@ -95,18 +139,19 @@ export default function CattleRegistration() {
           <button
             form="cattle-registration-form"
             type="submit"
+            disabled={loading}
             style={{
               padding: "0.4rem 0.95rem",
               borderRadius: "999px",
               border: "none",
-              background: "#2563eb",
+              background: loading ? "#93c5fd" : "#2563eb", // Lighter blue when loading
               color: "#ffffff",
               fontSize: "0.85rem",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading ? "not-allowed" : "pointer",
             }}
           >
-            Save
+            {loading ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -126,14 +171,14 @@ export default function CattleRegistration() {
         }}
       >
         <TextField
-          label="Cattle ID *"
+          label="Cattle ID / Tag Number *"
           name="cattleId"
           value={form.cattleId}
           onChange={handleChange}
         />
 
         <TextField
-          label="Govt ID *"
+          label="Govt ID"
           name="govtId"
           value={form.govtId}
           onChange={handleChange}
@@ -166,27 +211,26 @@ export default function CattleRegistration() {
         />
 
         <SelectField
-  label="Breed *"
-  name="breed"
-  value={form.breed}
-  onChange={handleChange}
-  options={[
-    { value: "", label: "Select Breed" },
-    { value: "Hallikar", label: "Hallikar" },
-    { value: "Bargur", label: "Bargur" },
-    { value: "Deoni", label: "Deoni" },
-    { value: "Ongole", label: "Ongole" },
-    { value: "Malenadu Gidda", label: "Malenadu Gidda" },
-    { value: "Rati", label: "Rati" },
-    { value: "Kankrej", label: "Kankrej" },
-    { value: "Gir", label: "Gir" },
-    { value: "Krishna Valley", label: "Krishna Valley" },
-    { value: "Sahiwal", label: "Sahiwal" },
-    { value: "Punganur", label: "Punganur" },
-    { value: "Mix", label: "Mix" },
-  ]}
-/>
-
+          label="Breed *"
+          name="breed"
+          value={form.breed}
+          onChange={handleChange}
+          options={[
+            { value: "", label: "Select Breed" },
+            { value: "Hallikar", label: "Hallikar" },
+            { value: "Bargur", label: "Bargur" },
+            { value: "Deoni", label: "Deoni" },
+            { value: "Ongole", label: "Ongole" },
+            { value: "Malenadu Gidda", label: "Malenadu Gidda" },
+            { value: "Rati", label: "Rati" },
+            { value: "Kankrej", label: "Kankrej" },
+            { value: "Gir", label: "Gir" },
+            { value: "Krishna Valley", label: "Krishna Valley" },
+            { value: "Sahiwal", label: "Sahiwal" },
+            { value: "Punganur", label: "Punganur" },
+            { value: "Mix", label: "Mix" },
+          ]}
+        />
 
         <SelectField
           label="Type of Admission *"
@@ -196,9 +240,9 @@ export default function CattleRegistration() {
           options={[
             { value: "", label: "Select type" },
             { value: "Purchase", label: "Purchase" },
-            { value: "Farmer", label: "Farmer" },
-            { value: "Slaughter House", label: "Slaughter House" },
-            { value: "Birth", label: "Birth" },
+            { value: "Donation", label: "Donation" },
+            { value: "Born at Goshala", label: "Born at Goshala" },
+            { value: "Rescue", label: "Rescue" },
           ]}
         />
 
@@ -254,22 +298,21 @@ export default function CattleRegistration() {
         </div>
 
         <SelectField
-  label="Adoption Status *"
-  name="adoptionStatus"
-  value={form.adoptionStatus}
-  onChange={handleChange}
-  options={[
-    { value: "", label: "Select Adoption Status" },
-    { value: "Punyakoti", label: "Punyakoti" },
-    { value: "Samrakshana", label: "Samrakshana" },
-    { value: "Go Dana", label: "Go Dana" },
-    { value: "Shashwatha Dattu Sweekara", label: "Shashwatha Dattu Sweekara" },
-  ]}
-/>
-
+          label="Adoption Status"
+          name="adoptionStatus"
+          value={form.adoptionStatus}
+          onChange={handleChange}
+          options={[
+            { value: "", label: "Select Adoption Status" },
+            { value: "Punyakoti", label: "Punyakoti" },
+            { value: "Samrakshana", label: "Samrakshana" },
+            { value: "Go Dana", label: "Go Dana" },
+            { value: "Shashwatha Dattu Sweekara", label: "Shashwatha Dattu Sweekara" },
+          ]}
+        />
 
         <SelectField
-          label="Location / Shed *"
+          label="Location / Shed"
           name="locationShed"
           value={form.locationShed}
           onChange={handleChange}
@@ -297,7 +340,7 @@ export default function CattleRegistration() {
               marginBottom: "0.25rem",
             }}
           >
-            Picture *
+            Picture
           </label>
           <input
             type="file"
@@ -324,29 +367,16 @@ export default function CattleRegistration() {
           )}
         </div>
 
+        {/* These fields seem like extras or specific scenarios; keeping them as text inputs for now */}
         <TextField
-          label="New Tag Number"
+          label="New Tag Number (if Re-tagging)"
           name="newTagNumber"
           value={form.newTagNumber}
           onChange={handleChange}
         />
 
         <TextField
-          label="New Cattle ID"
-          name="newCattleId"
-          value={form.newCattleId}
-          onChange={handleChange}
-        />
-
-        <TextField
-          label="New Govt ID"
-          name="newGovtId"
-          value={form.newGovtId}
-          onChange={handleChange}
-        />
-
-        <TextField
-          label="Reactive Reason"
+          label="Reactive Reason (if applicable)"
           name="reactiveReason"
           value={form.reactiveReason}
           onChange={handleChange}
