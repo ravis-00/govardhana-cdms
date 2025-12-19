@@ -1,16 +1,31 @@
 // src/pages/Login.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext"; // <--- Import Auth Context
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { login } = useAuth(); // <--- Get login function
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    // For now: no real auth, just go to dashboard
-    navigate("/dashboard");
+    setError(""); // Clear previous errors
+    setLoading(true);
+
+    // Call the real API login
+    const result = await login(email, password);
+
+    if (result.success) {
+      navigate("/dashboard"); // Redirect on success
+    } else {
+      setError(result.error); // Show error message
+    }
+    setLoading(false);
   }
 
   return (
@@ -156,9 +171,25 @@ export default function Login() {
                 color: "#6b7280",
               }}
             >
-              For development you can leave the fields blank and click{" "}
-              <strong>Login</strong> to open the dashboard.
+              Please enter your credentials to access the system.
             </p>
+
+            {/* Error Message Display */}
+            {error && (
+              <div
+                style={{
+                  marginBottom: "1rem",
+                  padding: "0.6rem",
+                  borderRadius: "8px",
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  fontSize: "0.85rem",
+                  textAlign: "center",
+                }}
+              >
+                {error}
+              </div>
+            )}
 
             <form
               onSubmit={handleSubmit}
@@ -180,7 +211,8 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="(optional for now)"
+                  placeholder="Enter email"
+                  required
                   style={inputStyle}
                 />
               </div>
@@ -201,13 +233,22 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="(optional for now)"
+                  placeholder="Enter password"
+                  required
                   style={inputStyle}
                 />
               </div>
 
-              <button type="submit" style={buttonStyle}>
-                Login
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  ...buttonStyle,
+                  background: loading ? "#fdba74" : "#f97316",
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                {loading ? "Logging in..." : "Login"}
               </button>
             </form>
           </div>
@@ -224,6 +265,7 @@ const inputStyle = {
   border: "1px solid #d1d5db",
   fontSize: "0.9rem",
   outline: "none",
+  boxSizing: "border-box", // Ensure padding doesn't affect width
 };
 
 const buttonStyle = {
@@ -231,11 +273,9 @@ const buttonStyle = {
   padding: "0.7rem 0.75rem",
   borderRadius: "999px",
   border: "none",
-  background: "#f97316", // orange to match topbar
   color: "white",
   fontWeight: 600,
   fontSize: "0.95rem",
-  cursor: "pointer",
 };
 
 function FeatureCard({ title, text }) {

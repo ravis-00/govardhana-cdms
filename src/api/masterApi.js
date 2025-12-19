@@ -262,3 +262,25 @@ export const fetchDattuYojana = getDattuYojana;
 
 export const fetchMilkReport = getMilkReport;
 export const fetchBioReport = getBioReport;
+
+// ... existing imports and functions ...
+
+// --- AUTHENTICATION & USERS ---
+
+export async function loginUser(email, password) {
+  // The Controller expects action="login"
+  return getRequest("login", { email, password });
+}
+
+export async function fetchUsers() {
+  return getRequest("getUsers");
+}
+
+export async function addUser(userData) {
+  // userData = { name, email, password, mobile, role }
+  return postRequest("addUser", userData);
+}
+
+export async function updateUser(userData) {
+  return postRequest("updateUser", userData);
+}

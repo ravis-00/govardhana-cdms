@@ -1,6 +1,6 @@
-// src/layout/MainLayout.jsx
 import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext"; // <--- Import Auth
 
 const linkStyle = ({ isActive }) => ({
   display: "block",
@@ -14,7 +14,13 @@ const linkStyle = ({ isActive }) => ({
 
 export default function MainLayout() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth(); // <--- Get user and logout
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   return (
     <div className="app-shell">
@@ -45,16 +51,34 @@ export default function MainLayout() {
           </div>
         </div>
 
-        {/* RIGHT: Home + user */}
+        {/* RIGHT: User Profile + Logout */}
         <div className="topbar-right">
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "1rem" }}>
+            <span className="topbar-user" style={{ fontSize: "0.9rem", fontWeight: "600" }}>
+              {user ? user.name : "Guest"}
+            </span>
+            <span style={{ fontSize: "0.75rem", color: "#fff", opacity: 0.8 }}>
+              {user ? user.role : ""}
+            </span>
+          </div>
+          
           <button
             type="button"
             className="topbar-home-btn"
-            onClick={() => navigate("/login")}
+            onClick={handleLogout}
+            title="Logout"
+            style={{ 
+              background: "#dc2626", 
+              border: "none", 
+              color: "white",       // <--- ADDED THIS
+              fontWeight: "600",    // <--- Added for better visibility
+              padding: "0.4rem 0.8rem", 
+              borderRadius: "4px",
+              cursor: "pointer"
+            }} 
           >
-            🏠 Home
+            Logout
           </button>
-          <span className="topbar-user">User</span>
         </div>
       </header>
 
@@ -70,6 +94,14 @@ export default function MainLayout() {
             <NavLink to="/dashboard" style={linkStyle}>
               Dashboard
             </NavLink>
+
+            {/* Admin Only Menu Item */}
+            {user?.role === "Admin" && (
+              <NavLink to="/users" style={linkStyle}>
+                👥 User Management
+              </NavLink>
+            )}
+
             <NavLink to="/cattle/active" style={linkStyle}>
               Active Cattle
             </NavLink>
