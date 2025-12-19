@@ -1,13 +1,16 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext"; // Import Auth Context
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import MainLayout from "./layout/MainLayout.jsx";
 
 // Import Pages
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
-import UserManagement from "./pages/UserManagement.jsx"; // <--- New Page
+import UserManagement from "./pages/UserManagement.jsx";
 import ActiveCattle from "./pages/ActiveCattle.jsx";
+import MasterCattle from "./pages/MasterCattle.jsx";
+import CattleRegistration from "./pages/CattleRegistration.jsx";
+import NewTag from "./pages/NewTag.jsx";
 import MilkYield from "./pages/MilkYield.jsx";
 import BioWaste from "./pages/BioWaste.jsx";
 import Vaccine from "./pages/Vaccine.jsx";
@@ -16,33 +19,21 @@ import NewBorn from "./pages/NewBorn.jsx";
 import Feeding from "./pages/Feeding.jsx";
 import DattuYojana from "./pages/DattuYojana.jsx";
 import Deregister from "./pages/Deregister.jsx";
-import CattleRegistration from "./pages/CattleRegistration.jsx";
 import DeathRecords from "./pages/DeathRecords.jsx";
-import MasterCattle from "./pages/MasterCattle.jsx";
-import NewTag from "./pages/NewTag.jsx";
 import CertificatesReports from "./pages/CertificatesReports.jsx";
 
-// --- PROTECTED ROUTE COMPONENT ---
-// This component checks if the user is logged in and has the correct role
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem", color: "#666" }}>
-        Loading...
-      </div>
-    );
+    return <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>Loading...</div>;
   }
 
-  // 1. Not Logged In -> Redirect to Login
   if (!user) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // 2. Role Check (Optional)
-  // If allowedRoles is provided, check if user's role is in the list
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "#b91c1c" }}>
@@ -58,52 +49,37 @@ function ProtectedRoute({ children, allowedRoles }) {
 
 export default function App() {
   return (
-    // Wrap the entire routing logic in AuthProvider so all pages can access user state
     <AuthProvider>
       <Routes>
-        {/* --- Public Routes --- */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
-        {/* --- Protected Routes (Wrapped in MainLayout) --- */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          {/* Dashboard - Accessible to all logged in users */}
-          <Route path="/dashboard" element={<Dashboard />} />
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          
+          {/* --- GROUP 1: EVERYONE (Admin, User, Viewer) --- */}
+          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Dashboard /></ProtectedRoute>} />
+          <Route path="/cattle/active" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><ActiveCattle /></ProtectedRoute>} />
+          <Route path="/cattle/master" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MasterCattle /></ProtectedRoute>} />
+          <Route path="/milk-yield" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MilkYield /></ProtectedRoute>} />
+          <Route path="/bio-waste" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><BioWaste /></ProtectedRoute>} />
+          <Route path="/vaccine" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Vaccine /></ProtectedRoute>} />
+          <Route path="/treatment" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Treatment /></ProtectedRoute>} />
+          <Route path="/newborn" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><NewBorn /></ProtectedRoute>} />
+          <Route path="/feeding" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Feeding /></ProtectedRoute>} />
+          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><DattuYojana /></ProtectedRoute>} />
 
-          {/* Admin Only Route */}
-          <Route 
-            path="/users" 
-            element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
-                <UserManagement />
-              </ProtectedRoute>
-            } 
-          />
+          {/* --- GROUP 2: ADMIN & USER ONLY (Hidden from Viewer) --- */}
+          <Route path="/cattle/register" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><CattleRegistration /></ProtectedRoute>} />
+          <Route path="/new-tag" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><NewTag /></ProtectedRoute>} />
+          <Route path="/deregister" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><Deregister /></ProtectedRoute>} />
+          <Route path="/death-records" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><DeathRecords /></ProtectedRoute>} />
+          <Route path="/certificates-reports" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><CertificatesReports /></ProtectedRoute>} />
 
-          {/* Operational Routes - Accessible to Admin & User (Viewer typically read-only, handled in pages) */}
-          <Route path="/cattle/active" element={<ActiveCattle />} />
-          <Route path="/cattle/master" element={<MasterCattle />} />
-          <Route path="/cattle/register" element={<CattleRegistration />} />
-          <Route path="/new-tag" element={<NewTag />} />
-          <Route path="/milk-yield" element={<MilkYield />} />
-          <Route path="/bio-waste" element={<BioWaste />} />
-          <Route path="/vaccine" element={<Vaccine />} />
-          <Route path="/treatment" element={<Treatment />} />
-          <Route path="/newborn" element={<NewBorn />} />
-          <Route path="/feeding" element={<Feeding />} />
-          <Route path="/dattu-yojana" element={<DattuYojana />} />
-          <Route path="/deregister" element={<Deregister />} />
-          <Route path="/death-records" element={<DeathRecords />} />
-          <Route path="/certificates-reports" element={<CertificatesReports />} />
+          {/* --- GROUP 3: ADMIN ONLY --- */}
+          <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin"]}><UserManagement /></ProtectedRoute>} />
+
         </Route>
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>

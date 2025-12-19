@@ -5,6 +5,7 @@ import {
   addDattuYojana,
   updateDattuYojana,
 } from "../api/masterApi";
+import { useAuth } from "../context/AuthContext";
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -62,8 +63,10 @@ function toDisplayDateFromInput(isoStr) {
 /* ------------------------------------------------------------------ */
 
 export default function DattuYojana() {
-  const [month, setMonth] = useState(getCurrentYearMonth());
+  const { user } = useAuth(); // Get User Role
   const [rows, setRows] = useState([]);
+  const [month, setMonth] = useState(getCurrentYearMonth());
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -238,22 +241,25 @@ export default function DattuYojana() {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={openAddForm}
-            style={{
-              padding: "0.45rem 0.95rem",
-              borderRadius: "999px",
-              border: "none",
-              background: "#16a34a",
-              color: "#ffffff",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-            }}
-          >
-            + Add Entry
-          </button>
+          {/* HIDE ADD BUTTON FOR VIEWERS */}
+          {user?.role !== "Viewer" && (
+            <button
+              type="button"
+              onClick={openAddForm}
+              style={{
+                padding: "0.45rem 0.95rem",
+                borderRadius: "999px",
+                border: "none",
+                background: "#16a34a",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              + Add Entry
+            </button>
+          )}
         </div>
       </header>
 
@@ -362,14 +368,18 @@ export default function DattuYojana() {
                     >
                       👁️ View
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(row)}
-                      style={editBtnStyle}
-                      title="Edit entry"
-                    >
-                      ✏️ Edit
-                    </button>
+                    
+                    {/* HIDE EDIT BUTTON FOR VIEWERS */}
+                    {user?.role !== "Viewer" && (
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(row)}
+                        style={editBtnStyle}
+                        title="Edit entry"
+                      >
+                        ✏️ Edit
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

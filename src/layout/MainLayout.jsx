@@ -1,6 +1,90 @@
 import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext"; // <--- Import Auth
+import { useAuth } from "../context/AuthContext";
+
+// --- MENU CONFIGURATION ---
+const MENU_ITEMS = [
+  { 
+    path: "/dashboard", 
+    label: "Dashboard", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/users", 
+    label: "👥 User Management", 
+    roles: ["Admin"] 
+  },
+  { 
+    path: "/cattle/active", 
+    label: "Active Cattle", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/cattle/master", 
+    label: "Master Cattle Data", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/cattle/register", 
+    label: "Cattle Registration", 
+    roles: ["Admin", "User"] // Hidden for Viewer
+  },
+  { 
+    path: "/new-tag", 
+    label: "New Tag Number", 
+    roles: ["Admin", "User"] // Hidden for Viewer
+  },
+  { 
+    path: "/milk-yield", 
+    label: "Milk Yield", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/bio-waste", 
+    label: "Bio Waste", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/vaccine", 
+    label: "Vaccine / Deworming", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/treatment", 
+    label: "Medical Treatment", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/newborn", 
+    label: "New Born", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/feeding", 
+    label: "Feeding", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/dattu-yojana", 
+    label: "Dattu Yojana", 
+    roles: ["Admin", "User", "Viewer"] 
+  },
+  { 
+    path: "/deregister", 
+    label: "Deregister Cattle", 
+    roles: ["Admin", "User"] // Hidden for Viewer
+  },
+  { 
+    path: "/death-records", 
+    label: "💀 Cattle Death Records", 
+    roles: ["Admin", "User"] // Hidden for Viewer
+  },
+  { 
+    path: "/certificates-reports", 
+    label: "📄 Certificates & Reports", 
+    roles: ["Admin", "User"] // Hidden for Viewer
+  }
+];
 
 const linkStyle = ({ isActive }) => ({
   display: "block",
@@ -14,7 +98,7 @@ const linkStyle = ({ isActive }) => ({
 
 export default function MainLayout() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth(); // <--- Get user and logout
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
@@ -22,11 +106,16 @@ export default function MainLayout() {
     navigate("/");
   };
 
+  // Helper to check if current user has permission
+  const hasPermission = (allowedRoles) => {
+    if (!user) return false;
+    return allowedRoles.includes(user.role);
+  };
+
   return (
     <div className="app-shell">
       {/* TOPBAR */}
       <header className="topbar">
-        {/* LEFT: hamburger */}
         <button
           className="topbar-menu-btn"
           type="button"
@@ -36,7 +125,6 @@ export default function MainLayout() {
           &#9776;
         </button>
 
-        {/* CENTER: logo + title */}
         <div
           className="topbar-center"
           onClick={() => navigate("/dashboard")}
@@ -51,7 +139,6 @@ export default function MainLayout() {
           </div>
         </div>
 
-        {/* RIGHT: User Profile + Logout */}
         <div className="topbar-right">
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "1rem" }}>
             <span className="topbar-user" style={{ fontSize: "0.9rem", fontWeight: "600" }}>
@@ -70,8 +157,8 @@ export default function MainLayout() {
             style={{ 
               background: "#dc2626", 
               border: "none", 
-              color: "white",       // <--- ADDED THIS
-              fontWeight: "600",    // <--- Added for better visibility
+              color: "white", 
+              fontWeight: "600",
               padding: "0.4rem 0.8rem", 
               borderRadius: "4px",
               cursor: "pointer"
@@ -84,70 +171,21 @@ export default function MainLayout() {
 
       {/* BODY */}
       <div className="layout-body">
-        {/* SIDEBAR */}
-        <aside
-          className={
-            sidebarOpen ? "sidebar" : "sidebar sidebar-hidden"
-          }
-        >
+        <aside className={sidebarOpen ? "sidebar" : "sidebar sidebar-hidden"}>
           <nav style={{ display: "grid", gap: "0.25rem" }}>
-            <NavLink to="/dashboard" style={linkStyle}>
-              Dashboard
-            </NavLink>
-
-            {/* Admin Only Menu Item */}
-            {user?.role === "Admin" && (
-              <NavLink to="/users" style={linkStyle}>
-                👥 User Management
-              </NavLink>
-            )}
-
-            <NavLink to="/cattle/active" style={linkStyle}>
-              Active Cattle
-            </NavLink>
-            <NavLink to="/cattle/master" style={linkStyle}>
-              Master Cattle Data
-            </NavLink>
-            <NavLink to="/cattle/register" style={linkStyle}>
-              Cattle Registration
-            </NavLink>
-            <NavLink to="/new-tag" style={linkStyle}>
-              New Tag Number
-            </NavLink>
-            <NavLink to="/milk-yield" style={linkStyle}>
-              Milk Yield
-            </NavLink>
-            <NavLink to="/bio-waste" style={linkStyle}>
-              Bio Waste
-            </NavLink>
-            <NavLink to="/vaccine" style={linkStyle}>
-              Vaccine / Deworming
-            </NavLink>
-            <NavLink to="/treatment" style={linkStyle}>
-              Medical Treatment
-            </NavLink>
-            <NavLink to="/newborn" style={linkStyle}>
-              New Born
-            </NavLink>
-            <NavLink to="/feeding" style={linkStyle}>
-              Feeding
-            </NavLink>
-            <NavLink to="/dattu-yojana" style={linkStyle}>
-              Dattu Yojana
-            </NavLink>
-            <NavLink to="/deregister" style={linkStyle}>
-              Deregister Cattle
-            </NavLink>
-            <NavLink to="/death-records" style={linkStyle}>
-              💀 Cattle Death Records
-            </NavLink>
-            <NavLink to="/certificates-reports" style={linkStyle}>
-              📄 Certificates &amp; Reports
-            </NavLink>
+            {MENU_ITEMS.map((item) => {
+              // Only render if user has permission
+              if (!hasPermission(item.roles)) return null;
+              
+              return (
+                <NavLink key={item.path} to={item.path} style={linkStyle}>
+                  {item.label}
+                </NavLink>
+              );
+            })}
           </nav>
         </aside>
 
-        {/* MAIN CONTENT */}
         <main className="main-content">
           <Outlet />
         </main>
