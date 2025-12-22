@@ -1,7 +1,5 @@
 // web-cdms/src/api/masterApi.js
 
-// web-cdms/src/api/masterApi.js
-
 // 🔗 Deployed Apps Script Web App URL
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
@@ -119,6 +117,11 @@ export async function getActiveCattle() {
 
 export async function getCattleById(id) {
   return getRequest("getCattleById", { id });
+}
+
+// NEW FUNCTION ADDED HERE
+export async function getUnregisteredBirths() {
+  return getRequest("getUnregisteredBirths");
 }
 
 export async function addCattle(payload) {
@@ -264,6 +267,7 @@ export async function getBioReport(fromDate, toDate) {
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
+export const fetchUnregisteredBirths = getUnregisteredBirths; // Added Alias
 
 export const fetchBirthReport = getBirthReport;
 export const fetchSalesReport = getSalesReport;
@@ -279,3 +283,29 @@ export const fetchVaccine = getVaccine;
 export const fetchTreatments = getTreatments;
 export const fetchNewBorn = getNewBorn;
 export const fetchDattuYojana = getDattuYojana;
+
+// --- 3. DAILY OPERATIONS (Milk) ---
+
+// 1. PRODUCTION (Cow-wise)
+export async function getMilkProduction(params = {}) {
+  return getRequest("getMilkProduction", params);
+}
+export async function addMilkProduction(payload) {
+  return postRequest("addMilkProduction", payload);
+}
+export async function updateMilkProduction(payload) {
+  return postRequest("updateMilkProduction", payload);
+}
+
+// 2. DISTRIBUTION (Sales/Usage)
+export async function getMilkDistribution(params = {}) {
+  return getRequest("getMilkDistribution", params);
+}
+export async function addMilkDistribution(payload) {
+  return postRequest("addMilkDistribution", payload);
+}
+export async function updateMilkDistribution(payload) {
+  return postRequest("updateMilkDistribution", payload);
+}
+
+// ... (Keep existing getBioWaste, getFeeding, etc.)

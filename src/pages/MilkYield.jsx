@@ -1,635 +1,302 @@
 // src/pages/MilkYield.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { getMilkYield } from "../api/masterApi";
+import React, { useEffect, useState } from "react";
+import { 
+  getMilkProduction, addMilkProduction, updateMilkProduction,
+  getMilkDistribution, addMilkDistribution, updateMilkDistribution
+} from "../api/masterApi";
 
+// --- HELPERS ---
 function getCurrentYearMonth() {
   const d = new Date();
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`; // e.g. 2025-12
+  return `${year}-${month}`;
 }
 
-/**
- * Format any date-ish value as dd/mm/yyyy.
- */
 function formatDate(value) {
   if (!value) return "";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-/**
- * Convert a date value into yyyy-mm-dd for <input type="date" />.
- */
-function toInputDate(value) {
-  if (!value) return "";
-  const d = value instanceof Date ? value : new Date(value);
-  if (!Number.isNaN(d.getTime())) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  // Fallback – if already a string like 2025-10-02T...
-  return String(value).slice(0, 10);
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-GB");
 }
 
 export default function MilkYield() {
+  const [activeTab, setActiveTab] = useState("production"); 
   const [month, setMonth] = useState(getCurrentYearMonth());
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  // Data States
+  const [prodRows, setProdRows] = useState([]);
+  const [distRows, setDistRows] = useState([]);
 
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(getEmptyForm());
-  const [formMode, setFormMode] = useState("add"); // "add" | "edit"
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [nextId, setNextId] = useState(1);
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [form, setForm] = useState({});
 
-  // for view-details popup
-  const [selectedEntry, setSelectedEntry] = useState(null);
+  // View Modal State
+  const [viewData, setViewData] = useState(null);
 
-  // Load from backend
+  // --- FETCH DATA ---
   useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await getMilkYield();
-        const safe = Array.isArray(data) ? data : [];
-        setRows(safe);
-        setNextId((safe.length || 0) + 1);
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "Failed to load milk yield data");
-      } finally {
-        setLoading(false);
+    loadData();
+  }, [month, activeTab]);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [y, m] = month.split('-');
+      const fromDate = `${y}-${m}-01`;
+      const toDate = `${y}-${m}-31`; 
+
+      if (activeTab === "production") {
+        const data = await getMilkProduction({ fromDate, toDate });
+        setProdRows(Array.isArray(data) ? data : []);
+      } else {
+        const data = await getMilkDistribution({ fromDate, toDate });
+        setDistRows(Array.isArray(data) ? data : []);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, []);
-
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((r) => {
-        const d = String(r.date || "");
-        return d.startsWith(month); // underlying date is ISO-like
-      }),
-    [rows, month]
-  );
-
-  // === Add / Edit form helpers ===
-
-  function openFormAdd() {
-    setFormMode("add");
-    setEditingIndex(null);
-    setForm({
-      ...getEmptyForm(),
-      date: month + "-01",
-    });
-    setShowForm(true);
   }
 
-  function openFormEdit(row, index) {
-    setFormMode("edit");
-    setEditingIndex(index);
-    setForm({
-      date: toInputDate(row.date),
-      shed: row.shed || "",
-      morningYield: row.morningYield ?? "",
-      eveningYield: row.eveningYield ?? "",
-      dayTotalYield: row.dayTotalYield ?? "",
-      outPass: row.outPass ?? "",
-      outPassNumber: row.outPassNumber ?? "",
-      leftToByProducts: row.leftToByProducts ?? "",
-      milkToWorkers: row.milkToWorkers ?? "",
-      milkToTemple: row.milkToTemple ?? "",
-      milkToGuests: row.milkToGuests ?? "",
-      milkToStaffCanteen: row.milkToStaffCanteen ?? "",
-      milkToEvents: row.milkToEvents ?? "",
-      remarks: row.remarks ?? "",
-    });
-    setShowForm(true);
+  // --- FORM HANDLERS ---
+
+  function openAddModal() {
+    setIsEditMode(false);
+    const today = new Date().toISOString().slice(0, 10);
+    
+    if (activeTab === "production") {
+      setForm({
+        date: today, shedId: "Goshala-1", 
+        amGood: "", amColostrum: "", 
+        pmGood: "", pmColostrum: "", 
+        remarks: ""
+      });
+    } else {
+      setForm({
+        date: today, 
+        amByProd: "", amTemple: "", 
+        pmByProd: "", toBulls: "", 
+        toWorkers: "", toCanteen: "", 
+        toEvents: "", outPassQty: "", outPassNum: "",
+        remarks: ""
+      });
+    }
+    setShowModal(true);
   }
 
-  function closeForm() {
-    setShowForm(false);
+  function openEditModal(row) {
+    setIsEditMode(true);
+    const dateStr = row.date ? row.date.split('T')[0] : "";
+    setForm({ ...row, date: dateStr });
+    setShowModal(true);
   }
 
-  function handleFormChange(e) {
+  function handleInputChange(e) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm(prev => ({ ...prev, [name]: value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-
-    const prepared = {
-      ...form,
-      // keep date as yyyy-mm-dd from input
-      morningYield: Number(form.morningYield || 0),
-      eveningYield: Number(form.eveningYield || 0),
-      dayTotalYield: Number(form.dayTotalYield || 0),
-      outPass: Number(form.outPass || 0),
-      leftToByProducts: Number(form.leftToByProducts || 0),
-      milkToWorkers: Number(form.milkToWorkers || 0),
-      milkToTemple: Number(form.milkToTemple || 0),
-      milkToGuests: Number(form.milkToGuests || 0),
-      milkToStaffCanteen: Number(form.milkToStaffCanteen || 0),
-      milkToEvents: Number(form.milkToEvents || 0),
-    };
-
-    if (formMode === "add") {
-      const newRow = {
-        ...prepared,
-        id: nextId,
-      };
-      setRows((prev) => [...prev, newRow]);
-      setNextId((id) => id + 1);
-    } else if (formMode === "edit" && editingIndex !== null) {
-      setRows((prev) =>
-        prev.map((row, idx) => (idx === editingIndex ? { ...row, ...prepared } : row))
-      );
+    setLoading(true);
+    try {
+      if (activeTab === "production") {
+        isEditMode ? await updateMilkProduction(form) : await addMilkProduction(form);
+      } else {
+        isEditMode ? await updateMilkDistribution(form) : await addMilkDistribution(form);
+      }
+      setShowModal(false);
+      loadData(); 
+    } catch (err) {
+      alert("Failed to save: " + err.message);
+    } finally {
+      setLoading(false);
     }
-
-    setShowForm(false);
   }
 
-  // === View modal helpers ===
-
-  function openView(entry) {
-    setSelectedEntry(entry);
-  }
-
-  function closeView() {
-    setSelectedEntry(null);
-  }
-
-  // === Loading / error states ===
-
-  if (loading) {
-    return (
-      <div style={{ padding: "1.5rem 2rem" }}>
-        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Milk Yield
-        </h1>
-        <div>Loading milk yield data…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: "1.5rem 2rem" }}>
-        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Milk Yield
-        </h1>
-        <div style={{ color: "red" }}>{error}</div>
-      </div>
-    );
-  }
-
-  // === Main UI ===
+  // --- RENDER ---
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "1rem",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.6rem",
-            fontWeight: 700,
-            margin: 0,
-          }}
-        >
-          Milk Yield
-        </h1>
-
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.75rem",
-                marginBottom: "0.15rem",
-                color: "#6b7280",
-              }}
-            >
-              Month
-            </label>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              style={{
-                padding: "0.35rem 0.6rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #d1d5db",
-                fontSize: "0.85rem",
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={openFormAdd}
-            style={{
-              padding: "0.45rem 0.95rem",
-              borderRadius: "999px",
-              border: "none",
-              background: "#16a34a",
-              color: "#ffffff",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-            }}
-          >
-            + Add Entry
-          </button>
+    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
+      
+      {/* HEADER */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "#1f2937" }}>Milk Operations</h1>
+        
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <input 
+            type="month" 
+            value={month} 
+            onChange={e => setMonth(e.target.value)}
+            style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db" }} 
+          />
+          <button onClick={openAddModal} style={btnAddStyle}>+ Add Entry</button>
         </div>
-      </header>
-
-      {/* Table */}
-      <div
-        style={{
-          background: "#ffffff",
-          borderRadius: "0.75rem",
-          boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
-          overflow: "hidden",
-        }}
-      >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "0.9rem",
-          }}
-        >
-          <thead
-            style={{
-              background: "#f1f5f9",
-              textAlign: "left",
-            }}
-          >
-            <tr>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Shed</th>
-              <th style={thStyle}>Morning (L)</th>
-              <th style={thStyle}>Evening (L)</th>
-              <th style={thStyle}>Day Total (L)</th>
-              <th style={thStyle}>Out Pass (L)</th>
-              <th style={thStyle}>Left to By-products</th>
-              <th style={thStyle}>Milk to Workers</th>
-              <th style={thStyle}>Milk to Temple</th>
-              <th style={thStyle}>Staff Canteen</th>
-              <th style={thStyle}>Events</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={12}
-                  style={{
-                    padding: "0.9rem 1rem",
-                    textAlign: "center",
-                    color: "#6b7280",
-                  }}
-                >
-                  No milk yield entries for this month.
-                </td>
-              </tr>
-            ) : (
-              filteredRows.map((row, idx) => (
-                <tr
-                  key={row.id || idx}
-                  style={{
-                    backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
-                  }}
-                >
-                  <td style={tdStyle}>{formatDate(row.date)}</td>
-                  <td style={tdStyle}>{row.shed}</td>
-                  <td style={tdStyle}>{row.morningYield}</td>
-                  <td style={tdStyle}>{row.eveningYield}</td>
-                  <td style={tdStyle}>{row.dayTotalYield}</td>
-                  <td style={tdStyle}>{row.outPass}</td>
-                  <td style={tdStyle}>{row.leftToByProducts}</td>
-                  <td style={tdStyle}>{row.milkToWorkers}</td>
-                  <td style={tdStyle}>{row.milkToTemple}</td>
-                  <td style={tdStyle}>{row.milkToStaffCanteen}</td>
-                  <td style={tdStyle}>{row.milkToEvents}</td>
-                  <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        gap: "0.35rem",
-                        alignItems: "center",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openView(row)}
-                        style={viewBtnStyle}
-                        title="View details"
-                      >
-                        👁️ View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openFormEdit(row, idx)}
-                        style={editBtnStyle}
-                        title="Edit entry"
-                      >
-                        ✏️ Edit
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
       </div>
 
-      {/* Centered Form Modal (Add + Edit) */}
-      {showForm && (
-        <div style={overlayStyle} onClick={closeForm}>
-          <div style={formModalStyle} onClick={(e) => e.stopPropagation()}>
-            {/* Modal header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.75rem",
-              }}
-            >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: "1.2rem",
-                }}
-              >
-                {formMode === "add" ? "Add Milk Yield Entry" : "Edit Milk Yield Entry"}
-              </h2>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  style={headerButtonSecondary}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="milk-yield-form"
-                  style={headerButtonPrimary}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
+      {/* TABS */}
+      <div style={{ display: "flex", borderBottom: "2px solid #e5e7eb", marginBottom: "1rem" }}>
+        <TabButton label="🏭 Production (Shed-wise)" active={activeTab === "production"} onClick={() => setActiveTab("production")} />
+        <TabButton label="🚚 Distribution (Usage)" active={activeTab === "distribution"} onClick={() => setActiveTab("distribution")} />
+      </div>
 
-            {/* Form body */}
-            <form
-              id="milk-yield-form"
-              onSubmit={handleSubmit}
-              style={{ display: "grid", gap: "0.85rem" }}
-            >
-              <Field label="Date *">
-                <input
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
+      {/* TABLE AREA */}
+      <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>Loading data...</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+            <thead style={{ background: "#f9fafb", color: "#374151", textTransform: "uppercase", fontSize: "0.75rem" }}>
+              <tr>
+                <th style={thStyle}>Date</th>
+                {activeTab === "production" ? (
+                  <>
+                    <th style={thStyle}>Shed</th>
+                    <th style={thStyle}>AM Good</th>
+                    <th style={thStyle}>AM Colos.</th>
+                    <th style={thStyle}>PM Good</th>
+                    <th style={thStyle}>PM Colos.</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={thStyle}>AM ByProd</th>
+                    <th style={thStyle}>Temple</th>
+                    <th style={thStyle}>Workers</th>
+                    <th style={thStyle}>OutPass</th>
+                  </>
+                )}
+                <th style={thStyle}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(activeTab === "production" ? prodRows : distRows).length === 0 ? (
+                <tr><td colSpan="7" style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>No records found.</td></tr>
+              ) : (
+                (activeTab === "production" ? prodRows : distRows).map((row, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={tdStyle}>{formatDate(row.date)}</td>
+                    
+                    {activeTab === "production" ? (
+                      <>
+                        <td style={tdStyle}>{row.shedId}</td>
+                        <td style={tdStyle}>{row.amGood}</td>
+                        <td style={tdStyle}>{row.amColostrum}</td>
+                        <td style={tdStyle}>{row.pmGood}</td>
+                        <td style={tdStyle}>{row.pmColostrum}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={tdStyle}>{row.amByProd}</td>
+                        <td style={tdStyle}>{row.amTemple}</td>
+                        <td style={tdStyle}>{row.toWorkers}</td>
+                        <td style={tdStyle}>{row.outPassQty} (No: {row.outPassNum})</td>
+                      </>
+                    )}
+                    
+                    <td style={tdStyle}>
+                      <button onClick={() => setViewData(row)} style={iconBtnStyle} title="View">👁️</button>
+                      <button onClick={() => openEditModal(row)} style={iconBtnStyle} title="Edit">✏️</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* --- ADD / EDIT MODAL --- */}
+      {showModal && (
+        <div style={overlayStyle} onClick={() => setShowModal(false)}>
+          <div style={modalStyle} onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: "1rem" }}>{isEditMode ? "Edit" : "Add"} {activeTab}</h2>
+            
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
+              <Field label="Date">
+                  <input type="date" name="date" value={form.date} onChange={handleInputChange} style={inputStyle} required />
               </Field>
 
-              <Field label="Shed *">
-                <select
-                  name="shed"
-                  value={form.shed}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                >
-                  <option value="">Select Shed</option>
-                  <option value="Punyakoti">Punyakoti</option>
-                  <option value="Samrakshana">Samrakshana</option>
-                  <option value="Go Dana">Go Dana</option>
-                  <option value="Shashwatha Dattu Sweekara">
-                    Shashwatha Dattu Sweekara
-                  </option>
-                </select>
-              </Field>
-
-              <NumberField
-                label="Morning Milk Yield (L)"
-                name="morningYield"
-                value={form.morningYield}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Evening Milk Yield (L)"
-                name="eveningYield"
-                value={form.eveningYield}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Day Total Yield (L)"
-                name="dayTotalYield"
-                value={form.dayTotalYield}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Out Pass (L)"
-                name="outPass"
-                value={form.outPass}
-                onChange={handleFormChange}
-              />
-
-              <Field label="Out Pass Number">
-                <input
-                  type="text"
-                  name="outPassNumber"
-                  value={form.outPassNumber}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <NumberField
-                label="Left to By-products (L)"
-                name="leftToByProducts"
-                value={form.leftToByProducts}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Milk to Workers (L)"
-                name="milkToWorkers"
-                value={form.milkToWorkers}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Milk to Temple (L)"
-                name="milkToTemple"
-                value={form.milkToTemple}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Milk to Guests (L)"
-                name="milkToGuests"
-                value={form.milkToGuests}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Milk to Staff Canteen (L)"
-                name="milkToStaffCanteen"
-                value={form.milkToStaffCanteen}
-                onChange={handleFormChange}
-              />
-
-              <NumberField
-                label="Milk to Events (L)"
-                name="milkToEvents"
-                value={form.milkToEvents}
-                onChange={handleFormChange}
-              />
+              {activeTab === "production" ? (
+                <>
+                  <Field label="Shed ID">
+                    <select name="shedId" value={form.shedId} onChange={handleInputChange} style={inputStyle}>
+                      <option value="Goshala-1">Goshala-1</option>
+                      <option value="Goshala-2">Goshala-2</option>
+                      <option value="Quarantine">Quarantine</option>
+                    </select>
+                  </Field>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                    <Field label="AM Good Qty"><input type="number" step="0.1" name="amGood" value={form.amGood} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="AM Colostrum"><input type="number" step="0.1" name="amColostrum" value={form.amColostrum} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="PM Good Qty"><input type="number" step="0.1" name="pmGood" value={form.pmGood} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="PM Colostrum"><input type="number" step="0.1" name="pmColostrum" value={form.pmColostrum} onChange={handleInputChange} style={inputStyle} /></Field>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                    <Field label="AM to ByProducts"><input type="number" step="0.1" name="amByProd" value={form.amByProd} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="AM to Temple"><input type="number" step="0.1" name="amTemple" value={form.amTemple} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="PM to ByProducts"><input type="number" step="0.1" name="pmByProd" value={form.pmByProd} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="To Bulls"><input type="number" step="0.1" name="toBulls" value={form.toBulls} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="To Workers"><input type="number" step="0.1" name="toWorkers" value={form.toWorkers} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="To Canteen"><input type="number" step="0.1" name="toCanteen" value={form.toCanteen} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="To Events"><input type="number" step="0.1" name="toEvents" value={form.toEvents} onChange={handleInputChange} style={inputStyle} /></Field>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                    <Field label="Out Pass Qty"><input type="number" step="0.1" name="outPassQty" value={form.outPassQty} onChange={handleInputChange} style={inputStyle} /></Field>
+                    <Field label="Out Pass Number"><input type="text" name="outPassNum" value={form.outPassNum} onChange={handleInputChange} style={inputStyle} /></Field>
+                  </div>
+                </>
+              )}
 
               <Field label="Remarks">
-                <input
-                  type="text"
-                  name="remarks"
-                  value={form.remarks}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
+                <input type="text" name="remarks" value={form.remarks} onChange={handleInputChange} style={inputStyle} />
               </Field>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
+                <button type="button" onClick={() => setShowModal(false)} style={btnCancelStyle}>Cancel</button>
+                <button type="submit" disabled={loading} style={btnSaveStyle}>Save</button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* View Details Modal */}
-      {selectedEntry && (
-        <div style={overlayStyle} onClick={closeView}>
-          <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.75rem",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: "0.8rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "#6b7280",
-                  }}
-                >
-                  Milk Yield Details
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  {formatDate(selectedEntry.date)} – {selectedEntry.shed}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeView}
-                style={closeBtnStyle}
-              >
-                ✕
-              </button>
+      {/* --- VIEW MODAL --- */}
+      {viewData && (
+        <div style={overlayStyle} onClick={() => setViewData(null)}>
+          <div style={modalStyle} onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: "1rem", borderBottom:"1px solid #eee", paddingBottom:"0.5rem" }}>Details</h2>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", fontSize:"0.9rem" }}>
+                <ViewItem label="Date" value={formatDate(viewData.date)} />
+                {activeTab === "production" ? (
+                    <>
+                        <ViewItem label="Shed ID" value={viewData.shedId} />
+                        <ViewItem label="AM Good" value={viewData.amGood} />
+                        <ViewItem label="AM Colos." value={viewData.amColostrum} />
+                        <ViewItem label="PM Good" value={viewData.pmGood} />
+                        <ViewItem label="PM Colos." value={viewData.pmColostrum} />
+                    </>
+                ) : (
+                    <>
+                        <ViewItem label="AM ByProd" value={viewData.amByProd} />
+                        <ViewItem label="Temple" value={viewData.amTemple} />
+                        <ViewItem label="Workers" value={viewData.toWorkers} />
+                        <ViewItem label="Canteen" value={viewData.toCanteen} />
+                        <ViewItem label="OutPass Qty" value={viewData.outPassQty} />
+                        <ViewItem label="OutPass Num" value={viewData.outPassNum} />
+                    </>
+                )}
+                <ViewItem label="Remarks" value={viewData.remarks} />
             </div>
-
-            {/* Details grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "0.5rem 1.25rem",
-                fontSize: "0.85rem",
-              }}
-            >
-              <DetailItem label="Date" value={formatDate(selectedEntry.date)} />
-              <DetailItem label="Shed" value={selectedEntry.shed} />
-              <DetailItem
-                label="Morning Milk Yield (L)"
-                value={selectedEntry.morningYield}
-              />
-              <DetailItem
-                label="Evening Milk Yield (L)"
-                value={selectedEntry.eveningYield}
-              />
-              <DetailItem
-                label="Day Total Yield (L)"
-                value={selectedEntry.dayTotalYield}
-              />
-              <DetailItem
-                label="Out Pass (L)"
-                value={selectedEntry.outPass}
-              />
-              <DetailItem
-                label="Out Pass Number"
-                value={selectedEntry.outPassNumber}
-              />
-              <DetailItem
-                label="Left to By-products (L)"
-                value={selectedEntry.leftToByProducts}
-              />
-              <DetailItem
-                label="Milk to Workers (L)"
-                value={selectedEntry.milkToWorkers}
-              />
-              <DetailItem
-                label="Milk to Temple (L)"
-                value={selectedEntry.milkToTemple}
-              />
-              <DetailItem
-                label="Milk to Guests (L)"
-                value={selectedEntry.milkToGuests}
-              />
-              <DetailItem
-                label="Milk to Staff Canteen (L)"
-                value={selectedEntry.milkToStaffCanteen}
-              />
-              <DetailItem
-                label="Milk to Events (L)"
-                value={selectedEntry.milkToEvents}
-              />
-              <DetailItem
-                label="Remarks"
-                value={selectedEntry.remarks}
-              />
+            <div style={{ marginTop:"1.5rem", textAlign:"right" }}>
+                <button onClick={() => setViewData(null)} style={btnCancelStyle}>Close</button>
             </div>
           </div>
         </div>
@@ -638,188 +305,19 @@ export default function MilkYield() {
   );
 }
 
-/* helpers and styles */
-
-function getEmptyForm() {
-  return {
-    date: "",
-    shed: "",
-    morningYield: "",
-    eveningYield: "",
-    dayTotalYield: "",
-    outPass: "",
-    outPassNumber: "",
-    leftToByProducts: "",
-    milkToWorkers: "",
-    milkToTemple: "",
-    milkToGuests: "",
-    milkToStaffCanteen: "",
-    milkToEvents: "",
-    remarks: "",
-  };
+// --- STYLES & COMPONENTS ---
+function TabButton({ label, active, onClick }) {
+    return <button onClick={onClick} style={{ padding: "0.75rem 1.5rem", cursor: "pointer", border: "none", background: "none", borderBottom: active ? "3px solid #2563eb" : "3px solid transparent", color: active ? "#2563eb" : "#6b7280", fontWeight: active ? "600" : "500", fontSize: "1rem" }}>{label}</button>;
 }
+function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem" }}>{label}</label>{children}</div>; }
+function ViewItem({ label, value }) { return <div><div style={{ fontSize:"0.75rem", color:"#6b7280" }}>{label}</div><div style={{ fontWeight:"500" }}>{value || "-"}</div></div>; }
 
-const thStyle = {
-  padding: "0.6rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  fontWeight: 600,
-  fontSize: "0.8rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.03em",
-  color: "#475569",
-};
-
-const tdStyle = {
-  padding: "0.55rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  color: "#111827",
-};
-
-const viewBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.7rem",
-  background: "#e0e7ff",
-  color: "#1d4ed8",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.2rem",
-};
-
-const editBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.7rem",
-  background: "#dcfce7",
-  color: "#166534",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.2rem",
-};
-
-const overlayStyle = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15,23,42,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 50,
-};
-
-const formModalStyle = {
-  width: "100%",
-  maxWidth: "520px",
-  maxHeight: "90vh",
-  overflowY: "auto",
-  background: "#ffffff",
-  borderRadius: "1rem",
-  padding: "1.25rem 1.5rem 1.5rem",
-  boxShadow: "0 25px 60px rgba(15,23,42,0.25)",
-};
-
-const viewModalStyle = {
-  width: "100%",
-  maxWidth: "640px",
-  maxHeight: "90vh",
-  overflowY: "auto",
-  background: "#ffffff",
-  borderRadius: "1rem",
-  padding: "1.25rem 1.5rem 1.5rem",
-  boxShadow: "0 25px 60px rgba(15,23,42,0.25)",
-};
-
-const headerButtonPrimary = {
-  padding: "0.35rem 0.9rem",
-  borderRadius: "999px",
-  border: "none",
-  background: "#2563eb",
-  color: "#ffffff",
-  fontWeight: 600,
-  fontSize: "0.85rem",
-  cursor: "pointer",
-};
-
-const headerButtonSecondary = {
-  padding: "0.35rem 0.9rem",
-  borderRadius: "999px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#374151",
-  fontWeight: 500,
-  fontSize: "0.85rem",
-  cursor: "pointer",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.5rem 0.6rem",
-  borderRadius: "0.5rem",
-  border: "1px solid #d1d5db",
-  fontSize: "0.9rem",
-};
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.85rem",
-          marginBottom: "0.25rem",
-        }}
-      >
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function NumberField({ label, name, value, onChange }) {
-  return (
-    <Field label={label}>
-      <input
-        type="number"
-        step="0.01"
-        name={name}
-        value={value}
-        onChange={onChange}
-        style={inputStyle}
-      />
-    </Field>
-  );
-}
-
-function DetailItem({ label, value }) {
-  if (value === undefined || value === null || value === "") return null;
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: "0.7rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "#9ca3af",
-          marginBottom: "0.1rem",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ color: "#111827" }}>{String(value)}</div>
-    </div>
-  );
-}
-
-const closeBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.6rem",
-  background: "#e5e7eb",
-  cursor: "pointer",
-  fontSize: "0.85rem",
-};
+const btnAddStyle = { background: "#16a34a", color: "white", padding: "0.5rem 1rem", borderRadius: "20px", border: "none", fontWeight: "600", cursor: "pointer" };
+const thStyle = { padding: "1rem", textAlign: "left", fontWeight: "600", color: "#4b5563" };
+const tdStyle = { padding: "0.8rem 1rem", color: "#1f2937" };
+const iconBtnStyle = { background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "0 0.3rem" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50 };
+const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
+const inputStyle = { width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
+const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer" };
+const btnSaveStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" };

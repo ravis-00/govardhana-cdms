@@ -1,11 +1,13 @@
 // src/pages/CattleRegistration.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { addCattle } from "../api/cattle";
+// NOTE: You must implement getUnregisteredBirths in your api file
+import { addCattle, getUnregisteredBirths } from "../api/cattle"; 
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [birthRecords, setBirthRecords] = useState([]); // Stores the list of unregistered calves
 
   // Default State
   const [form, setForm] = useState({
@@ -13,14 +15,75 @@ export default function CattleRegistration() {
     breed: "", colour: "", typeOfAdmission: "",
     admissionDate: new Date().toISOString().split('T')[0],
     sourceName: "", sourceAddress: "", sourceMobile: "", 
-    price: "", weight: "", ageMonths: "",
+    price: "", weight: "", ageMonths: "0",
     disabilityFlag: "N", disabilityDetails: "", adoptionStatus: "Available",
-    locationShed: "", prevTags: "", remarks: ""
+    locationShed: "", prevTags: "", remarks: "",
+    
+    // NEW: Parentage & Linkage Fields
+    damId: "", sireId: "", damBreed: "", sireBreed: "", birthWeight: "",
+    linkedBirthId: "" // Internal ID to link back to birth_log
   });
+
+  // --- EFFECT: Fetch Birth Records when "Born at Goshala" is selected ---
+  useEffect(() => {
+    if (form.typeOfAdmission === "Born at Goshala") {
+      // Mocking the fetch - replace with real API call
+      // getUnregisteredBirths().then(data => setBirthRecords(data)); 
+      
+      // FOR NOW: Simulating data so you can see it work
+      const mockData = [
+        { id: 101, dob: "2025-12-01", gender: "Female", weight: "22", damId: "1040", damBreed: "Gir", sireId: "2002", sireBreed: "Gir" },
+        { id: 102, dob: "2025-12-05", gender: "Male", weight: "25", damId: "1055", damBreed: "Hallikar", sireId: "Unknown", sireBreed: "Unknown" }
+      ];
+      setBirthRecords(mockData); 
+    } else {
+      setBirthRecords([]); // Clear if user changes mind
+    }
+  }, [form.typeOfAdmission]);
+
+  // --- LOGIC: Auto-fill form when a specific Calf is selected ---
+  function handleBirthSelection(e) {
+    const selectedId = e.target.value;
+    if (!selectedId) return;
+
+    const calf = birthRecords.find(r => r.id.toString() === selectedId);
+    if (calf) {
+      setForm(prev => ({
+        ...prev,
+        linkedBirthId: calf.id,
+        admissionDate: calf.dob, // Admission date IS Date of Birth for internal births
+        gender: calf.gender,
+        weight: calf.weight,
+        birthWeight: calf.weight,
+        damId: calf.damId,
+        damBreed: calf.damBreed,
+        sireId: calf.sireId,
+        sireBreed: calf.sireBreed,
+        category: "Calf", // Auto-set category
+        breed: calf.damBreed // Default to Dam's breed
+      }));
+      
+      // Auto-calculate age
+      calculateAge(calf.dob);
+    }
+  }
+
+  function calculateAge(dateString) {
+    if(!dateString) return;
+    const dob = new Date(dateString);
+    const now = new Date();
+    const months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
+    setForm(prev => ({ ...prev, ageMonths: months >= 0 ? months : 0 }));
+  }
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    
+    // Recalculate age if date changes manually
+    if (name === "admissionDate") {
+        calculateAge(value);
+    }
   }
 
   function handleDisability(flag) {
@@ -58,16 +121,23 @@ export default function CattleRegistration() {
         sourceMobile: form.sourceMobile,
         price: form.price,
         weight: form.weight,
-        ageMonths: form.ageMonths
+        ageMonths: form.ageMonths,
+
+        // NEW PARENTAGE FIELDS
+        damId: form.damId,
+        sireId: form.sireId,
+        damBreed: form.damBreed,
+        sireBreed: form.sireBreed,
+        birthWeight: form.birthWeight,
+        linkedBirthId: form.linkedBirthId // Send this so backend knows to update birth_log
       };
 
-      console.log("Sending Payload:", payload); // Check your Console for this!
+      console.log("Sending Payload:", payload); 
 
       const response = await addCattle(payload);
       
-      // FIXED: Alert the REAL message from the server
       if (response && response.success) {
-        alert(`SERVER RESPONSE:\n${response.message}`); 
+        alert(`SUCCESS:\n${response.message}`); 
         navigate("/cattle/active");
       } else {
         alert("Server Error: " + (response?.error || "Unknown"));
@@ -81,33 +151,51 @@ export default function CattleRegistration() {
     }
   }
 
+  // Boolean helper to disable fields if data came from Birth Log
+  const isLinked = !!form.linkedBirthId;
+
   return (
     <div style={{ padding: "1.5rem 2rem", maxWidth: "720px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration (v1.1)</h1>
+      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration (v1.2)</h1>
       
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem", background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
         
+        {/* --- TAG IDS --- */}
         <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} />
         <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} />
-        <TextField label="Name *" name="name" value={form.name} onChange={handleChange} />
         
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} options={["", "Female", "Male"]} />
-          <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal"]} />
-          <TextField label="Color *" name="colour" value={form.colour} onChange={handleChange} />
-        </div>
-
-        {/* --- ORIGINS SECTION --- */}
-        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151" }}>Origin Details</h3>
+        {/* --- ORIGINS SECTION (Moved Up for better workflow) --- */}
+        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151", marginTop: "1rem" }}>Origin Details</h3>
         
         <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} 
              options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} />
 
-        {/* DYNAMIC FIELDS: Verify these appear on screen! */}
+        {/* --- SCENARIO A: BORN AT GOSHALA --- */}
+        {form.typeOfAdmission === "Born at Goshala" && (
+            <div style={{ background: "#eff6ff", padding: "1rem", borderRadius: "8px", border: "1px solid #bfdbfe" }}>
+                <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem", fontWeight:"bold", color:"#1e40af"}}>Select Newborn Record:</label>
+                <select onChange={handleBirthSelection} style={{width:"100%", padding:"0.6rem", border:"1px solid #2563eb", borderRadius:"6px"}}>
+                    <option value="">-- Select Unregistered Calf --</option>
+                    {birthRecords.map(rec => (
+                        <option key={rec.id} value={rec.id}>
+                            Born: {rec.dob} | Mother: {rec.damId} | {rec.gender}
+                        </option>
+                    ))}
+                </select>
+                
+                {isLinked && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop:"1rem" }}>
+                         <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={true} />
+                         <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={true} />
+                         <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={true} />
+                         <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={true} />
+                         <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={true} />
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* --- SCENARIO B: PURCHASE / EXTERNAL --- */}
         {(form.typeOfAdmission === "Purchase" || form.typeOfAdmission === "Donation" || form.typeOfAdmission === "Rescue") && (
             <div style={{ background: "#f9fafb", padding: "1rem", borderRadius: "8px", border: "1px dashed #ccc" }}>
                 <TextField label="Source Name (Vendor/Donor)" name="sourceName" value={form.sourceName} onChange={handleChange} />
@@ -119,9 +207,26 @@ export default function CattleRegistration() {
             </div>
         )}
 
+        {/* --- BASIC INFO (After Origin, because Origin determines some of this) --- */}
+        <TextField label="Name *" name="name" value={form.name} onChange={handleChange} />
+        
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-           <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} />
-           <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} />
+          {/* If Linked, Gender is ReadOnly because it comes from Birth Record */}
+          <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} 
+                       options={["", "Female", "Male"]} disabled={isLinked} />
+          
+          <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} 
+                       options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal"]} />
+          <TextField label="Color *" name="colour" value={form.colour} onChange={handleChange} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+           <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} readOnly={isLinked} />
+           <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} readOnly={isLinked} />
            <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} />
         </div>
 
@@ -149,9 +254,44 @@ const btnStyle = { padding: "0.6rem 1.2rem", borderRadius: "20px", border: "1px 
 const activeBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "2px solid #2563eb", background: "#eff6ff", color: "#2563eb", fontWeight: "bold" };
 const inactiveBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "1px solid #ddd", background: "white", color: "#6b7280" };
 
-function TextField({ label, name, value, onChange, type="text" }) {
-  return <div><label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label><input type={type} name={name} value={value} onChange={onChange} style={{width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px"}} /></div>;
+// Updated TextField to support ReadOnly and Disabled props
+function TextField({ label, name, value, onChange, type="text", readOnly=false }) {
+  return (
+    <div>
+        <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label>
+        <input 
+            type={type} 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            readOnly={readOnly}
+            style={{
+                width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px",
+                background: readOnly ? "#f3f4f6" : "white", // Grey out if readOnly
+                color: readOnly ? "#6b7280" : "black"
+            }} 
+        />
+    </div>
+  );
 }
-function SelectField({ label, name, value, onChange, options }) {
-  return <div><label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label><select name={name} value={value} onChange={onChange} style={{width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px", background:"white"}}>{options.map(o => <option key={o} value={o}>{o||"Select..."}</option>)}</select></div>;
+
+// Updated SelectField to support Disabled prop
+function SelectField({ label, name, value, onChange, options, disabled=false }) {
+  return (
+    <div>
+        <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label>
+        <select 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            disabled={disabled}
+            style={{
+                width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px", 
+                background: disabled ? "#f3f4f6" : "white"
+            }}
+        >
+            {options.map(o => <option key={o} value={o}>{o||"Select..."}</option>)}
+        </select>
+    </div>
+  );
 }
