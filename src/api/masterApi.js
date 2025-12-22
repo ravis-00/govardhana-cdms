@@ -1,8 +1,9 @@
 // web-cdms/src/api/masterApi.js
 
+// web-cdms/src/api/masterApi.js
+
 // 🔗 Deployed Apps Script Web App URL
-const BASE_URL =
-  "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
+const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
 // ============================================================================
 // === HELPERS ================================================================
@@ -95,7 +96,7 @@ async function postRequest(action, body) {
     url,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(body ?? {}),
     },
     30000

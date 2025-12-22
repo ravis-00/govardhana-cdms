@@ -1,30 +1,21 @@
 // src/pages/CattleRegistration.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addCattle } from "../api/masterApi"; // <--- IMPORT API
+import { addCattle } from "../api/cattle";
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false); // <--- ADD LOADING STATE
+  const [loading, setLoading] = useState(false);
 
+  // Default State
   const [form, setForm] = useState({
-    cattleId: "",
-    govtId: "",
-    name: "",
-    colour: "",
-    gender: "",
-    breed: "",
-    typeOfAdmission: "",
-    disabilityFlag: "N", // N or Y
-    adoptionStatus: "",
-    locationShed: "",
-    remarks: "",
-    picture: null,
-    newTagNumber: "",
-    newCattleId: "",
-    newGovtId: "",
-    reactiveReason: "",
-    reactiveDate: "",
+    cattleId: "", govtId: "", name: "", gender: "", category: "",
+    breed: "", colour: "", typeOfAdmission: "",
+    admissionDate: new Date().toISOString().split('T')[0],
+    sourceName: "", sourceAddress: "", sourceMobile: "", 
+    price: "", weight: "", ageMonths: "",
+    disabilityFlag: "N", disabilityDetails: "", adoptionStatus: "Available",
+    locationShed: "", prevTags: "", remarks: ""
   });
 
   function handleChange(e) {
@@ -32,447 +23,135 @@ export default function CattleRegistration() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleFileChange(e) {
-    const file = e.target.files?.[0] || null;
-    setForm((prev) => ({ ...prev, picture: file }));
-  }
-
   function handleDisability(flag) {
     setForm((prev) => ({ ...prev, disabilityFlag: flag }));
   }
 
-  function handleCancel() {
-    navigate("/cattle/active");
-  }
+  function handleCancel() { navigate("/cattle/active"); }
 
-  // --- UPDATED SUBMIT HANDLER ---
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Prepare Payload (match backend expectation)
       const payload = {
-        cattleId: form.cattleId, // Backend maps this to Tag Number
+        tagNumber: form.cattleId,
         govtId: form.govtId,
         name: form.name,
-        colour: form.colour,
         gender: form.gender,
+        category: form.category,
         breed: form.breed,
-        typeOfAdmission: form.typeOfAdmission,
-        disability: form.disabilityFlag,
-        adoptionStatus: form.adoptionStatus, // Ensure backend stores this if needed
-        locationShed: form.locationShed,     // Ensure backend stores this if needed
+        color: form.colour,
+        isDisabled: form.disabilityFlag === "Y",
+        disabilityDetails: form.disabilityFlag === "Y" ? form.disabilityDetails : "",
+        adoptionStatus: form.adoptionStatus,
+        shedId: form.locationShed,
+        prevTags: form.prevTags,
         remarks: form.remarks,
-        // Default admission date to today if not provided in form
-        admissionDate: new Date().toISOString().split('T')[0] 
+        photoUrl: "", 
+
+        // ORIGINS PAYLOAD
+        admissionType: form.typeOfAdmission,
+        admissionDate: form.admissionDate,
+        sourceName: form.sourceName,
+        sourceAddress: form.sourceAddress,
+        sourceMobile: form.sourceMobile,
+        price: form.price,
+        weight: form.weight,
+        ageMonths: form.ageMonths
       };
 
-      // 2. Send to Backend
-      console.log("Sending payload:", payload);
-      const response = await addCattle(payload);
+      console.log("Sending Payload:", payload); // Check your Console for this!
 
-      // 3. Handle Response
+      const response = await addCattle(payload);
+      
+      // FIXED: Alert the REAL message from the server
       if (response && response.success) {
-        alert("Cattle Registered Successfully!");
-        // Optional: Reset form or navigate away
-        setForm({
-          cattleId: "", govtId: "", name: "", colour: "", gender: "", breed: "",
-          typeOfAdmission: "", disabilityFlag: "N", adoptionStatus: "", 
-          locationShed: "", remarks: "", picture: null, newTagNumber: "", 
-          newCattleId: "", newGovtId: "", reactiveReason: "", reactiveDate: ""
-        });
-        navigate("/cattle/active"); // Go to list after save
+        alert(`SERVER RESPONSE:\n${response.message}`); 
+        navigate("/cattle/active");
       } else {
-        alert("Failed to save: " + (response.error || "Unknown error"));
+        alert("Server Error: " + (response?.error || "Unknown"));
       }
+
     } catch (error) {
       console.error("Save Error:", error);
-      alert("Error connecting to server. Please try again.");
+      alert("Network/Code Error: " + error.message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div
-      style={{
-        padding: "1.5rem 2rem",
-        maxWidth: "720px",
-        margin: "0 auto",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "1.25rem",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.4rem",
-            fontWeight: 600,
-            margin: 0,
-          }}
-        >
-          Cattle Registration
-        </h1>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={loading}
-            style={{
-              padding: "0.4rem 0.85rem",
-              borderRadius: "999px",
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              fontSize: "0.85rem",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            form="cattle-registration-form"
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: "0.4rem 0.95rem",
-              borderRadius: "999px",
-              border: "none",
-              background: loading ? "#93c5fd" : "#2563eb", // Lighter blue when loading
-              color: "#ffffff",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-
-      {/* Form */}
-      <form
-        id="cattle-registration-form"
-        onSubmit={handleSubmit}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: "0.9rem",
-          background: "#ffffff",
-          borderRadius: "0.75rem",
-          padding: "1.25rem 1.5rem",
-          boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
-        }}
-      >
-        <TextField
-          label="Cattle ID / Tag Number *"
-          name="cattleId"
-          value={form.cattleId}
-          onChange={handleChange}
-        />
-
-        <TextField
-          label="Govt ID"
-          name="govtId"
-          value={form.govtId}
-          onChange={handleChange}
-        />
-
-        <TextField
-          label="Cattle Name *"
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-        />
-
-        <TextField
-          label="Colour *"
-          name="colour"
-          value={form.colour}
-          onChange={handleChange}
-        />
-
-        <SelectField
-          label="Cattle Gender *"
-          name="gender"
-          value={form.gender}
-          onChange={handleChange}
-          options={[
-            { value: "", label: "Select gender" },
-            { value: "Female", label: "Female" },
-            { value: "Male", label: "Male" },
-          ]}
-        />
-
-        <SelectField
-          label="Breed *"
-          name="breed"
-          value={form.breed}
-          onChange={handleChange}
-          options={[
-            { value: "", label: "Select Breed" },
-            { value: "Hallikar", label: "Hallikar" },
-            { value: "Bargur", label: "Bargur" },
-            { value: "Deoni", label: "Deoni" },
-            { value: "Ongole", label: "Ongole" },
-            { value: "Malenadu Gidda", label: "Malenadu Gidda" },
-            { value: "Rati", label: "Rati" },
-            { value: "Kankrej", label: "Kankrej" },
-            { value: "Gir", label: "Gir" },
-            { value: "Krishna Valley", label: "Krishna Valley" },
-            { value: "Sahiwal", label: "Sahiwal" },
-            { value: "Punganur", label: "Punganur" },
-            { value: "Mix", label: "Mix" },
-          ]}
-        />
-
-        <SelectField
-          label="Type of Admission *"
-          name="typeOfAdmission"
-          value={form.typeOfAdmission}
-          onChange={handleChange}
-          options={[
-            { value: "", label: "Select type" },
-            { value: "Purchase", label: "Purchase" },
-            { value: "Donation", label: "Donation" },
-            { value: "Born at Goshala", label: "Born at Goshala" },
-            { value: "Rescue", label: "Rescue" },
-          ]}
-        />
-
-        {/* Disability Y / N buttons */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "0.85rem",
-              marginBottom: "0.25rem",
-            }}
-          >
-            Any Permanent Disability at Birth / Admission? *
-          </label>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              type="button"
-              onClick={() => handleDisability("N")}
-              style={{
-                flex: 1,
-                padding: "0.45rem 0.75rem",
-                borderRadius: "0.5rem",
-                border:
-                  form.disabilityFlag === "N"
-                    ? "2px solid #2563eb"
-                    : "1px solid #d1d5db",
-                background:
-                  form.disabilityFlag === "N" ? "#eff6ff" : "#ffffff",
-                cursor: "pointer",
-              }}
-            >
-              N
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDisability("Y")}
-              style={{
-                flex: 1,
-                padding: "0.45rem 0.75rem",
-                borderRadius: "0.5rem",
-                border:
-                  form.disabilityFlag === "Y"
-                    ? "2px solid #2563eb"
-                    : "1px solid #d1d5db",
-                background:
-                  form.disabilityFlag === "Y" ? "#eff6ff" : "#ffffff",
-                cursor: "pointer",
-              }}
-            >
-              Y
-            </button>
-          </div>
+    <div style={{ padding: "1.5rem 2rem", maxWidth: "720px", margin: "0 auto" }}>
+      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration (v1.1)</h1>
+      
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem", background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+        
+        <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} />
+        <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} />
+        <TextField label="Name *" name="name" value={form.name} onChange={handleChange} />
+        
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} options={["", "Female", "Male"]} />
+          <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
         </div>
 
-        <SelectField
-          label="Adoption Status"
-          name="adoptionStatus"
-          value={form.adoptionStatus}
-          onChange={handleChange}
-          options={[
-            { value: "", label: "Select Adoption Status" },
-            { value: "Punyakoti", label: "Punyakoti" },
-            { value: "Samrakshana", label: "Samrakshana" },
-            { value: "Go Dana", label: "Go Dana" },
-            { value: "Shashwatha Dattu Sweekara", label: "Shashwatha Dattu Sweekara" },
-          ]}
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal"]} />
+          <TextField label="Color *" name="colour" value={form.colour} onChange={handleChange} />
+        </div>
 
-        <SelectField
-          label="Location / Shed"
-          name="locationShed"
-          value={form.locationShed}
-          onChange={handleChange}
-          options={[
-            { value: "", label: "Select shed" },
-            { value: "Goshala-1", label: "Goshala 1" },
-            { value: "Goshala-2", label: "Goshala 2" },
-            { value: "Quarantine", label: "Quarantine" },
-          ]}
-        />
+        {/* --- ORIGINS SECTION --- */}
+        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151" }}>Origin Details</h3>
+        
+        <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} 
+             options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} />
 
-        <TextField
-          label="Remarks"
-          name="remarks"
-          value={form.remarks}
-          onChange={handleChange}
-        />
-
-        {/* Picture upload */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "0.85rem",
-              marginBottom: "0.25rem",
-            }}
-          >
-            Picture
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            style={{
-              width: "100%",
-              padding: "0.5rem 0.6rem",
-              borderRadius: "0.5rem",
-              border: "1px solid #d1d5db",
-              fontSize: "0.9rem",
-            }}
-          />
-          {form.picture && (
-            <div
-              style={{
-                marginTop: "0.3rem",
-                fontSize: "0.8rem",
-                color: "#6b7280",
-              }}
-            >
-              Selected: {form.picture.name}
+        {/* DYNAMIC FIELDS: Verify these appear on screen! */}
+        {(form.typeOfAdmission === "Purchase" || form.typeOfAdmission === "Donation" || form.typeOfAdmission === "Rescue") && (
+            <div style={{ background: "#f9fafb", padding: "1rem", borderRadius: "8px", border: "1px dashed #ccc" }}>
+                <TextField label="Source Name (Vendor/Donor)" name="sourceName" value={form.sourceName} onChange={handleChange} />
+                <TextField label="Source Address" name="sourceAddress" value={form.sourceAddress} onChange={handleChange} />
+                <TextField label="Source Mobile" name="sourceMobile" value={form.sourceMobile} onChange={handleChange} />
+                {form.typeOfAdmission === "Purchase" && (
+                    <TextField label="Purchase Price (₹)" name="price" value={form.price} onChange={handleChange} />
+                )}
             </div>
-          )}
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+           <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} />
+           <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} />
+           <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} />
         </div>
 
-        {/* These fields seem like extras or specific scenarios; keeping them as text inputs for now */}
-        <TextField
-          label="New Tag Number (if Re-tagging)"
-          name="newTagNumber"
-          value={form.newTagNumber}
-          onChange={handleChange}
-        />
+        {/* --- STATUS --- */}
+        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151" }}>Status</h3>
+        
+        <label style={{ fontSize: "0.85rem", color: "#4b5563" }}>Permanent Disability?</label>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+           <button type="button" onClick={() => handleDisability("N")} style={form.disabilityFlag === "N" ? activeBtn : inactiveBtn}>No</button>
+           <button type="button" onClick={() => handleDisability("Y")} style={form.disabilityFlag === "Y" ? activeBtn : inactiveBtn}>Yes</button>
+        </div>
+        
+        <SelectField label="Shed Location" name="locationShed" value={form.locationShed} onChange={handleChange} options={["", "Goshala-1", "Goshala-2", "Quarantine"]} />
 
-        <TextField
-          label="Reactive Reason (if applicable)"
-          name="reactiveReason"
-          value={form.reactiveReason}
-          onChange={handleChange}
-        />
-
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "0.85rem",
-              marginBottom: "0.25rem",
-            }}
-          >
-            Reactive Date
-          </label>
-          <input
-            type="date"
-            name="reactiveDate"
-            value={form.reactiveDate}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: "0.5rem 0.6rem",
-              borderRadius: "0.5rem",
-              border: "1px solid #d1d5db",
-              fontSize: "0.9rem",
-            }}
-          />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
+          <button type="button" onClick={handleCancel} disabled={loading} style={btnStyle}>Cancel</button>
+          <button type="submit" disabled={loading} style={{...btnStyle, background: "#2563eb", color: "#fff"}}>{loading ? "Saving..." : "Save"}</button>
         </div>
       </form>
     </div>
   );
 }
 
-/* Small reusable components */
+const btnStyle = { padding: "0.6rem 1.2rem", borderRadius: "20px", border: "1px solid #ddd", background: "white", cursor: "pointer" };
+const activeBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "2px solid #2563eb", background: "#eff6ff", color: "#2563eb", fontWeight: "bold" };
+const inactiveBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "1px solid #ddd", background: "white", color: "#6b7280" };
 
-function TextField({ label, name, value, onChange }) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.85rem",
-          marginBottom: "0.25rem",
-        }}
-      >
-        {label}
-      </label>
-      <input
-        type="text"
-        name={name}
-        value={value}
-        onChange={onChange}
-        style={{
-          width: "100%",
-          padding: "0.5rem 0.6rem",
-          borderRadius: "0.5rem",
-          border: "1px solid #d1d5db",
-          fontSize: "0.9rem",
-        }}
-      />
-    </div>
-  );
+function TextField({ label, name, value, onChange, type="text" }) {
+  return <div><label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label><input type={type} name={name} value={value} onChange={onChange} style={{width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px"}} /></div>;
 }
-
 function SelectField({ label, name, value, onChange, options }) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.85rem",
-          marginBottom: "0.25rem",
-        }}
-      >
-        {label}
-      </label>
-      <select
-        name={name}
-        value={value}
-        onChange={onChange}
-        style={{
-          width: "100%",
-          padding: "0.5rem 0.6rem",
-          borderRadius: "0.5rem",
-          border: "1px solid #d1d5db",
-          fontSize: "0.9rem",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        {options.map((opt) => (
-          <option key={opt.value + opt.label} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+  return <div><label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label><select name={name} value={value} onChange={onChange} style={{width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px", background:"white"}}>{options.map(o => <option key={o} value={o}>{o||"Select..."}</option>)}</select></div>;
 }
