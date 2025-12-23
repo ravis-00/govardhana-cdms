@@ -34,17 +34,15 @@ export function AuthProvider({ children }) {
         return { success: true };
       } 
       
-      // If server returns a specific error (e.g., "Account is inactive")
+      // If server returns a specific error
       if (response && response.error) {
         return { success: false, error: response.error };
       }
 
-      // Default fallback
       return { success: false, error: "Incorrect credentials" };
 
     } catch (err) {
       console.error("Login Request Failed:", err);
-      // Changed "Network error" to "Incorrect credentials" as requested
       return { success: false, error: "Incorrect credentials" };
     }
   };
@@ -53,7 +51,6 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("cattle_user");
-    // Optional: Clear any other session data here
   };
 
   return (
@@ -63,4 +60,5 @@ export function AuthProvider({ children }) {
   );
 }
 
+// Hook to use auth
 export const useAuth = () => useContext(AuthContext);

@@ -22,6 +22,7 @@ import Deregister from "./pages/Deregister.jsx";
 import DeathRecords from "./pages/DeathRecords.jsx";
 import CertificatesReports from "./pages/CertificatesReports.jsx";
 
+// Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -54,9 +55,9 @@ export default function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
           
-          {/* --- GROUP 1: EVERYONE (Admin, User, Viewer) --- */}
+          {/* --- GROUP 1: EVERYONE --- */}
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Dashboard /></ProtectedRoute>} />
           <Route path="/cattle/active" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><ActiveCattle /></ProtectedRoute>} />
           <Route path="/cattle/master" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MasterCattle /></ProtectedRoute>} />
@@ -68,7 +69,7 @@ export default function App() {
           <Route path="/feeding" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Feeding /></ProtectedRoute>} />
           <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><DattuYojana /></ProtectedRoute>} />
 
-          {/* --- GROUP 2: ADMIN & USER ONLY (Hidden from Viewer) --- */}
+          {/* --- GROUP 2: ADMIN & USER ONLY --- */}
           <Route path="/cattle/register" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><CattleRegistration /></ProtectedRoute>} />
           <Route path="/new-tag" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><NewTag /></ProtectedRoute>} />
           <Route path="/deregister" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><Deregister /></ProtectedRoute>} />

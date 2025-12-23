@@ -1,4 +1,4 @@
-// web-cdms/src/api/masterApi.js
+// src/api/masterApi.js
 
 // 🔗 Deployed Apps Script Web App URL
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
@@ -7,9 +7,6 @@ const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuC
 // === HELPERS ================================================================
 // ============================================================================
 
-/**
- * Remove undefined / null / empty string params so URL stays clean.
- */
 function cleanParams(params = {}) {
   const out = {};
   Object.entries(params).forEach(([k, v]) => {
@@ -20,28 +17,19 @@ function cleanParams(params = {}) {
   return out;
 }
 
-/**
- * Build URL with query parameters.
- */
 function buildUrl(action, params = {}) {
   const url = new URL(BASE_URL);
   url.searchParams.set("action", action);
-
   const cleaned = cleanParams(params);
   Object.entries(cleaned).forEach(([key, value]) => {
     url.searchParams.set(key, String(value));
   });
-
   return url.toString();
 }
 
-/**
- * Fetch with timeout wrapper.
- */
 async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
@@ -49,56 +37,33 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   }
 }
 
-/**
- * Unified response handler.
- */
 async function handleResponse(res) {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `HTTP ${res.status} – ${text || res.statusText || "Network error"}`
-    );
+    throw new Error(`HTTP ${res.status} – ${text || res.statusText || "Network error"}`);
   }
-
   const json = await res.json().catch(() => {
     throw new Error("Invalid JSON response from server");
   });
-
   if (json && json.success === false) {
     throw new Error(json.error || "Unknown API error");
   }
-
-  // Return data if present, otherwise return the whole json (for success messages)
   return json.data ?? json;
 }
 
-/**
- * Generic GET wrapper.
- */
 async function getRequest(action, params) {
   const url = buildUrl(action, params);
-  const res = await fetchWithTimeout(
-    url,
-    { method: "GET", cache: "no-cache" },
-    30000
-  );
+  const res = await fetchWithTimeout(url, { method: "GET", cache: "no-cache" }, 30000);
   return handleResponse(res);
 }
 
-/**
- * Generic POST wrapper.
- */
 async function postRequest(action, body) {
   const url = buildUrl(action);
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body ?? {}),
-    },
-    30000
-  );
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(body ?? {}),
+  }, 30000);
   return handleResponse(res);
 }
 
@@ -107,167 +72,74 @@ async function postRequest(action, body) {
 // ============================================================================
 
 // --- 1. CATTLE MANAGEMENT ---
-export async function getCattle() {
-  return getRequest("getCattle");
-}
+export async function getCattle() { return getRequest("getCattle"); }
+export async function getActiveCattle() { return getRequest("getActiveCattle"); }
+export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
+export async function addCattle(payload) { return postRequest("addCattle", payload); }
+export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
 
-export async function getActiveCattle() {
-  return getRequest("getActiveCattle");
-}
+// --- 2. NEW BORN & BIRTHS ---
+export async function getNewBorn() { return getRequest("getNewBorn"); }
+export async function addNewBorn(payload) { return postRequest("addNewBorn", payload); }
+export async function updateNewBorn(payload) { return postRequest("updateNewBorn", payload); }
+export async function getUnregisteredBirths() { return getRequest("getUnregisteredBirths"); }
 
-export async function getCattleById(id) {
-  return getRequest("getCattleById", { id });
-}
+// --- 3. DAILY OPERATIONS ---
 
-// NEW FUNCTION ADDED HERE
-export async function getUnregisteredBirths() {
-  return getRequest("getUnregisteredBirths");
-}
+// A. MILK PRODUCTION (Cow-wise Yield)
+export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
+export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }
+export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); }
 
-export async function addCattle(payload) {
-  return postRequest("addCattle", payload);
-}
+// B. MILK DISTRIBUTION (Sales/Usage)
+export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
+export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
+// ✅ ADDED THIS FUNCTION TO FIX THE ERROR
+export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
 
-export async function updateCattle(payload) {
-  return postRequest("updateCattle", payload);
-}
+// C. BIO WASTE
+export async function getBioWaste(params = {}) { return getRequest("getBioWaste", params); }
+export async function addBioWaste(payload) { return postRequest("addBioWaste", payload); }
+export async function updateBioWaste(payload) { return postRequest("updateBioWaste", payload); }
 
-export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") {
-  return getRequest("getDeathRecords", { fromDate, toDate });
-}
+// D. FEEDING
+export async function getFeeding() { return getRequest("getFeeding"); }
+export async function addFeeding(payload) { return postRequest("addFeeding", payload); }
+export async function updateFeeding(payload) { return postRequest("updateFeeding", payload); }
 
-// --- 2. NEW BORN ---
-export async function getNewBorn() {
-  return getRequest("getNewBorn");
-}
+// --- 4. MEDICAL ---
+export async function getVaccine() { return getRequest("getVaccine"); }
+export async function getTreatments() { return getRequest("getTreatments"); }
+export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
+export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
+export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
 
-export async function addNewBorn(payload) {
-  return postRequest("addNewBorn", payload);
-}
-
-export async function updateNewBorn(payload) {
-  return postRequest("updateNewBorn", payload);
-}
-
-// --- 3. DAILY OPERATIONS (Milk, Bio, Feeding) ---
-
-// Milk Yield
-export async function getMilkYield(params = {}) {
-  return getRequest("getMilkYield", params);
-}
-
-export async function addMilkYield(payload) {
-  return postRequest("addMilkYield", payload);
-}
-
-export async function updateMilkYield(payload) {
-  return postRequest("updateMilkYield", payload);
-}
-
-// Bio Waste
-export async function getBioWaste(params = {}) {
-  return getRequest("getBioWaste", params);
-}
-
-export async function addBioWaste(payload) {
-  return postRequest("addBioWaste", payload);
-}
-
-export async function updateBioWaste(payload) {
-  return postRequest("updateBioWaste", payload);
-}
-
-// Feeding
-export async function getFeeding() {
-  return getRequest("getFeeding");
-}
-
-export async function addFeeding(payload) {
-  return postRequest("addFeeding", payload);
-}
-
-export async function updateFeeding(payload) {
-  return postRequest("updateFeeding", payload);
-}
-
-// --- 4. MEDICAL (Vaccine & Treatment) ---
-export async function getVaccine() {
-  return getRequest("getVaccine");
-}
-
-export async function getTreatments() {
-  return getRequest("getTreatments");
-}
-
-export async function addTreatment(payload) {
-  return postRequest("addTreatment", payload);
-}
-
-export async function updateTreatment(payload) {
-  return postRequest("updateTreatment", payload);
-}
-
-// --- 5. FINANCE (Dattu Yojana Data Entry) ---
-export async function getDattuYojana() {
-  return getRequest("getDattuYojana");
-}
-
-export async function addDattuYojana(payload) {
-  return postRequest("addDattuYojana", payload);
-}
-
-export async function updateDattuYojana(payload) {
-  return postRequest("updateDattuYojana", payload);
-}
+// --- 5. FINANCE (Dattu Yojana) ---
+export async function getDattuYojana() { return getRequest("getDattuYojana"); }
+export async function addDattuYojana(payload) { return postRequest("addDattuYojana", payload); }
+export async function updateDattuYojana(payload) { return postRequest("updateDattuYojana", payload); }
 
 // --- 6. AUTHENTICATION & USERS ---
-export async function loginUser(email, password) {
-  return getRequest("login", { email, password });
-}
+export async function loginUser(email, password) { return getRequest("login", { email, password }); }
+export async function fetchUsers() { return getRequest("getUsers"); }
+export async function addUser(userData) { return postRequest("addUser", userData); }
+export async function updateUser(userData) { return postRequest("updateUser", userData); }
 
-export async function fetchUsers() {
-  return getRequest("getUsers");
-}
-
-export async function addUser(userData) {
-  // userData = { name, email, password, mobile, role }
-  return postRequest("addUser", userData);
-}
-
-export async function updateUser(userData) {
-  return postRequest("updateUser", userData);
-}
-
-// --- 7. REPORTS (Read-Only Views) ---
-// These usually map to Reports.gs in backend
-export async function getBirthReport(params = {}) {
-  return getRequest("getBirthReport", params);
-}
-
-export async function getSalesReport(params = {}) {
-  return getRequest("getSalesReport", params);
-}
-
-export async function getDattuReport(fromDate, toDate) {
-  return getRequest("getDattuReport", { fromDate, toDate });
-}
-
-export async function getMilkReport(fromDate, toDate) {
-  return getRequest("getMilkReport", { fromDate, toDate });
-}
-
-export async function getBioReport(fromDate, toDate) {
-  return getRequest("getBioReport", { fromDate, toDate });
-}
+// --- 7. REPORTS ---
+export async function getBirthReport(params = {}) { return getRequest("getBirthReport", params); }
+export async function getSalesReport(params = {}) { return getRequest("getSalesReport", params); }
+export async function getDattuReport(fromDate, toDate) { return getRequest("getDattuReport", { fromDate, toDate }); }
+export async function getMilkReport(fromDate, toDate) { return getRequest("getMilkReport", { fromDate, toDate }); }
+export async function getBioReport(fromDate, toDate) { return getRequest("getBioReport", { fromDate, toDate }); }
 
 // ============================================================================
-// === ALIASES (For Backward Compatibility) ===================================
+// === ALIASES (CRITICAL FOR BACKWARD COMPATIBILITY) ==========================
 // ============================================================================
 
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
-export const fetchUnregisteredBirths = getUnregisteredBirths; // Added Alias
+export const fetchUnregisteredBirths = getUnregisteredBirths;
 
 export const fetchBirthReport = getBirthReport;
 export const fetchSalesReport = getSalesReport;
@@ -275,7 +147,12 @@ export const fetchDattuReport = getDattuReport;
 export const fetchMilkReport = getMilkReport;
 export const fetchBioReport = getBioReport;
 
-export const fetchMilkYield = getMilkYield;
+// Milk Aliases (Maps generic 'Yield' calls to Production for Dashboard)
+export const getMilkYield = getMilkProduction; 
+export const fetchMilkYield = getMilkProduction;
+export const addMilkYield = addMilkProduction;
+export const updateMilkYieldAlias = updateMilkProduction;
+
 export const fetchBioWaste = getBioWaste;
 export const fetchFeeding = getFeeding;
 
@@ -283,29 +160,3 @@ export const fetchVaccine = getVaccine;
 export const fetchTreatments = getTreatments;
 export const fetchNewBorn = getNewBorn;
 export const fetchDattuYojana = getDattuYojana;
-
-// --- 3. DAILY OPERATIONS (Milk) ---
-
-// 1. PRODUCTION (Cow-wise)
-export async function getMilkProduction(params = {}) {
-  return getRequest("getMilkProduction", params);
-}
-export async function addMilkProduction(payload) {
-  return postRequest("addMilkProduction", payload);
-}
-export async function updateMilkProduction(payload) {
-  return postRequest("updateMilkProduction", payload);
-}
-
-// 2. DISTRIBUTION (Sales/Usage)
-export async function getMilkDistribution(params = {}) {
-  return getRequest("getMilkDistribution", params);
-}
-export async function addMilkDistribution(payload) {
-  return postRequest("addMilkDistribution", payload);
-}
-export async function updateMilkDistribution(payload) {
-  return postRequest("updateMilkDistribution", payload);
-}
-
-// ... (Keep existing getBioWaste, getFeeding, etc.)
