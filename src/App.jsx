@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -7,20 +8,20 @@ import MainLayout from "./layout/MainLayout.jsx";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import UserManagement from "./pages/UserManagement.jsx";
-import ActiveCattle from "./pages/ActiveCattle.jsx";
-import MasterCattle from "./pages/MasterCattle.jsx";
-import CattleRegistration from "./pages/CattleRegistration.jsx";
-import NewTag from "./pages/NewTag.jsx";
-import MilkYield from "./pages/MilkYield.jsx";
-import BioWaste from "./pages/BioWaste.jsx";
-import Vaccine from "./pages/Vaccine.jsx";
-import Treatment from "./pages/Treatment.jsx";
-import NewBorn from "./pages/NewBorn.jsx";
-import Feeding from "./pages/Feeding.jsx";
-import DattuYojana from "./pages/DattuYojana.jsx";
-import Deregister from "./pages/Deregister.jsx";
-import DeathRecords from "./pages/DeathRecords.jsx";
-import CertificatesReports from "./pages/CertificatesReports.jsx";
+// ActiveCattle deleted
+import MasterCattle from "./pages/MasterCattle.jsx"; // Now "Herd Registry"
+import CattleRegistration from "./pages/CattleRegistration.jsx"; // Now "Cattle Induction"
+import NewTag from "./pages/NewTag.jsx"; // Now "Tag Management"
+import MilkYield from "./pages/MilkYield.jsx"; // Now "Milk Production"
+import BioWaste from "./pages/BioWaste.jsx"; // Now "Waste Mgmt"
+import Vaccine from "./pages/Vaccine.jsx"; // Now "Preventive Care"
+import Treatment from "./pages/Treatment.jsx"; // Now "Clinical Records"
+import NewBorn from "./pages/NewBorn.jsx"; // Now "Calving Log"
+import Feeding from "./pages/Feeding.jsx"; // Now "Nutrition"
+import DattuYojana from "./pages/DattuYojana.jsx"; // Now "Sponsorships"
+import Deregister from "./pages/Deregister.jsx"; // Now "Herd Exit"
+import DeathRecords from "./pages/DeathRecords.jsx"; // Now "Mortality Register"
+import CertificatesReports from "./pages/CertificatesReports.jsx"; // Now "Reports & Docs"
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
@@ -55,29 +56,34 @@ export default function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
-        <Route element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
           
-          {/* --- GROUP 1: EVERYONE --- */}
-          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Dashboard /></ProtectedRoute>} />
-          <Route path="/cattle/active" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><ActiveCattle /></ProtectedRoute>} />
-          <Route path="/cattle/master" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MasterCattle /></ProtectedRoute>} />
-          <Route path="/milk-yield" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><MilkYield /></ProtectedRoute>} />
-          <Route path="/bio-waste" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><BioWaste /></ProtectedRoute>} />
-          <Route path="/vaccine" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Vaccine /></ProtectedRoute>} />
-          <Route path="/treatment" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Treatment /></ProtectedRoute>} />
-          <Route path="/newborn" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><NewBorn /></ProtectedRoute>} />
-          <Route path="/feeding" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><Feeding /></ProtectedRoute>} />
-          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "User", "Viewer"]}><DattuYojana /></ProtectedRoute>} />
+          {/* --- DASHBOARD --- */}
+          <Route path="/dashboard" element={<Dashboard />} />
 
-          {/* --- GROUP 2: ADMIN & USER ONLY --- */}
-          <Route path="/cattle/register" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><CattleRegistration /></ProtectedRoute>} />
-          <Route path="/new-tag" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><NewTag /></ProtectedRoute>} />
-          <Route path="/deregister" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><Deregister /></ProtectedRoute>} />
-          <Route path="/death-records" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><DeathRecords /></ProtectedRoute>} />
-          <Route path="/certificates-reports" element={<ProtectedRoute allowedRoles={["Admin", "User"]}><CertificatesReports /></ProtectedRoute>} />
+          {/* --- HERD MANAGEMENT --- */}
+          <Route path="/cattle/master" element={<MasterCattle />} />
+          <Route path="/cattle/register" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><CattleRegistration /></ProtectedRoute>} />
+          <Route path="/newborn" element={<NewBorn />} />
+          <Route path="/new-tag" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><NewTag /></ProtectedRoute>} />
+          <Route path="/deregister" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Deregister /></ProtectedRoute>} />
 
-          {/* --- GROUP 3: ADMIN ONLY --- */}
-          <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin"]}><UserManagement /></ProtectedRoute>} />
+          {/* --- OPERATIONS --- */}
+          <Route path="/milk-yield" element={<MilkYield />} />
+          <Route path="/feeding" element={<Feeding />} />
+          <Route path="/bio-waste" element={<BioWaste />} />
+
+          {/* --- VETERINARY --- */}
+          <Route path="/treatment" element={<Treatment />} />
+          <Route path="/vaccine" element={<Vaccine />} />
+          <Route path="/death-records" element={<DeathRecords />} />
+
+          {/* --- FINANCE & ADMIN --- */}
+          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><DattuYojana /></ProtectedRoute>} />
+          <Route path="/certificates-reports" element={<CertificatesReports />} />
+          
+          {/* USER MGMT - LOCKED for non-Super Admins */}
+          <Route path="/users" element={<ProtectedRoute allowedRoles={["Super Admin"]}><UserManagement /></ProtectedRoute>} />
 
         </Route>
 

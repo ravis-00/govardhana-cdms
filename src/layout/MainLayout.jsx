@@ -1,194 +1,188 @@
-import React, { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+// src/layout/MainLayout.jsx
+import React from "react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-// --- MENU CONFIGURATION ---
-const MENU_ITEMS = [
-  { 
-    path: "/dashboard", 
-    label: "Dashboard", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/users", 
-    label: "👥 User Management", 
-    roles: ["Admin"] 
-  },
-  { 
-    path: "/cattle/active", 
-    label: "Active Cattle", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/cattle/master", 
-    label: "Master Cattle Data", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/cattle/register", 
-    label: "Cattle Registration", 
-    roles: ["Admin", "User"] // Hidden for Viewer
-  },
-  { 
-    path: "/new-tag", 
-    label: "New Tag Number", 
-    roles: ["Admin", "User"] // Hidden for Viewer
-  },
-  { 
-    path: "/milk-yield", 
-    label: "Milk Yield", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/bio-waste", 
-    label: "Bio Waste", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/vaccine", 
-    label: "Vaccine / Deworming", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/treatment", 
-    label: "Medical Treatment", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/newborn", 
-    label: "New Born", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/feeding", 
-    label: "Feeding", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/dattu-yojana", 
-    label: "Dattu Yojana", 
-    roles: ["Admin", "User", "Viewer"] 
-  },
-  { 
-    path: "/deregister", 
-    label: "Deregister Cattle", 
-    roles: ["Admin", "User"] // Hidden for Viewer
-  },
-  { 
-    path: "/death-records", 
-    label: "💀 Cattle Death Records", 
-    roles: ["Admin", "User"] // Hidden for Viewer
-  },
-  { 
-    path: "/certificates-reports", 
-    label: "📄 Certificates & Reports", 
-    roles: ["Admin", "User"] // Hidden for Viewer
-  }
-];
-
-const linkStyle = ({ isActive }) => ({
-  display: "block",
-  padding: "0.5rem 0.75rem",
-  borderRadius: "6px",
-  textDecoration: "none",
-  color: isActive ? "white" : "#111827",
-  backgroundColor: isActive ? "#2563eb" : "transparent",
-  fontSize: "0.95rem",
-});
-
 export default function MainLayout() {
-  const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
 
-  // Helper to check if current user has permission
-  const hasPermission = (allowedRoles) => {
-    if (!user) return false;
-    return allowedRoles.includes(user.role);
-  };
+  const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
+  const isSuperAdmin = user?.role === "Super Admin";
+
+  // --- MENU CONFIGURATION ---
+  const menuGroups = [
+    {
+      title: "",
+      items: [
+        { name: "Dashboard", path: "/dashboard", icon: "📊" },
+      ]
+    },
+    {
+      title: "HERD MANAGEMENT",
+      items: [
+        { name: "Herd Registry", path: "/cattle/master", icon: "🐄" },
+        { name: "Cattle Induction", path: "/cattle/register", icon: "➕", restricted: !isAdmin },
+        { name: "Calving Log", path: "/newborn", icon: "🐣" },
+        { name: "Tag Management", path: "/new-tag", icon: "🏷️", restricted: !isAdmin },
+        { name: "Herd Exit", path: "/deregister", icon: "🚫", restricted: !isAdmin },
+      ]
+    },
+    {
+      title: "OPERATIONS",
+      items: [
+        { name: "Milk Production", path: "/milk-yield", icon: "🥛" },
+        { name: "Nutrition", path: "/feeding", icon: "🌾" },
+        { name: "Waste Mgmt", path: "/bio-waste", icon: "♻️" },
+      ]
+    },
+    {
+      title: "VETERINARY",
+      items: [
+        { name: "Clinical Records", path: "/treatment", icon: "⚕️" },
+        { name: "Preventive Care", path: "/vaccine", icon: "💉" },
+        { name: "Mortality Register", path: "/death-records", icon: "💀" },
+      ]
+    },
+    {
+      title: "FINANCE & ADMIN",
+      items: [
+        { name: "Sponsorships", path: "/dattu-yojana", icon: "🤝", restricted: !isAdmin },
+        { name: "Reports & Docs", path: "/certificates-reports", icon: "📄" },
+        { name: "User Management", path: "/users", icon: "👥", restricted: !isSuperAdmin },
+      ]
+    }
+  ];
 
   return (
-    <div className="app-shell">
-      {/* TOPBAR */}
-      <header className="topbar">
-        <button
-          className="topbar-menu-btn"
-          type="button"
-          onClick={() => setSidebarOpen((prev) => !prev)}
-          aria-label="Toggle sidebar"
-        >
-          &#9776;
-        </button>
-
-        <div
-          className="topbar-center"
-          onClick={() => navigate("/dashboard")}
-          style={{ cursor: "pointer" }}
-        >
-          <div className="logo-placeholder">GV</div>
-          <div>
-            <div className="topbar-title">Govardhana CDMS</div>
-            <div className="topbar-subtitle">
-              Cattle Data Management System
-            </div>
-          </div>
+    // Outer Container: Fixed Height, No Scroll
+    <div style={{ display: "flex", height: "100vh", backgroundColor: "#f3f4f6", overflow: "hidden" }}>
+      
+      {/* --- SIDEBAR (Fixed Left) --- */}
+      <aside style={{
+        width: "260px",
+        backgroundColor: "#1e293b", // Dark Slate
+        color: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        borderRight: "1px solid #334155",
+        height: "100vh", // Full height
+        overflowY: "auto" // Sidebar scrolls internally if menu is long
+      }}>
+        {/* Brand */}
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #334155", flexShrink: 0 }}>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold", letterSpacing: "0.5px", color: "#fbbf24" }}>Govardhana CDMS</div>
+          <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>Cattle Data Management</div>
         </div>
 
-        <div className="topbar-right">
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "1rem" }}>
-            <span className="topbar-user" style={{ fontSize: "0.9rem", fontWeight: "600" }}>
-              {user ? user.name : "Guest"}
-            </span>
-            <span style={{ fontSize: "0.75rem", color: "#fff", opacity: 0.8 }}>
-              {user ? user.role : ""}
-            </span>
-          </div>
-          
-          <button
-            type="button"
-            className="topbar-home-btn"
-            onClick={handleLogout}
-            title="Logout"
-            style={{ 
-              background: "#dc2626", 
-              border: "none", 
-              color: "white", 
-              fontWeight: "600",
-              padding: "0.4rem 0.8rem", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }} 
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* BODY */}
-      <div className="layout-body">
-        <aside className={sidebarOpen ? "sidebar" : "sidebar sidebar-hidden"}>
-          <nav style={{ display: "grid", gap: "0.25rem" }}>
-            {MENU_ITEMS.map((item) => {
-              // Only render if user has permission
-              if (!hasPermission(item.roles)) return null;
+        {/* Navigation */}
+        <nav style={{ flex: 1, padding: "1rem 0" }}>
+          {menuGroups.map((group, gIdx) => (
+            <div key={gIdx} style={{ marginBottom: "1.5rem" }}>
+              {group.title && (
+                <div style={{ 
+                  padding: "0 1.5rem", 
+                  marginBottom: "0.5rem", 
+                  fontSize: "0.7rem", 
+                  fontWeight: "bold", 
+                  color: "#64748b", 
+                  letterSpacing: "0.05em" 
+                }}>
+                  {group.title}
+                </div>
+              )}
               
-              return (
-                <NavLink key={item.path} to={item.path} style={linkStyle}>
-                  {item.label}
-                </NavLink>
-              );
-            })}
-          </nav>
-        </aside>
+              {group.items.map((item, iIdx) => {
+                if (item.restricted) return null;
 
-        <main className="main-content">
+                return (
+                  <NavLink
+                    key={iIdx}
+                    to={item.path}
+                    style={({ isActive }) => ({
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0.75rem 1.5rem",
+                      textDecoration: "none",
+                      color: isActive ? "#fbbf24" : "#e2e8f0",
+                      background: isActive ? "rgba(255,255,255,0.05)" : "transparent",
+                      borderLeft: isActive ? "4px solid #fbbf24" : "4px solid transparent",
+                      fontSize: "0.9rem",
+                      transition: "all 0.2s"
+                    })}
+                  >
+                    <span style={{ marginRight: "0.75rem", fontSize: "1.1rem" }}>{item.icon}</span>
+                    {item.name}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* --- RIGHT COLUMN (Wrapper for Header + Content) --- */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+        
+        {/* HEADER (Fixed Top) */}
+        <header style={{ 
+          background: "#1e293b", // Matches Sidebar
+          color: "#fff",
+          padding: "0.75rem 2rem", 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          flexShrink: 0, // Prevents shrinking
+          zIndex: 10
+        }}>
+           {/* Left: Welcome Text */}
+           <div>
+             <div style={{ fontSize: "0.9rem", color: "#e2e8f0" }}>
+               Welcome back, <strong style={{ color: "#fff" }}>{user?.name}</strong>
+             </div>
+             <div style={{ fontSize: "0.75rem", color: "#fbbf24" }}>{user?.role}</div>
+           </div>
+
+           {/* Right: Logout Button */}
+           <button 
+              onClick={handleLogout}
+              style={{
+                background: "#b91c1c",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "background 0.2s"
+              }}
+              onMouseOver={(e) => e.target.style.background = "#dc2626"}
+              onMouseOut={(e) => e.target.style.background = "#b91c1c"}
+            >
+              Logout <span>➔</span>
+            </button>
+        </header>
+
+        {/* SCROLLABLE CONTENT AREA */}
+        <main style={{ 
+          flex: 1, // Takes remaining space
+          overflowY: "auto", // SCROLLS independently
+          position: "relative" 
+        }}>
           <Outlet />
         </main>
+
       </div>
     </div>
   );

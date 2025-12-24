@@ -1,259 +1,109 @@
 // src/pages/Deregister.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { getActiveCattle, updateCattle } from "../api/masterApi";
-
-function toIsoDate(d = new Date()) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-const DEADM_TYPES = ["Death", "Sold", "Transferred", "Donated", "Reactive", "Inactive"];
-
-const DEATH_CAUSE_CATS = [
-  "Old age",
-  "Accident",
-  "Disease",
-  "Snake bite",
-  "Calving complication",
-  "Other",
-];
+import React, { useEffect, useState, useMemo } from "react";
+import { fetchCattle, updateCattle } from "../api/masterApi"; // Re-using Master API
+import { useAuth } from "../context/AuthContext";
 
 export default function Deregister() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [selected, setSelected] = useState(null); // The cow selected for deregistering
 
-  const [q, setQ] = useState("");
-  const [selected, setSelected] = useState(null);
-
-  // form fields
-  const [typeOfDeAdmit, setTypeOfDeAdmit] = useState("Death");
-  const [dateOfDeAdmit, setDateOfDeAdmit] = useState(toIsoDate());
-  const [deathCauseCat, setDeathCauseCat] = useState("Old age");
-  const [deathCause, setDeathCause] = useState("");
-  const [dateOfDeath, setDateOfDeath] = useState(""); // optional
-  const [timeOfDeath, setTimeOfDeath] = useState(""); // optional HH:mm
-  const [remarks, setRemarks] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function load() {
+  // Load ONLY Active Cattle
+  const loadData = async () => {
     try {
-      setErr("");
       setLoading(true);
-      const data = await getActiveCattle(); // should be array
-      setRows(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setErr(String(e?.message || e));
-      setRows([]);
+      const res = await fetchCattle();
+      if (res && (Array.isArray(res) || Array.isArray(res.data))) {
+        const allData = Array.isArray(res) ? res : res.data;
+        // Filter: We only want to deregister cattle that are currently ACTIVE
+        const activeOnly = allData.filter(c => String(c.status).toLowerCase() === 'active');
+        setRows(activeOnly);
+      } else {
+        setRows([]);
+      }
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    load();
+    loadData();
   }, []);
 
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-
-    return rows.filter((r) => {
-      const tag = String(r.cattleId || "").toLowerCase();
-      const name = String(r.name || "").toLowerCase();
-      const breed = String(r.breed || "").toLowerCase();
-      const shed = String(r.locationShed || "").toLowerCase();
-      return (
-        tag.includes(s) ||
-        name.includes(s) ||
-        breed.includes(s) ||
-        shed.includes(s)
-      );
-    });
-  }, [rows, q]);
-
-  function openModal(row) {
-    setSelected(row);
-
-    // reset defaults each time
-    setTypeOfDeAdmit("Death");
-    setDateOfDeAdmit(toIsoDate());
-    setDeathCauseCat("Old age");
-    setDeathCause("");
-    setDateOfDeath("");
-    setTimeOfDeath("");
-    setRemarks("");
-  }
-
-  function closeModal() {
-    if (saving) return;
-    setSelected(null);
-  }
-
-  async function submit() {
-    if (!selected) return;
-
-    if (!typeOfDeAdmit) {
-      alert("Please select Type of De-Admission.");
-      return;
-    }
-    if (!dateOfDeAdmit) {
-      alert("Please select Date of De-Admission.");
-      return;
-    }
-    if (typeOfDeAdmit === "Death" && !deathCause.trim()) {
-      alert("Please enter Cause of Death details.");
-      return;
-    }
-
-    const payload = {
-      id: selected.id,
-
-      // Master sheet fields
-      status: "Deactive",
-      typeOfDeAdmit: typeOfDeAdmit,
-      dateOfDeAdmit: dateOfDeAdmit,
-
-      // Death-only fields
-      deathCauseCat: typeOfDeAdmit === "Death" ? deathCauseCat : "",
-      deathCause: typeOfDeAdmit === "Death" ? deathCause : "",
-      dateOfDeath: typeOfDeAdmit === "Death" ? (dateOfDeath || "") : "",
-      timeOfDeath: typeOfDeAdmit === "Death" ? (timeOfDeath || "") : "",
-
-      remarks: remarks || "",
-    };
-
-    try {
-      setSaving(true);
-      await updateCattle(payload);
-
-      // remove from list immediately (now deactive)
-      setRows((prev) => prev.filter((r) => r.id !== selected.id));
-
-      closeModal();
-      alert("Deregistered successfully.");
-    } catch (e) {
-      alert(String(e?.message || e));
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Filter Logic
+  const filteredRows = useMemo(() => {
+    if (!searchText) return rows;
+    const lower = searchText.toLowerCase();
+    return rows.filter(r => 
+      (r.tag || "").toLowerCase().includes(lower) || 
+      (r.name || "").toLowerCase().includes(lower) ||
+      (r.internalId || "").toLowerCase().includes(lower) ||
+      (r.shed || "").toLowerCase().includes(lower)
+    );
+  }, [rows, searchText]);
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "end",
-          gap: "1rem",
-        }}
-      >
+    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
+      
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 800, margin: 0 }}>
-            Deregister / De-Admission
-          </h1>
-          <div style={{ color: "#6b7280", marginTop: "0.25rem" }}>
-            Showing only <b>Active</b> cattle. Deregistering will mark them as{" "}
-            <b>Deactive</b>.
-          </div>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#b91c1c" }}>Herd Exit (Deregister)</h1>
+          <p style={{ color: "#6b7280", fontSize: "0.9rem", marginTop: "4px" }}>
+             Mark cattle as Dead, Sold, or Donated. This removes them from the Active list.
+          </p>
         </div>
-
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by Tag / Name / Breed / Shed..."
-            style={{
-              width: "320px",
-              padding: "0.55rem 0.8rem",
-              borderRadius: "0.6rem",
-              border: "1px solid #d1d5db",
-              fontSize: "0.9rem",
-            }}
-          />
-          <button
-            type="button"
-            onClick={load}
-            style={{
-              padding: "0.55rem 0.9rem",
-              borderRadius: "0.6rem",
-              border: "1px solid #d1d5db",
-              background: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            Refresh
-          </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+           <input 
+             type="text" 
+             placeholder="Search Tag / Name / Shed..." 
+             value={searchText}
+             onChange={e => setSearchText(e.target.value)}
+             style={searchInputStyle}
+           />
+           <button onClick={loadData} style={refreshBtnStyle}>Refresh</button>
         </div>
-      </header>
+      </div>
 
-      <div
-        style={{
-          marginTop: "1rem",
-          background: "#fff",
-          borderRadius: "0.75rem",
-          boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
-          overflow: "hidden",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.92rem" }}>
-          <thead style={{ background: "#f1f5f9", textAlign: "left" }}>
+      {/* Table */}
+      <div style={cardStyle}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+          <thead style={{ background: "#fef2f2", borderBottom: "2px solid #fecaca" }}>
             <tr>
-              <th style={th}>CATTLE ID</th>
-              <th style={th}>NAME</th>
-              <th style={th}>BREED</th>
-              <th style={th}>GENDER</th>
-              <th style={th}>LOCATION / SHED</th>
-              <th style={th}>STATUS</th>
-              <th style={{ ...th, textAlign: "center" }}>ACTION</th>
+              <th style={thStyle}>Tag No</th> {/* UPDATED LABEL */}
+              <th style={thStyle}>Name</th>
+              <th style={thStyle}>Breed</th>
+              <th style={thStyle}>Gender</th>
+              <th style={thStyle}>Location / Shed</th>
+              <th style={thStyle}>Status</th>
+              <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
             </tr>
           </thead>
-
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={empty}>Loading...</td></tr>
-            ) : err ? (
-              <tr><td colSpan={7} style={empty}>Error: {err}</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} style={empty}>No active cattle found.</td></tr>
+              <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center" }}>Loading Active Cattle...</td></tr>
+            ) : filteredRows.length === 0 ? (
+              <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>No active cattle found.</td></tr>
             ) : (
-              filtered.map((r, idx) => (
-                <tr key={r.id ?? idx} style={{ background: idx % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                  <td style={td}>{r.cattleId || r.id}</td>
-                  <td style={td}>{r.name || "-"}</td>
-                  <td style={td}>{r.breed || "-"}</td>
-                  <td style={td}>{r.gender || "-"}</td>
-                  <td style={td}>{r.locationShed || "-"}</td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        padding: "0.15rem 0.55rem",
-                        borderRadius: "999px",
-                        fontSize: "0.78rem",
-                        background: "#dcfce7",
-                        color: "#166534",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Active
+              filteredRows.map((row, idx) => (
+                <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fffaf0" }}>
+                  <td style={tdStyle}><strong>{row.tag}</strong></td> {/* SHOW TAG HERE */}
+                  <td style={tdStyle}>{row.name}</td>
+                  <td style={tdStyle}>{row.breed}</td>
+                  <td style={tdStyle}>{row.gender}</td>
+                  <td style={tdStyle}>{row.shed || "-"}</td>
+                  <td style={tdStyle}>
+                    <span style={{ background: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: "12px", fontSize: "0.75rem", fontWeight: "bold" }}>
+                      {row.status}
                     </span>
                   </td>
-                  <td style={{ ...td, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => openModal(r)}
-                      style={{
-                        padding: "0.35rem 0.75rem",
-                        borderRadius: "999px",
-                        border: "none",
-                        cursor: "pointer",
-                        background: "#fee2e2",
-                        color: "#b91c1c",
-                        fontWeight: 700,
-                      }}
+                  <td style={{ ...tdStyle, textAlign: "center" }}>
+                    <button 
+                      onClick={() => setSelected(row)}
+                      style={dangerBtnStyle}
                     >
                       ⛔ Deregister
                     </button>
@@ -267,197 +117,196 @@ export default function Deregister() {
 
       {/* Modal */}
       {selected && (
-        <div style={overlay} onClick={closeModal}>
-          <div style={modal} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "1rem" }}>
-              <div>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  De-Admission / Deregister
-                </div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 800, marginTop: "0.15rem" }}>
-                  {selected.cattleId || selected.id} — {selected.name || "-"}
-                </div>
-                <div style={{ color: "#6b7280", marginTop: "0.25rem", fontSize: "0.9rem" }}>
-                  Breed: {selected.breed || "-"} • Shed: {selected.locationShed || "-"}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                style={{
-                  border: "none",
-                  background: "#e5e7eb",
-                  borderRadius: "999px",
-                  padding: "0.25rem 0.6rem",
-                  cursor: saving ? "not-allowed" : "pointer",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.9rem", marginTop: "1rem" }}>
-              <div>
-                <label style={lbl}>Type of De-Admission</label>
-                <select value={typeOfDeAdmit} onChange={(e) => setTypeOfDeAdmit(e.target.value)} style={inp}>
-                  {DEADM_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={lbl}>Date of De-Admission</label>
-                <input type="date" value={dateOfDeAdmit} onChange={(e) => setDateOfDeAdmit(e.target.value)} style={inp} />
-              </div>
-
-              {typeOfDeAdmit === "Death" && (
-                <>
-                  <div>
-                    <label style={lbl}>Death Cause Category</label>
-                    <select value={deathCauseCat} onChange={(e) => setDeathCauseCat(e.target.value)} style={inp}>
-                      {DEATH_CAUSE_CATS.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={lbl}>Cause of Death Details</label>
-                    <input
-                      value={deathCause}
-                      onChange={(e) => setDeathCause(e.target.value)}
-                      style={inp}
-                      placeholder="e.g., Old age / Disease / Accident..."
-                    />
-                  </div>
-
-                  <div>
-                    <label style={lbl}>Date of Death (optional)</label>
-                    <input type="date" value={dateOfDeath} onChange={(e) => setDateOfDeath(e.target.value)} style={inp} />
-                  </div>
-
-                  <div>
-                    <label style={lbl}>Time of Death (optional)</label>
-                    <input type="time" value={timeOfDeath} onChange={(e) => setTimeOfDeath(e.target.value)} style={inp} />
-                  </div>
-                </>
-              )}
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={lbl}>Remarks</label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  style={{ ...inp, resize: "vertical" }}
-                  placeholder="Any notes for record..."
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "end", gap: "0.75rem", marginTop: "1rem" }}>
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                style={{
-                  padding: "0.55rem 0.9rem",
-                  borderRadius: "0.6rem",
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  cursor: saving ? "not-allowed" : "pointer",
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={submit}
-                disabled={saving}
-                style={{
-                  padding: "0.55rem 0.95rem",
-                  borderRadius: "0.6rem",
-                  border: "none",
-                  background: saving ? "#fca5a5" : "#ef4444",
-                  color: "#fff",
-                  fontWeight: 800,
-                  cursor: saving ? "not-allowed" : "pointer",
-                }}
-              >
-                {saving ? "Saving..." : "Confirm Deregister"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeregisterModal 
+          selected={selected} 
+          onClose={() => setSelected(null)} 
+          onSuccess={() => { setSelected(null); loadData(); }} 
+        />
       )}
+
     </div>
   );
 }
 
-const th = {
-  padding: "0.7rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  fontWeight: 700,
-  fontSize: "0.78rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.03em",
-  color: "#475569",
-};
+/* ------------ MODAL COMPONENT ------------ */
 
-const td = {
-  padding: "0.65rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  color: "#111827",
-  verticalAlign: "middle",
-};
+function DeregisterModal({ selected, onClose, onSuccess }) {
+  const [formData, setFormData] = useState({
+    typeOfDeAdmit: "Death", // Default
+    dateOfDeAdmit: new Date().toISOString().slice(0, 10),
+    causeCategory: "Old age",
+    causeDetails: "",
+    timeOfDeath: "", // Optional
+    remarks: ""
+  });
+  const [submitting, setSubmitting] = useState(false);
 
-const empty = {
-  padding: "1rem",
-  textAlign: "center",
-  color: "#6b7280",
-};
+  const handleSubmit = async () => {
+    if (!window.confirm(`Are you sure you want to mark ${selected.tag} as ${formData.typeOfDeAdmit}? This cannot be undone.`)) return;
 
-const overlay = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15,23,42,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 50,
-};
+    setSubmitting(true);
+    try {
+      // We are actually calling 'updateCattle' but changing status and adding De-Admit fields
+      // NOTE: In a real backend, you might have a dedicated 'deregisterCattle' endpoint.
+      // Here we simulate it by updating the row in Master with new Status + Origins data.
+      
+      const payload = {
+        id: selected.internalId, // Use Internal ID for lookup
+        status: formData.typeOfDeAdmit === "Sold" ? "Sold" : "Dead", // Simple status update
+        
+        // Fields to save (These need to exist in your Repo_Cattle.gs logic or be handled)
+        // Since our current updateCattle might only handle basic fields, 
+        // ideally we should have a specific 'deregister' API. 
+        // For now, let's assume updateCattle can handle these extra fields 
+        // OR we just update the Status and Remarks.
+        
+        remarks: `[${formData.typeOfDeAdmit}] ${formData.dateOfDeAdmit}: ${formData.causeDetails}. ${formData.remarks}`,
+        
+        // If your backend supports these specific fields in update:
+        dateOfDeAdmit: formData.dateOfDeAdmit,
+        typeOfDeAdmit: formData.typeOfDeAdmit
+      };
 
-const modal = {
-  width: "100%",
-  maxWidth: "860px",
-  background: "#fff",
-  borderRadius: "1rem",
-  padding: "1.25rem 1.5rem",
-  boxShadow: "0 25px 60px rgba(15,23,42,0.25)",
-};
+      const res = await updateCattle(payload); 
+      
+      if (res && res.success) {
+        alert("Cattle Deregistered Successfully");
+        onSuccess();
+      } else {
+        alert("Failed: " + (res.error || "Unknown Error"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error submitting data");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-const lbl = {
-  display: "block",
-  fontSize: "0.75rem",
-  color: "#6b7280",
-  marginBottom: "0.25rem",
-};
+  return (
+    <div style={overlayStyle}>
+      <div style={modalStyle}>
+        {/* Modal Header */}
+        <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem", marginBottom: "1rem", display: "flex", justifyContent: "space-between" }}>
+          <div>
+             <div style={{ fontSize: "0.85rem", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
+               De-Admission / Herd Exit
+             </div>
+             {/* UPDATED HEADER: Shows Tag AND Internal ID */}
+             <div style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#111827", marginTop: "4px" }}>
+               Tag: {selected.tag} <span style={{color:"#9ca3af", fontWeight:"normal"}}>|</span> {selected.name}
+             </div>
+             <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+               Internal ID: {selected.internalId} • Breed: {selected.breed}
+             </div>
+          </div>
+          <button onClick={onClose} style={closeBtnStyle}>&times;</button>
+        </div>
 
-const inp = {
-  width: "100%",
-  padding: "0.55rem 0.75rem",
-  borderRadius: "0.6rem",
-  border: "1px solid #d1d5db",
-  fontSize: "0.9rem",
-};
+        {/* Form */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+           
+           <div style={{ gridColumn: "span 1" }}>
+             <label style={labelStyle}>Reason / Type</label>
+             <select 
+               style={inputStyle} 
+               value={formData.typeOfDeAdmit}
+               onChange={e => setFormData({...formData, typeOfDeAdmit: e.target.value})}
+             >
+               <option value="Death">Death</option>
+               <option value="Sold">Sold</option>
+               <option value="Donated">Donated / Gifted</option>
+               <option value="Lost">Lost / Stolen</option>
+             </select>
+           </div>
+
+           <div style={{ gridColumn: "span 1" }}>
+             <label style={labelStyle}>Date</label>
+             <input 
+                type="date" 
+                style={inputStyle}
+                value={formData.dateOfDeAdmit}
+                onChange={e => setFormData({...formData, dateOfDeAdmit: e.target.value})}
+             />
+           </div>
+
+           {formData.typeOfDeAdmit === "Death" && (
+             <>
+               <div style={{ gridColumn: "span 1" }}>
+                 <label style={labelStyle}>Cause Category</label>
+                 <select 
+                   style={inputStyle}
+                   value={formData.causeCategory}
+                   onChange={e => setFormData({...formData, causeCategory: e.target.value})}
+                 >
+                   <option value="Old age">Old age</option>
+                   <option value="Disease">Disease / Illness</option>
+                   <option value="Accident">Accident</option>
+                   <option value="Natural Calamity">Natural Calamity</option>
+                 </select>
+               </div>
+               <div style={{ gridColumn: "span 1" }}>
+                 <label style={labelStyle}>Time (Optional)</label>
+                 <input 
+                   type="time" 
+                   style={inputStyle}
+                   value={formData.timeOfDeath}
+                   onChange={e => setFormData({...formData, timeOfDeath: e.target.value})}
+                 />
+               </div>
+             </>
+           )}
+
+           <div style={{ gridColumn: "span 2" }}>
+             <label style={labelStyle}>Details / Buyer Name</label>
+             <input 
+                type="text" 
+                placeholder={formData.typeOfDeAdmit === "Death" ? "Specific cause of death..." : "Name of Buyer / Receiver..."}
+                style={inputStyle}
+                value={formData.causeDetails}
+                onChange={e => setFormData({...formData, causeDetails: e.target.value})}
+             />
+           </div>
+
+           <div style={{ gridColumn: "span 2" }}>
+             <label style={labelStyle}>Remarks</label>
+             <textarea 
+               rows="3"
+               style={inputStyle}
+               placeholder="Any additional notes..."
+               value={formData.remarks}
+               onChange={e => setFormData({...formData, remarks: e.target.value})}
+             />
+           </div>
+
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+           <button onClick={onClose} style={cancelBtnStyle} disabled={submitting}>Cancel</button>
+           <button onClick={handleSubmit} style={confirmBtnStyle} disabled={submitting}>
+             {submitting ? "Processing..." : "Confirm Exit"}
+           </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+/* ------------ STYLES ------------ */
+
+const cardStyle = { background: "#ffffff", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)", overflow: "hidden", border: "1px solid #e5e7eb" };
+const thStyle = { padding: "1rem", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#7f1d1d", letterSpacing: "0.05em", textAlign: "left" }; // Reddish header
+const tdStyle = { padding: "0.75rem 1rem", color: "#1e293b", borderBottom: "1px solid #f3f4f6" };
+const searchInputStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid #d1d5db", width: "250px" };
+const refreshBtnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: "600", color: "#374151" };
+const dangerBtnStyle = { padding: "6px 12px", borderRadius: "6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fecaca", cursor: "pointer", fontWeight: "600", fontSize: "0.8rem" };
+
+const overlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200 };
+const modalStyle = { backgroundColor: "#fff", padding: "1.5rem", borderRadius: "12px", width: "600px", maxWidth: "90%", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" };
+const labelStyle = { display: "block", fontSize: "0.75rem", marginBottom: "4px", color: "#6b7280", fontWeight: "600", textTransform: "uppercase" };
+const inputStyle = { width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem", boxSizing: "border-box" };
+const closeBtnStyle = { background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#9ca3af" };
+const cancelBtnStyle = { padding: "8px 16px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: "600" };
+const confirmBtnStyle = { padding: "8px 16px", borderRadius: "6px", border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: "600" };
