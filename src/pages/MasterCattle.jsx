@@ -1,6 +1,6 @@
 // src/pages/MasterCattle.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchCattle, updateCattle } from "../api/masterApi"; // Added updateCattle
+import { fetchCattle, updateCattle } from "../api/masterApi"; 
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -9,13 +9,13 @@ const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
 
 export default function MasterCattle() {
-  const { user } = useAuth(); // Get User Role
+  const { user } = useAuth(); 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState("Active"); // Default to Active
+  const [statusFilter, setStatusFilter] = useState("Active"); 
   const [searchText, setSearchText] = useState("");
   
   // Selection (Modal)
@@ -130,6 +130,7 @@ export default function MasterCattle() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
           <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
             <tr>
+              {/* ALIGNMENT FIX: Explicitly Left-Aligning Headers */}
               <th style={thStyle}>Tag No</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Breed</th>
@@ -182,8 +183,8 @@ export default function MasterCattle() {
              <CattleDetailsPanel 
                 selected={selected} 
                 onClose={() => setSelected(null)} 
-                canEdit={isAdmin} // Pass Permission
-                refreshData={loadData} // Allow modal to refresh table
+                canEdit={isAdmin} 
+                refreshData={loadData} 
              />
           </div>
         </div>
@@ -200,7 +201,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Initialize form data when entering edit mode
   useEffect(() => {
     if (isEditing) {
       setFormData({ ...selected });
@@ -216,16 +216,15 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
     setSaving(true);
     try {
       const payload = {
-        id: formData.internalId, // CRITICAL: Use Internal ID for updates
+        id: formData.internalId, 
         ...formData
       };
-      
       const res = await updateCattle(payload);
       if (res && res.success) {
         alert("Cattle updated successfully!");
         setIsEditing(false);
-        refreshData(); // Refresh the main table
-        onClose(); // Close modal
+        refreshData(); 
+        onClose(); 
       } else {
         alert("Update failed: " + (res.error || "Unknown error"));
       }
@@ -256,7 +255,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
            )}
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          {/* Edit/Save Buttons */}
           {canEdit && !isEditing && (
             <button onClick={() => setIsEditing(true)} style={editBtnStyle}>✎ Edit</button>
           )}
@@ -274,8 +272,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
 
       {/* CONTENT */}
       <div style={scrollableAreaStyle}>
-        
-        {/* Photo Banner */}
         <div style={{ display: "flex", gap: "1.5rem", marginBottom: "1.5rem", background: "#f9fafb", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
            <div style={photoContainerStyle}>
              {selected.photo ? <img src={selected.photo} alt="Cattle" style={photoStyle} /> : <span style={{fontSize:"0.7rem", color:"#999"}}>No Photo</span>}
@@ -366,14 +362,12 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
               </>
            )}
         </div>
-
       </div>
     </div>
   );
 }
 
 /* ------------ HELPER COMPONENTS ------------ */
-
 const EditInput = ({ label, name, value, onChange, type = "text", options = [], placeholder = "" }) => (
   <div>
     <label style={labelStyle}>{label}</label>
@@ -383,27 +377,15 @@ const EditInput = ({ label, name, value, onChange, type = "text", options = [], 
         {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
       </select>
     ) : (
-      <input 
-        type={type} 
-        name={name} 
-        value={value || ""} 
-        onChange={onChange} 
-        placeholder={placeholder}
-        style={{...inputStyle, width: "100%", boxSizing: "border-box"}} 
-      />
+      <input type={type} name={name} value={value || ""} onChange={onChange} placeholder={placeholder} style={{...inputStyle, width: "100%", boxSizing: "border-box"}} />
     )}
   </div>
 );
-
-// ... (KEEP ALL OTHER STYLES & HELPERS EXACTLY THE SAME AS BEFORE)
-// Re-listing core styles needed for the new buttons
 
 const editBtnStyle = { background: "#f59e0b", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: "600", fontSize: "0.85rem" };
 const saveBtnStyle = { background: "#16a34a", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: "600", fontSize: "0.85rem" };
 const cancelBtnStyle = { background: "#fff", color: "#666", border: "1px solid #ccc", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: "600", fontSize: "0.85rem" };
 
-// ... (Paste the rest of the styles from previous turn: cardStyle, paginationStyle, etc.)
-// For brevity, assuming you have the styles block. If not, let me know.
 const cardStyle = { background: "#ffffff", borderRadius: "10px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)", overflow: "hidden", border: "1px solid #e5e7eb" };
 const paginationStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem", borderTop: "1px solid #e2e8f0", background: "#f8fafc" };
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, backdropFilter: "blur(4px)" };
@@ -412,8 +394,11 @@ const scrollableAreaStyle = { overflowY: "auto", paddingRight: "0.5rem", flex: 1
 const inputStyle = { padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem", outline: "none" };
 const labelStyle = { display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "#6b7280", fontWeight: "600" };
 const sectionTitleStyle = { fontSize: "0.85rem", fontWeight: "bold", color: "#0369a1", borderBottom: "2px solid #e0f2fe", paddingBottom: "6px", marginBottom: "12px", marginTop: "20px", textTransform: "uppercase", letterSpacing: "0.05em" };
-const thStyle = { padding: "1rem", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" };
-const tdStyle = { padding: "0.75rem 1rem", color: "#1e293b" };
+
+// Updated thStyle for Proper Left Alignment
+const thStyle = { padding: "1rem", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em", textAlign: "left" };
+const tdStyle = { padding: "0.75rem 1rem", color: "#1e293b", textAlign: "left" };
+
 const primaryBtnStyle = { background: "#2563eb", color: "#fff", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontSize: "0.9rem", fontWeight: "600", border: "none", cursor: "pointer", transition: "background 0.2s" };
 const viewBtnStyle = { border: "1px solid #bfdbfe", borderRadius: "6px", padding: "6px 12px", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.8rem", fontWeight: "600", cursor: "pointer" };
 const pageBtnStyle = { padding: "6px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontSize: "0.85rem", color: "#334155" };
