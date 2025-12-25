@@ -4,27 +4,13 @@ import { fetchCattle, updateCattle } from "../api/masterApi";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+// --- CLOUDINARY SETUP ---
+import { Cloudinary } from "@cloudinary/url-gen";
+const cld = new Cloudinary({ cloud: { cloudName: 'dvcwgkszp' } });
+
 // Configuration
 const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
-
-// 🔥 HELPER: Converts Google Drive Links to Direct Images
-const getDriveDirectLink = (url) => {
-  if (!url) return "";
-  // If it's already a raw image link, return as is
-  if (url.match(/\.(jpeg|jpg|gif|png)$/) != null) return url;
-
-  // Extract File ID from common Drive URL patterns
-  // Pattern 1: .../file/d/FILE_ID/view...
-  // Pattern 2: ...?id=FILE_ID...
-  const match = url.match(/\/d\/(.+?)\/|id=(.+?)($|&)/);
-  if (match) {
-    const id = match[1] || match[2];
-    // Return the direct export URL
-    return `https://drive.google.com/uc?export=view&id=${id}`;
-  }
-  return url; // Return original if regex fails
-};
 
 export default function MasterCattle() {
   const { user } = useAuth(); 
@@ -90,20 +76,17 @@ export default function MasterCattle() {
            </div>
         </div>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-           {/* WIDER BUTTON */}
            {isAdmin && (
              <Link to="/cattle/register" style={primaryBtnStyle}>
                <span>+</span> Add New
              </Link>
            )}
-           
            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
              <label style={{ fontSize: "0.8rem", fontWeight: "600", color: "#6b7280" }}>Status:</label>
              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={inputStyle}>
                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
              </select>
            </div>
-
            <input type="text" placeholder="Search Tag / ID..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ ...inputStyle, minWidth: "220px" }} />
         </div>
       </div>
@@ -164,6 +147,46 @@ export default function MasterCattle() {
   );
 }
 
+/* ------------------------------------------------
+   🔥 ROBUST PHOTO COMPONENT (Accepts custom style)
+   ------------------------------------------------ */
+function CattlePhoto({ url, imgStyle = largePhotoStyle }) {
+  if (!url) return <div style={placeholderStyle}>No Photo</div>;
+
+  // Cloudinary (Golden Path)
+  if (url.includes("cloudinary.com")) {
+    return (
+      <img 
+        src={url} 
+        alt="Cattle" 
+        style={imgStyle} 
+        onError={(e) => e.target.style.display = 'none'} 
+      />
+    );
+  }
+
+  // Google Drive (Legacy Path - Button Fallback)
+  if (url.includes("drive.google.com")) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:"5px", background:"#fef2f2", width: "100%" }}>
+        <span style={{fontSize:"0.75rem", color:"#b91c1c", fontWeight:"bold", textAlign:"center"}}>Drive Link (Cannot Embed)</span>
+        <a 
+          href={url} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          style={{fontSize:"0.8rem", color:"#fff", background:"#ef4444", padding:"6px 12px", borderRadius:"4px", textDecoration:"none"}}
+        >
+          Open Photo ↗
+        </a>
+      </div>
+    );
+  }
+
+  // Generic Fallback
+  return <img src={url} alt="Cattle" style={imgStyle} onError={(e) => e.target.style.display = 'none'} />;
+}
+
+/* ------------ DETAILS PANEL ------------ */
 function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
@@ -189,9 +212,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const isActive = String(selected.status || "").toLowerCase() === "active";
   const ageText = calculateSmartAge(selected.dob, selected.admissionDate, selected.admissionAge);
 
-  // 🔥 PROCESS PHOTO URL
-  const displayPhotoUrl = getDriveDirectLink(selected.photo);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem" }}>
@@ -215,50 +235,23 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
               <button onClick={handleSave} style={saveBtnStyle}>Save</button>
             </>
           )}
-          <button onClick={onClose} style={closeBtnStyle}>&times;</button>
+          <button onClick={onClose} style={closeBtnStyle}>×</button>
         </div>
       </div>
 
       <div style={scrollableAreaStyle}>
         
-        {/* PHOTO & STATUS */}
-        <div style={{ display: "flex", gap: "1.5rem", marginBottom: "1.5rem", background: "#f9fafb", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-           <div style={photoContainerStyle}>
-             {displayPhotoUrl ? (
-               <img 
-                  src={displayPhotoUrl} 
-                  alt="Cattle" 
-                  style={photoStyle} 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.target.onerror = null; 
-                    e.target.style.display = 'none'; // Hide if fails (e.g. permission error)
-                    e.target.parentNode.innerText = "No Access";
-                  }}
-               />
+        {/* 🔥 NEW TOP SECTION: LARGE PHOTO ONLY */}
+        <div style={largePhotoContainerStyle}>
+             {isEditing ? (
+                <div style={placeholderStyle}>Photo Preview Paused While Editing</div>
              ) : (
-               <span style={{fontSize:"0.7rem", color:"#999"}}>No Photo</span>
+                <CattlePhoto url={selected.photo} />
              )}
-           </div>
-           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.5rem" }}>
-              {isEditing ? (
-                 <>
-                   <EditInput label="Status" name="status" value={formData.status} onChange={handleChange} type="select" options={["Active", "Sold", "Dead"]} />
-                   <EditInput label="Shed" name="shed" value={formData.shed} onChange={handleChange} />
-                   <EditInput label="Photo URL" name="photo" value={formData.photo} onChange={handleChange} />
-                 </>
-              ) : (
-                 <>
-                   <DetailItem label="Status" value={<StatusPill status={selected.status} />} />
-                   <DetailItem label="Location" value={selected.shed} />
-                   <DetailItem label="Category" value={selected.category} />
-                 </>
-              )}
-           </div>
         </div>
 
-        {/* BASIC INFO */}
-        <SectionTitle>Basic Information</SectionTitle>
+        {/* 🔥 BASIC INFO SECTION: NOW INCLUDES STATUS, LOCATION, CATEGORY */}
+        <SectionTitle>Basic Information & Status</SectionTitle>
         <div style={gridStyle}>
           {isEditing ? (
              <>
@@ -267,6 +260,11 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                 <EditInput label="Breed" name="breed" value={formData.breed} onChange={handleChange} />
                 <EditInput label="Gender" name="gender" value={formData.gender} onChange={handleChange} type="select" options={["Female", "Male"]} />
                 <EditInput label="DOB" name="dob" value={formData.dob} onChange={handleChange} type="date" />
+                {/* MOVED INPUTS */}
+                <EditInput label="Status" name="status" value={formData.status} onChange={handleChange} type="select" options={["Active", "Sold", "Dead"]} />
+                <EditInput label="Shed (Location)" name="shed" value={formData.shed} onChange={handleChange} />
+                <EditInput label="Category" name="category" value={formData.category} onChange={handleChange} type="select" options={["Milking", "Dry", "Heifer", "Calf", "Bull"]} />
+                <EditInput label="Photo URL (Cloudinary)" name="photo" value={formData.photo} onChange={handleChange} placeholder="Paste Link..." />
              </>
           ) : (
              <>
@@ -274,6 +272,10 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                <DetailItem label="Gender" value={selected.gender} />
                <DetailItem label="DOB" value={formatDate(selected.dob)} />
                {isActive && <DetailItem label="Current Age" value={ageText} />}
+               {/* MOVED DETAILS */}
+               <DetailItem label="Status" value={<StatusPill status={selected.status} />} />
+               <DetailItem label="Location" value={selected.shed} />
+               <DetailItem label="Category" value={selected.category} />
              </>
           )}
         </div>
@@ -385,7 +387,7 @@ function calculateSmartAge(dob, admissionDate, admissionAgeRaw) {
   return "Unknown";
 }
 
-const EditInput = ({ label, name, value, onChange, type="text", options=[] }) => (
+const EditInput = ({ label, name, value, onChange, type="text", options=[], placeholder="" }) => (
   <div>
     <label style={labelStyle}>{label}</label>
     {type === "select" ? (
@@ -393,7 +395,7 @@ const EditInput = ({ label, name, value, onChange, type="text", options=[] }) =>
          {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
     ) : (
-      <input type={type} name={name} value={value||""} onChange={onChange} style={inputStyle} />
+      <input type={type} name={name} value={value||""} onChange={onChange} style={inputStyle} placeholder={placeholder} />
     )}
   </div>
 );
@@ -426,12 +428,12 @@ const primaryBtnStyle = {
 
 const viewBtnStyle = { background: "#eff6ff", color: "#1d4ed8", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bfdbfe", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 };
-const modalContentStyle = { background: "#fff", width: "650px", maxWidth:"90%", padding: "1.5rem", borderRadius: "10px", maxHeight: "90vh", overflowY: "auto", display:"flex", flexDirection:"column" };
+const modalContentStyle = { background: "#fff", width: "700px", maxWidth:"95%", padding: "1.5rem", borderRadius: "10px", maxHeight: "95vh", overflowY: "auto", display:"flex", flexDirection:"column" };
 const scrollableAreaStyle = { overflowY: "auto", paddingRight: "0.5rem", flex: 1, marginTop: "0.5rem" };
-const gridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" };
+const gridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" };
 const labelStyle = { fontSize: "0.75rem", color: "#666", display: "block", marginBottom: "4px", fontWeight:600 };
 const labelItemStyle = { fontSize: "0.7rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" };
-const sectionTitleStyle = { fontSize: "0.85rem", color: "#0369a1", fontWeight: "bold", borderBottom: "2px solid #e0f2fe", marginBottom: "12px", marginTop: "20px", paddingBottom: "5px", textTransform:"uppercase" };
+const sectionTitleStyle = { fontSize: "0.85rem", color: "#0369a1", fontWeight: "bold", borderBottom: "2px solid #e0f2fe", marginBottom: "12px", marginTop: "10px", paddingBottom: "5px", textTransform:"uppercase" };
 const editBtnStyle = { background: "#f59e0b", color:"#fff", border:"none", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
 const saveBtnStyle = { background: "#16a34a", color:"#fff", border:"none", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
 const cancelBtnStyle = { background: "#fff", color:"#666", border:"1px solid #ccc", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
@@ -439,5 +441,21 @@ const closeBtnStyle = { background: "none", border:"none", fontSize:"2rem", curs
 const paginationStyle = { display: "flex", justifyContent: "space-between", alignItems:"center", padding:"1rem", background:"#f8fafc", borderTop:"1px solid #e2e8f0" };
 const pageBtnStyle = { padding: "6px 12px", border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", borderRadius:"4px", fontSize:"0.85rem" };
 const pageNumberStyle = { padding: "6px 10px", fontWeight:600, color:"#334155" };
-const photoContainerStyle = { width: "100px", height: "100px", borderRadius: "50%", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "4px solid #fff", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" };
-const photoStyle = { width: "100%", height: "100%", objectFit: "cover" };
+
+// 🔥 NEW STYLES FOR LARGE PHOTO CONTAINER
+const largePhotoContainerStyle = { 
+  width: "100%", 
+  height: "300px", // Fixed height for banner look
+  background: "#000", // Dark background makes photos pop
+  display: "flex", 
+  alignItems: "center", 
+  justifyContent: "center", 
+  overflow: "hidden", 
+  borderRadius: "12px", 
+  border: "1px solid #e5e7eb", 
+  marginBottom: "1.5rem" 
+};
+// Use object-fit: contain so the whole animal is visible without cropping
+const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };
+const placeholderStyle = { display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.9rem", color:"#999", textAlign:"center", width:"100%" };
+// Removed old photoContainerStyle and photoStyle as they are no longer used.
