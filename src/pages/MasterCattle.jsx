@@ -8,24 +8,6 @@ import { useAuth } from "../context/AuthContext";
 const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
 
-// 🔥 HELPER: Converts Google Drive Links to Direct Images
-const getDriveDirectLink = (url) => {
-  if (!url) return "";
-  // If it's already a raw image link, return as is
-  if (url.match(/\.(jpeg|jpg|gif|png)$/) != null) return url;
-
-  // Extract File ID from common Drive URL patterns
-  // Pattern 1: .../file/d/FILE_ID/view...
-  // Pattern 2: ...?id=FILE_ID...
-  const match = url.match(/\/d\/(.+?)\/|id=(.+?)($|&)/);
-  if (match) {
-    const id = match[1] || match[2];
-    // Return the direct export URL
-    return `https://drive.google.com/uc?export=view&id=${id}`;
-  }
-  return url; // Return original if regex fails
-};
-
 export default function MasterCattle() {
   const { user } = useAuth(); 
   const [rows, setRows] = useState([]);
@@ -90,20 +72,17 @@ export default function MasterCattle() {
            </div>
         </div>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-           {/* WIDER BUTTON */}
            {isAdmin && (
              <Link to="/cattle/register" style={primaryBtnStyle}>
                <span>+</span> Add New
              </Link>
            )}
-           
            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
              <label style={{ fontSize: "0.8rem", fontWeight: "600", color: "#6b7280" }}>Status:</label>
              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={inputStyle}>
                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
              </select>
            </div>
-
            <input type="text" placeholder="Search Tag / ID..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ ...inputStyle, minWidth: "220px" }} />
         </div>
       </div>
@@ -189,9 +168,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const isActive = String(selected.status || "").toLowerCase() === "active";
   const ageText = calculateSmartAge(selected.dob, selected.admissionDate, selected.admissionAge);
 
-  // 🔥 PROCESS PHOTO URL
-  const displayPhotoUrl = getDriveDirectLink(selected.photo);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem" }}>
@@ -215,7 +191,7 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
               <button onClick={handleSave} style={saveBtnStyle}>Save</button>
             </>
           )}
-          <button onClick={onClose} style={closeBtnStyle}>&times;</button>
+          <button onClick={onClose} style={closeBtnStyle}>×</button>
         </div>
       </div>
 
@@ -223,21 +199,14 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
         
         {/* PHOTO & STATUS */}
         <div style={{ display: "flex", gap: "1.5rem", marginBottom: "1.5rem", background: "#f9fafb", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
+           {/* 🔥 UPDATED PHOTO CONTAINER */}
            <div style={photoContainerStyle}>
-             {displayPhotoUrl ? (
-               <img 
-                  src={displayPhotoUrl} 
-                  alt="Cattle" 
-                  style={photoStyle} 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.target.onerror = null; 
-                    e.target.style.display = 'none'; // Hide if fails (e.g. permission error)
-                    e.target.parentNode.innerText = "No Access";
-                  }}
-               />
+             {isEditing ? (
+                <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.7rem", color:"#666", textAlign:"center"}}>
+                   Preview Paused
+                </div>
              ) : (
-               <span style={{fontSize:"0.7rem", color:"#999"}}>No Photo</span>
+                <CattlePhoto url={selected.photo} />
              )}
            </div>
            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.5rem" }}>
@@ -347,6 +316,58 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
 
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------
+  🔥 HYBRID PHOTO COMPONENT (Solves 403 Errors)
+  ------------------------------------------------
+*/
+function CattlePhoto({ url }) {
+  const [loadError, setLoadError] = useState(false);
+
+  if (!url) return <span style={{fontSize:"0.7rem", color:"#999"}}>No Photo</span>;
+
+  // Extract ID from Google Drive URL
+  const getFileId = (link) => {
+    const match = link.match(/\/d\/(.+?)\/|id=(.+?)($|&)/);
+    return match ? (match[1] || match[2]) : null;
+  };
+
+  const fileId = getFileId(url);
+
+  // 1. If we can't find an ID, just try rendering the URL directly (might be external link)
+  if (!fileId) {
+    return <img src={url} alt="Cattle" style={photoStyle} onError={() => setLoadError(true)} />;
+  }
+
+  // 2. Primary: Special Hosting Link (lh3.googleusercontent.com)
+  // This endpoint is meant for hosting and often bypasses the 403 check
+  const directSrc = `https://lh3.googleusercontent.com/d/${fileId}`;
+
+  // 3. Fallback: Iframe Preview
+  // If the image fails to load, we show the Drive Preview page in a tiny frame.
+  const previewSrc = `https://drive.google.com/file/d/${fileId}/preview`;
+
+  if (loadError) {
+    return (
+      <iframe 
+        src={previewSrc}
+        title="Photo Preview"
+        style={{ width: "100%", height: "100%", border: "none", overflow: "hidden" }}
+        scrolling="no"
+      />
+    );
+  }
+
+  return (
+    <img 
+      src={directSrc} 
+      alt="Cattle" 
+      style={photoStyle} 
+      referrerPolicy="no-referrer"
+      onError={() => setLoadError(true)} // Trigger fallback on error
+    />
   );
 }
 
