@@ -1,8 +1,12 @@
 // src/pages/MasterCattle.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { fetchCattle, updateCattle } from "../api/masterApi"; 
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+// --- CLOUDINARY CONFIG ---
+const CLOUD_NAME = "dvcwgkszp";       
+const UPLOAD_PRESET = "cattle_upload"; // Reusing the preset you created!
 
 // Configuration
 const ITEMS_PER_PAGE = 20;
@@ -143,9 +147,29 @@ export default function MasterCattle() {
   );
 }
 
+/* ------------------------------------------------
+   🔥 PHOTO COMPONENT
+   ------------------------------------------------ */
+function CattlePhoto({ url, imgStyle = largePhotoStyle }) {
+  if (!url) return <div style={placeholderStyle}>No Photo</div>;
+  if (url.includes("cloudinary.com")) return <img src={url} alt="Cattle" style={imgStyle} onError={(e) => e.target.style.display = 'none'} />;
+  if (url.includes("drive.google.com")) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:"5px", background:"#fef2f2", width: "100%" }}>
+        <span style={{fontSize:"0.75rem", color:"#b91c1c", fontWeight:"bold", textAlign:"center"}}>Drive Link (Cannot Embed)</span>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"0.8rem", color:"#fff", background:"#ef4444", padding:"6px 12px", borderRadius:"4px", textDecoration:"none"}}>Open Photo ↗</a>
+      </div>
+    );
+  }
+  return <img src={url} alt="Cattle" style={imgStyle} onError={(e) => e.target.style.display = 'none'} />;
+}
+
+/* ------------ DETAILS PANEL WITH UPLOAD ------------ */
 function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null); // Reference to hidden file input
 
   useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
 
@@ -162,6 +186,39 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
       onClose();
     } else {
       alert("Failed: " + res.error);
+    }
+  };
+
+  // 🔥 UPLOAD LOGIC
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", UPLOAD_PRESET); 
+    data.append("folder", "cattle_photos"); // Organize in folder
+
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: data,
+      });
+      const fileData = await res.json();
+      
+      if (fileData.secure_url) {
+        // Update form data with new URL automatically
+        setFormData(prev => ({ ...prev, photo: fileData.secure_url }));
+      } else {
+        alert("Upload failed. Check console.");
+        console.error(fileData);
+      }
+    } catch (err) {
+      console.error("Error uploading:", err);
+      alert("Error uploading image");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -197,37 +254,18 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
 
       <div style={scrollableAreaStyle}>
         
-        {/* PHOTO & STATUS */}
-        <div style={{ display: "flex", gap: "1.5rem", marginBottom: "1.5rem", background: "#f9fafb", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-           {/* 🔥 UPDATED PHOTO CONTAINER */}
-           <div style={photoContainerStyle}>
+        {/* LARGE PHOTO CONTAINER */}
+        <div style={largePhotoContainerStyle}>
              {isEditing ? (
-                <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.7rem", color:"#666", textAlign:"center"}}>
-                   Preview Paused
-                </div>
+                // Show Preview of the URL in the text box, or the existing photo
+                formData.photo ? <img src={formData.photo} style={largePhotoStyle} alt="Preview" /> : <div style={placeholderStyle}>No Photo Selected</div>
              ) : (
                 <CattlePhoto url={selected.photo} />
              )}
-           </div>
-           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "0.5rem" }}>
-              {isEditing ? (
-                 <>
-                   <EditInput label="Status" name="status" value={formData.status} onChange={handleChange} type="select" options={["Active", "Sold", "Dead"]} />
-                   <EditInput label="Shed" name="shed" value={formData.shed} onChange={handleChange} />
-                   <EditInput label="Photo URL" name="photo" value={formData.photo} onChange={handleChange} />
-                 </>
-              ) : (
-                 <>
-                   <DetailItem label="Status" value={<StatusPill status={selected.status} />} />
-                   <DetailItem label="Location" value={selected.shed} />
-                   <DetailItem label="Category" value={selected.category} />
-                 </>
-              )}
-           </div>
         </div>
 
-        {/* BASIC INFO */}
-        <SectionTitle>Basic Information</SectionTitle>
+        {/* BASIC INFO SECTION */}
+        <SectionTitle>Basic Information & Status</SectionTitle>
         <div style={gridStyle}>
           {isEditing ? (
              <>
@@ -236,6 +274,52 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                 <EditInput label="Breed" name="breed" value={formData.breed} onChange={handleChange} />
                 <EditInput label="Gender" name="gender" value={formData.gender} onChange={handleChange} type="select" options={["Female", "Male"]} />
                 <EditInput label="DOB" name="dob" value={formData.dob} onChange={handleChange} type="date" />
+                <EditInput label="Status" name="status" value={formData.status} onChange={handleChange} type="select" options={["Active", "Sold", "Dead"]} />
+                <EditInput label="Shed (Location)" name="shed" value={formData.shed} onChange={handleChange} />
+                <EditInput label="Category" name="category" value={formData.category} onChange={handleChange} type="select" options={["Milking", "Dry", "Heifer", "Calf", "Bull"]} />
+                
+                {/* 🔥 UPLOAD BUTTON CONTROL */}
+                <div style={{ gridColumn: "1 / -1", background: "#f0f9ff", padding: "10px", borderRadius: "8px", border: "1px solid #bae6fd" }}>
+                  <label style={{...labelStyle, color:"#0369a1"}}>Photo URL (Auto-filled on Upload)</label>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <input 
+                      type="text" 
+                      name="photo" 
+                      value={formData.photo || ""} 
+                      onChange={handleChange} 
+                      placeholder="Paste link or Upload ->" 
+                      style={{...inputStyle, flex:1}} 
+                    />
+                    
+                    {/* HIDDEN FILE INPUT */}
+                    <input 
+                       type="file" 
+                       accept="image/*" 
+                       ref={fileInputRef} 
+                       onChange={handleFileSelect} 
+                       style={{display:"none"}} 
+                    />
+                    
+                    {/* TRIGGER BUTTON */}
+                    <button 
+                      onClick={() => fileInputRef.current.click()} 
+                      disabled={uploading}
+                      style={{
+                        background: uploading ? "#ccc" : "#0ea5e9",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "5px",
+                        padding: "0 15px",
+                        fontWeight: "bold",
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        display: "flex", alignItems: "center", gap: "5px", whiteSpace:"nowrap"
+                      }}
+                    >
+                      {uploading ? "Uploading..." : "📷 Upload New"}
+                    </button>
+                  </div>
+                </div>
+
              </>
           ) : (
              <>
@@ -243,6 +327,9 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                <DetailItem label="Gender" value={selected.gender} />
                <DetailItem label="DOB" value={formatDate(selected.dob)} />
                {isActive && <DetailItem label="Current Age" value={ageText} />}
+               <DetailItem label="Status" value={<StatusPill status={selected.status} />} />
+               <DetailItem label="Location" value={selected.shed} />
+               <DetailItem label="Category" value={selected.category} />
              </>
           )}
         </div>
@@ -319,58 +406,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   );
 }
 
-/* ------------------------------------------------
-  🔥 HYBRID PHOTO COMPONENT (Solves 403 Errors)
-  ------------------------------------------------
-*/
-function CattlePhoto({ url }) {
-  const [loadError, setLoadError] = useState(false);
-
-  if (!url) return <span style={{fontSize:"0.7rem", color:"#999"}}>No Photo</span>;
-
-  // Extract ID from Google Drive URL
-  const getFileId = (link) => {
-    const match = link.match(/\/d\/(.+?)\/|id=(.+?)($|&)/);
-    return match ? (match[1] || match[2]) : null;
-  };
-
-  const fileId = getFileId(url);
-
-  // 1. If we can't find an ID, just try rendering the URL directly (might be external link)
-  if (!fileId) {
-    return <img src={url} alt="Cattle" style={photoStyle} onError={() => setLoadError(true)} />;
-  }
-
-  // 2. Primary: Special Hosting Link (lh3.googleusercontent.com)
-  // This endpoint is meant for hosting and often bypasses the 403 check
-  const directSrc = `https://lh3.googleusercontent.com/d/${fileId}`;
-
-  // 3. Fallback: Iframe Preview
-  // If the image fails to load, we show the Drive Preview page in a tiny frame.
-  const previewSrc = `https://drive.google.com/file/d/${fileId}/preview`;
-
-  if (loadError) {
-    return (
-      <iframe 
-        src={previewSrc}
-        title="Photo Preview"
-        style={{ width: "100%", height: "100%", border: "none", overflow: "hidden" }}
-        scrolling="no"
-      />
-    );
-  }
-
-  return (
-    <img 
-      src={directSrc} 
-      alt="Cattle" 
-      style={photoStyle} 
-      referrerPolicy="no-referrer"
-      onError={() => setLoadError(true)} // Trigger fallback on error
-    />
-  );
-}
-
 // Logic & Helpers
 function calculateSmartAge(dob, admissionDate, admissionAgeRaw) {
   const now = new Date();
@@ -406,7 +441,7 @@ function calculateSmartAge(dob, admissionDate, admissionAgeRaw) {
   return "Unknown";
 }
 
-const EditInput = ({ label, name, value, onChange, type="text", options=[] }) => (
+const EditInput = ({ label, name, value, onChange, type="text", options=[], placeholder="" }) => (
   <div>
     <label style={labelStyle}>{label}</label>
     {type === "select" ? (
@@ -414,7 +449,7 @@ const EditInput = ({ label, name, value, onChange, type="text", options=[] }) =>
          {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
     ) : (
-      <input type={type} name={name} value={value||""} onChange={onChange} style={inputStyle} />
+      <input type={type} name={name} value={value||""} onChange={onChange} style={inputStyle} placeholder={placeholder} />
     )}
   </div>
 );
@@ -447,12 +482,12 @@ const primaryBtnStyle = {
 
 const viewBtnStyle = { background: "#eff6ff", color: "#1d4ed8", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bfdbfe", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 };
-const modalContentStyle = { background: "#fff", width: "650px", maxWidth:"90%", padding: "1.5rem", borderRadius: "10px", maxHeight: "90vh", overflowY: "auto", display:"flex", flexDirection:"column" };
+const modalContentStyle = { background: "#fff", width: "700px", maxWidth:"95%", padding: "1.5rem", borderRadius: "10px", maxHeight: "95vh", overflowY: "auto", display:"flex", flexDirection:"column" };
 const scrollableAreaStyle = { overflowY: "auto", paddingRight: "0.5rem", flex: 1, marginTop: "0.5rem" };
-const gridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" };
+const gridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" };
 const labelStyle = { fontSize: "0.75rem", color: "#666", display: "block", marginBottom: "4px", fontWeight:600 };
 const labelItemStyle = { fontSize: "0.7rem", color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" };
-const sectionTitleStyle = { fontSize: "0.85rem", color: "#0369a1", fontWeight: "bold", borderBottom: "2px solid #e0f2fe", marginBottom: "12px", marginTop: "20px", paddingBottom: "5px", textTransform:"uppercase" };
+const sectionTitleStyle = { fontSize: "0.85rem", color: "#0369a1", fontWeight: "bold", borderBottom: "2px solid #e0f2fe", marginBottom: "12px", marginTop: "10px", paddingBottom: "5px", textTransform:"uppercase" };
 const editBtnStyle = { background: "#f59e0b", color:"#fff", border:"none", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
 const saveBtnStyle = { background: "#16a34a", color:"#fff", border:"none", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
 const cancelBtnStyle = { background: "#fff", color:"#666", border:"1px solid #ccc", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
@@ -460,5 +495,7 @@ const closeBtnStyle = { background: "none", border:"none", fontSize:"2rem", curs
 const paginationStyle = { display: "flex", justifyContent: "space-between", alignItems:"center", padding:"1rem", background:"#f8fafc", borderTop:"1px solid #e2e8f0" };
 const pageBtnStyle = { padding: "6px 12px", border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", borderRadius:"4px", fontSize:"0.85rem" };
 const pageNumberStyle = { padding: "6px 10px", fontWeight:600, color:"#334155" };
-const photoContainerStyle = { width: "100px", height: "100px", borderRadius: "50%", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "4px solid #fff", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" };
-const photoStyle = { width: "100%", height: "100%", objectFit: "cover" };
+
+const largePhotoContainerStyle = { width: "100%", height: "300px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "12px", border: "1px solid #e5e7eb", marginBottom: "1.5rem" };
+const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };
+const placeholderStyle = { display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.9rem", color:"#999", textAlign:"center", width:"100%" };

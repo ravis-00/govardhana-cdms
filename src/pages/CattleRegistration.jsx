@@ -1,13 +1,21 @@
 // src/pages/CattleRegistration.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 // NOTE: You must implement getUnregisteredBirths in your api file
 import { addCattle, getUnregisteredBirths } from "../api/cattle"; 
+
+// --- CLOUDINARY CONFIG ---
+const CLOUD_NAME = "dvcwgkszp";       
+const UPLOAD_PRESET = "cattle_upload"; 
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [birthRecords, setBirthRecords] = useState([]); // Stores the list of unregistered calves
+  
+  // Upload State
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Default State
   const [form, setForm] = useState({
@@ -18,6 +26,7 @@ export default function CattleRegistration() {
     price: "", weight: "", ageMonths: "0",
     disabilityFlag: "N", disabilityDetails: "", adoptionStatus: "Available",
     locationShed: "", prevTags: "", remarks: "",
+    photo: "", // Stores Cloudinary URL
     
     // NEW: Parentage & Linkage Fields
     damId: "", sireId: "", damBreed: "", sireBreed: "", birthWeight: "",
@@ -86,6 +95,38 @@ export default function CattleRegistration() {
     }
   }
 
+  // --- CLOUDINARY UPLOAD LOGIC ---
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", UPLOAD_PRESET);
+    data.append("folder", "cattle_photos");
+
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: data,
+      });
+      const fileData = await res.json();
+      
+      if (fileData.secure_url) {
+        setForm(prev => ({ ...prev, photo: fileData.secure_url }));
+      } else {
+        alert("Upload failed. Check console.");
+        console.error(fileData);
+      }
+    } catch (err) {
+      console.error("Error uploading:", err);
+      alert("Error uploading image");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   function handleDisability(flag) {
     setForm((prev) => ({ ...prev, disabilityFlag: flag }));
   }
@@ -111,7 +152,7 @@ export default function CattleRegistration() {
         shedId: form.locationShed,
         prevTags: form.prevTags,
         remarks: form.remarks,
-        photoUrl: "", 
+        photoUrl: form.photo || "", // 🔥 Sending real photo URL now
 
         // ORIGINS PAYLOAD
         admissionType: form.typeOfAdmission,
@@ -156,7 +197,7 @@ export default function CattleRegistration() {
 
   return (
     <div style={{ padding: "1.5rem 2rem", maxWidth: "720px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration (v1.2)</h1>
+      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration </h1>
       
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem", background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
         
@@ -164,7 +205,7 @@ export default function CattleRegistration() {
         <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} />
         <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} />
         
-        {/* --- ORIGINS SECTION (Moved Up for better workflow) --- */}
+        {/* --- ORIGINS SECTION --- */}
         <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151", marginTop: "1rem" }}>Origin Details</h3>
         
         <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} 
@@ -207,7 +248,7 @@ export default function CattleRegistration() {
             </div>
         )}
 
-        {/* --- BASIC INFO (After Origin, because Origin determines some of this) --- */}
+        {/* --- BASIC INFO --- */}
         <TextField label="Name *" name="name" value={form.name} onChange={handleChange} />
         
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -228,6 +269,57 @@ export default function CattleRegistration() {
            <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} readOnly={isLinked} />
            <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} readOnly={isLinked} />
            <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} />
+        </div>
+
+        {/* 🔥 NEW UPLOAD BUTTON SECTION 🔥 */}
+        <div style={{marginTop: "10px", background: "#f0f9ff", padding: "12px", borderRadius: "8px", border: "1px solid #bae6fd"}}>
+            <label style={{display:"block", fontSize:"0.9rem", fontWeight:600, color:"#0369a1", marginBottom:"5px"}}>
+                Cattle Photo
+            </label>
+            <div style={{display:"flex", gap:"10px"}}>
+                <input 
+                    type="text" 
+                    name="photo" 
+                    value={form.photo || ""} 
+                    onChange={handleChange} 
+                    placeholder="Image URL will appear here..." 
+                    readOnly 
+                    style={{flex:1, padding:"8px", borderRadius:"5px", border:"1px solid #ccc", background:"#white", color: "#555"}}
+                />
+                
+                {/* HIDDEN FILE INPUT */}
+                <input 
+                   type="file" 
+                   accept="image/*" 
+                   ref={fileInputRef} 
+                   onChange={handleFileSelect} 
+                   style={{display:"none"}} 
+                />
+                
+                {/* TRIGGER BUTTON */}
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current.click()} 
+                  disabled={uploading}
+                  style={{
+                    background: uploading ? "#ccc" : "#0ea5e9",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "5px",
+                    padding: "0 15px",
+                    fontWeight: "bold",
+                    cursor: uploading ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", gap: "5px", whiteSpace:"nowrap"
+                  }}
+                >
+                  {uploading ? "Uploading..." : "📷 Upload"}
+                </button>
+            </div>
+            {form.photo && (
+               <div style={{marginTop: "8px"}}>
+                 <img src={form.photo} alt="Preview" style={{height:"60px", borderRadius:"4px", border:"1px solid #ccc"}} />
+               </div>
+            )}
         </div>
 
         {/* --- STATUS --- */}
