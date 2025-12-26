@@ -77,6 +77,8 @@ export async function getActiveCattle() { return getRequest("getActiveCattle"); 
 export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
 export async function addCattle(payload) { return postRequest("addCattle", payload); }
 export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
+// Added Fetch Breeds for Dropdown
+export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
 // --- 2. NEW BORN & BIRTHS ---
 export async function getNewBorn() { return getRequest("getNewBorn"); }
@@ -94,7 +96,6 @@ export async function updateMilkProduction(payload) { return postRequest("update
 // B. MILK DISTRIBUTION (Sales/Usage)
 export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
 export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
-// ✅ ADDED THIS FUNCTION TO FIX THE ERROR
 export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
 
 // C. BIO WASTE
@@ -147,7 +148,7 @@ export const fetchDattuReport = getDattuReport;
 export const fetchMilkReport = getMilkReport;
 export const fetchBioReport = getBioReport;
 
-// Milk Aliases (Maps generic 'Yield' calls to Production for Dashboard)
+// Milk Aliases
 export const getMilkYield = getMilkProduction; 
 export const fetchMilkYield = getMilkProduction;
 export const addMilkYield = addMilkProduction;
