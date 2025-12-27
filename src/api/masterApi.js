@@ -77,6 +77,10 @@ export async function getActiveCattle() { return getRequest("getActiveCattle"); 
 export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
 export async function addCattle(payload) { return postRequest("addCattle", payload); }
 export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
+
+// 🔥 NEW: Tag Management Connection
+export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
+
 // Added Fetch Breeds for Dropdown
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 

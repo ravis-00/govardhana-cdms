@@ -1,14 +1,14 @@
 // src/pages/CattleRegistration.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom"; // Added useLocation
-import { addCattle, getUnregisteredBirths } from "../api/masterApi"; // Changed to masterApi
+import { useNavigate, useLocation } from "react-router-dom"; 
+import { addCattle, getUnregisteredBirths } from "../api/masterApi"; 
 
 const CLOUD_NAME = "dvcwgkszp";       
 const UPLOAD_PRESET = "cattle_upload"; 
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
-  constlocation = useLocation(); // Hook to access passed data
+  const location = useLocation(); // 🔥 FIXED: Added space (was 'constlocation')
   const [loading, setLoading] = useState(false);
   const [birthRecords, setBirthRecords] = useState([]); 
   
@@ -47,8 +47,8 @@ export default function CattleRegistration() {
         gender: b.calfSex,
         breed: b.calfBreed,
         weight: b.calfWeight,
-        birthWeight: b.calfWeight, // Save initial weight too
-        colour: b.colour || "", // If captured
+        birthWeight: b.calfWeight, 
+        colour: b.colour || "", 
         photo: b.photo || "",
         
         // Parentage
@@ -60,7 +60,7 @@ export default function CattleRegistration() {
         // Auto-calculate age (0 months initially)
         ageMonths: calculateAge(b.dateOfBirth),
         
-        // Set Category based on gender/age (Simple logic for now)
+        // Set Category
         category: "Calf"
       }));
     }
@@ -69,7 +69,6 @@ export default function CattleRegistration() {
   // --- EFFECT 2: Fetch Unregistered List (Backup for Manual Entry) ---
   useEffect(() => {
     if (form.typeOfAdmission === "Born at Goshala" && !form.linkedBirthId) {
-      // Only fetch if NOT already linked via the Register button
       getUnregisteredBirths().then(data => {
           if(Array.isArray(data)) setBirthRecords(data);
       }).catch(err => console.error("Failed to fetch births", err));
@@ -149,7 +148,8 @@ export default function CattleRegistration() {
     setForm((prev) => ({ ...prev, disabilityFlag: flag }));
   }
 
-  function handleCancel() { navigate("/cattle/active"); }
+  // 🔥 UPDATED: Redirects to '/cattle/master' because 'active' was deleted
+  function handleCancel() { navigate("/cattle/master"); } 
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -188,7 +188,7 @@ export default function CattleRegistration() {
         damBreed: form.damBreed,
         sireBreed: form.sireBreed,
         birthWeight: form.birthWeight,
-        linkedBirthId: form.linkedBirthId // 🔥 Critical for updating birth_log
+        linkedBirthId: form.linkedBirthId 
       };
 
       console.log("Sending Payload:", payload); 
@@ -197,7 +197,7 @@ export default function CattleRegistration() {
       
       if (response && response.success) {
         alert(`SUCCESS: Cattle Registered!\nInternal ID: ${response.id}`); 
-        navigate("/cattle/active");
+        navigate("/cattle/master"); // 🔥 UPDATED: Redirect to Master
       } else {
         alert("Server Error: " + (response?.error || "Unknown"));
       }
