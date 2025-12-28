@@ -30,6 +30,8 @@ const DISEASE_OPTIONS = [
   "Broken Horn", "Bronchitis", "Fever", "Front Left Leg fracture",
   "Front Right Leg fracture", "Indigestion", "Inflammation", "Injury",
   "Pneumonia", "Skin Infection", "Sprain, Limping", "Weakness", "Wound",
+  "Lumpy Skin Disease (LSD)", "Mastitis", "Metritis / Pyometra",
+  "Retained Placenta", "Udder Edema"
 ];
 
 export default function Treatment() {
@@ -47,7 +49,7 @@ export default function Treatment() {
   // --- FETCH DATA ---
   useEffect(() => {
     loadData();
-  }, []); // Initial Load
+  }, []); 
 
   async function loadData() {
     try {
@@ -70,7 +72,6 @@ export default function Treatment() {
         remarks: row.remarks,
       }));
       
-      // Sort by Date Descending
       normalised.sort((a, b) => new Date(b.date) - new Date(a.date));
       setRows(normalised);
 
@@ -110,7 +111,6 @@ export default function Treatment() {
     setMode("edit");
     setEditingId(entry.id);
     
-    // Helper to split comma string to array
     const toArray = (str) => str ? String(str).split(",").map(s=>s.trim()).filter(Boolean) : [];
 
     setForm({
@@ -162,18 +162,28 @@ export default function Treatment() {
 
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.6rem", fontWeight: 700 }}>Medical Treatment</h1>
-        <div style={{ display: "flex", gap: "1rem" }}>
-           <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={inputStyle} />
-           <button onClick={openFormForAdd} style={btnAddStyle}>+ Add Entry</button>
+      
+      {/* HEADER (Aligned to match other pages) */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0, color: "#111827" }}>Medical Treatment</h1>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" }}>Month</label>
+            <input 
+              type="month" 
+              value={month} 
+              onChange={e => setMonth(e.target.value)} 
+              style={headerInputStyle} 
+            />
+          </div>
+          <button onClick={openFormForAdd} style={addBtnStyle}>+ Add Entry</button>
         </div>
       </header>
 
       {/* Table */}
       <div style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead style={{ background: "#f9fafb", textAlign: "left" }}>
+          <thead style={{ background: "#f1f5f9", textAlign: "left" }}>
             <tr>
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Cattle ID</th>
@@ -186,15 +196,17 @@ export default function Treatment() {
           <tbody>
             {filteredRows.length === 0 ? <tr><td colSpan={6} style={emptyStyle}>No entries for this month</td></tr> : 
              filteredRows.map((row, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", backgroundColor: i % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
                 <td style={tdStyle}>{formatDateDisplay(row.date)}</td>
                 <td style={tdStyle}>{row.cattleId}</td>
                 <td style={tdStyle}>{row.diseaseSymptoms}</td>
                 <td style={tdStyle}>{row.medicine}</td>
                 <td style={tdStyle}>{row.doctorName}</td>
                 <td style={{...tdStyle, textAlign:"center"}}>
-                   <button onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️</button>
-                   <button onClick={() => openFormForEdit(row)} style={editBtnStyle}>✏️</button>
+                   <div style={{display:"flex", gap:"5px", justifyContent:"center"}}>
+                       <button onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️</button>
+                       <button onClick={() => openFormForEdit(row)} style={editBtnStyle}>✏️</button>
+                   </div>
                 </td>
               </tr>
             ))}
@@ -206,7 +218,7 @@ export default function Treatment() {
       {showForm && (
         <div style={overlayStyle} onClick={() => setShowForm(false)}>
           <div style={modalStyle} onClick={e => e.stopPropagation()}>
-            <h2 style={{ marginBottom: "1rem" }}>{mode === "add" ? "Add" : "Edit"} Treatment</h2>
+            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem", color:"#111827" }}>{mode === "add" ? "Add" : "Edit"} Treatment</h2>
             <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
                   <Field label="Cattle ID">
@@ -254,9 +266,11 @@ export default function Treatment() {
       {selectedEntry && (
         <div style={overlayStyle} onClick={() => setSelectedEntry(null)}>
            <div style={viewModalStyle} onClick={e => e.stopPropagation()}>
-              <h2 style={{ marginBottom:"1rem", borderBottom:"1px solid #eee", paddingBottom:"0.5rem" }}>
-                 Details: {selectedEntry.cattleId}
-              </h2>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #eee", paddingBottom:"10px", marginBottom:"15px"}}>
+                  <h2 style={{ margin:0, fontSize:"1.25rem" }}>Details: {selectedEntry.cattleId}</h2>
+                  <button onClick={() => setSelectedEntry(null)} style={closeBtnStyle}>✕</button>
+              </div>
+              
               <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
                  <DetailItem label="Date" value={formatDateDisplay(selectedEntry.date)} />
                  <DetailItem label="Cattle ID" value={selectedEntry.cattleId} />
@@ -265,8 +279,9 @@ export default function Treatment() {
                  <DetailItem label="Doctor" value={selectedEntry.doctorName} />
                  <DetailItem label="Remarks" value={selectedEntry.remarks} />
               </div>
-              <div style={{marginTop:"1rem", textAlign:"right"}}>
-                 <button onClick={() => setSelectedEntry(null)} style={btnCancelStyle}>Close</button>
+              
+              <div style={{marginTop:"20px", display:"flex", justifyContent:"flex-end"}}>
+                  <button onClick={() => { setSelectedEntry(null); openFormForEdit(selectedEntry); }} style={editBtnStyle}>Edit This Entry</button>
               </div>
            </div>
         </div>
@@ -276,17 +291,20 @@ export default function Treatment() {
 }
 
 // --- Styles ---
-const btnAddStyle = { background: "#16a34a", color: "white", padding: "0.5rem 1rem", borderRadius: "6px", border: "none", cursor: "pointer", fontWeight: "600" };
-const thStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", color: "#475569" };
-const tdStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
+const headerInputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
+const addBtnStyle = { padding: "0.45rem 0.95rem", borderRadius: "999px", border: "none", background: "#16a34a", color: "#ffffff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer" };
+const thStyle = { padding: "0.6rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", color: "#475569", textTransform: "uppercase" };
+const tdStyle = { padding: "0.55rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
 const emptyStyle = { padding: "2rem", textAlign: "center", color: "#6b7280" };
 const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.9rem", cursor: "pointer", marginRight:"5px" };
 const editBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
 const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50 };
-const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "500px", maxHeight:"90vh", overflowY:"auto" };
-const viewModalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "600px" };
+const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "500px", maxHeight:"90vh", overflowY:"auto", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
+const viewModalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "600px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
 const inputStyle = { width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
-const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer" };
+const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontWeight: "500" };
 const btnSaveStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" };
-function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem" }}>{label}</label>{children}</div>; }
-function DetailItem({ label, value }) { return <div style={{borderBottom:"1px dashed #eee", paddingBottom:"5px"}}><div style={{fontSize:"0.75rem", color:"#666"}}>{label}</div><div style={{fontWeight:"500"}}>{value || "-"}</div></div>; }
+const closeBtnStyle = { background:"none", border:"none", fontSize:"1.2rem", cursor:"pointer", color:"#666" };
+
+function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem", fontWeight:"500" }}>{label}</label>{children}</div>; }
+function DetailItem({ label, value }) { return <div style={{borderBottom:"1px dashed #eee", paddingBottom:"5px"}}><div style={{fontSize:"0.75rem", color:"#666", textTransform:"uppercase"}}>{label}</div><div style={{fontWeight:"500"}}>{value || "-"}</div></div>; }

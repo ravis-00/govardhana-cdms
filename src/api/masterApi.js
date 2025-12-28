@@ -113,6 +113,8 @@ export async function getDattuReport(fromDate, toDate) { return getRequest("getD
 export async function getMilkReport(fromDate, toDate) { return getRequest("getMilkReport", { fromDate, toDate }); }
 export async function getBioReport(fromDate, toDate) { return getRequest("getBioReport", { fromDate, toDate }); }
 
+export async function addVaccine(payload) { return postRequest("addVaccine", payload); }
+export async function updateVaccine(payload) { return postRequest("updateVaccine", payload); }
 // --- ALIASES ---
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;

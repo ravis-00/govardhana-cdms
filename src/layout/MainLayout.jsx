@@ -12,8 +12,9 @@ export default function MainLayout() {
     navigate("/");
   };
 
-  const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
-  const isSuperAdmin = user?.role === "Super Admin";
+  // 🔥 LOGIC FIX: "Super Admin" is just a name, the Role is "Admin".
+  // So we check if the role is Admin.
+  const isAdmin = user?.role === "Admin"; 
 
   // --- MENU CONFIGURATION ---
   const menuGroups = [
@@ -54,7 +55,8 @@ export default function MainLayout() {
       items: [
         { name: "Sponsorships", path: "/dattu-yojana", icon: "🤝", restricted: !isAdmin },
         { name: "Reports & Docs", path: "/certificates-reports", icon: "📄" },
-        { name: "User Management", path: "/users", icon: "👥", restricted: !isSuperAdmin },
+        // 🔥 FIXED: Changed restricted: !isSuperAdmin -> !isAdmin
+        { name: "User Management", path: "/users", icon: "👥", restricted: !isAdmin },
       ]
     }
   ];
@@ -152,26 +154,26 @@ export default function MainLayout() {
 
            {/* Right: Logout Button */}
            <button 
-              onClick={handleLogout}
-              style={{
-                background: "#b91c1c",
-                color: "#fff",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                transition: "background 0.2s"
-              }}
-              onMouseOver={(e) => e.target.style.background = "#dc2626"}
-              onMouseOut={(e) => e.target.style.background = "#b91c1c"}
-            >
-              Logout <span>➔</span>
-            </button>
+             onClick={handleLogout}
+             style={{
+               background: "#b91c1c",
+               color: "#fff",
+               border: "none",
+               padding: "8px 16px",
+               borderRadius: "6px",
+               cursor: "pointer",
+               fontSize: "0.85rem",
+               fontWeight: "600",
+               display: "flex",
+               alignItems: "center",
+               gap: "8px",
+               transition: "background 0.2s"
+             }}
+             onMouseOver={(e) => e.target.style.background = "#dc2626"}
+             onMouseOut={(e) => e.target.style.background = "#b91c1c"}
+           >
+             Logout <span>➔</span>
+           </button>
         </header>
 
         {/* SCROLLABLE CONTENT AREA */}

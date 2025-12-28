@@ -1,877 +1,332 @@
 // src/pages/DattuYojana.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  getDattuYojana,
-  addDattuYojana,
-  updateDattuYojana,
-} from "../api/masterApi";
+import { getDattuYojana, addDattuYojana, updateDattuYojana } from "../api/masterApi";
 import { useAuth } from "../context/AuthContext";
 
 function getCurrentYearMonth() {
   const d = new Date();
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`; // e.g. 2025-12
+  return `${year}-${month}`;
 }
 
-/**
- * Convert a date string (dd/MM/yyyy or yyyy-MM-dd) to yyyy-MM for month filter.
- */
-function extractYearMonth(dateStr) {
-  if (!dateStr) return "";
-  if (dateStr.includes("/")) {
-    const [dd, mm, yyyy] = dateStr.split("/");
-    if (!yyyy || !mm) return "";
-    return `${yyyy}-${String(mm).padStart(2, "0")}`;
-  }
-  if (dateStr.includes("-")) {
-    const [yyyy, mm] = dateStr.split("-");
-    if (!yyyy || !mm) return "";
-    return `${yyyy}-${String(mm).padStart(2, "0")}`;
-  }
-  return "";
-}
-
-/**
- * For <input type="date"> from display date.
- * Accepts dd/MM/yyyy or yyyy-MM-dd (returns yyyy-MM-dd).
- */
-function toInputDate(dateStr) {
-  if (!dateStr) return "";
-  if (dateStr.includes("/")) {
-    const [dd, mm, yyyy] = dateStr.split("/");
-    return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(
-      2,
-      "0"
-    )}`;
-  }
-  // assume already yyyy-MM-dd
-  return dateStr;
-}
-
-/**
- * For table display from <input type="date"> value (yyyy-MM-dd)
- * -> dd/MM/yyyy
- */
-function toDisplayDateFromInput(isoStr) {
+function toInputDate(isoStr) {
   if (!isoStr) return "";
-  const [yyyy, mm, dd] = isoStr.split("-");
-  if (!yyyy || !mm || !dd) return isoStr;
-  return `${dd}/${mm}/${yyyy}`;
+  return isoStr.split("T")[0];
 }
 
-/* ------------------------------------------------------------------ */
+function formatDisplayDate(isoStr) {
+  if (!isoStr) return "";
+  const [y, m, d] = isoStr.split("T")[0].split("-");
+  return `${d}-${m}-${y}`;
+}
 
 export default function DattuYojana() {
-  const { user } = useAuth(); // Get User Role
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [month, setMonth] = useState(getCurrentYearMonth());
   
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
   const [editingRow, setEditingRow] = useState(null);
-
   const [selectedEntry, setSelectedEntry] = useState(null);
 
-  // --- Load data from backend once on mount ---
   useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await getDattuYojana();
-        // data is expected as array of objects from Apps Script
-        setRows(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "Failed to load Dattu Yojana data");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    loadData();
   }, []);
 
-  const filteredRows = useMemo(
-    () => rows.filter((r) => extractYearMonth(r.date) === month),
-    [rows, month]
-  );
+  async function loadData() {
+    setLoading(true);
+    try {
+      const data = await getDattuYojana();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filteredRows = useMemo(() => rows.filter((r) => {
+      if(!r.date) return false;
+      return r.date.startsWith(month);
+  }), [rows, month]);
+
+  function getEmptyForm() {
+    return {
+      id: "", 
+      date: month + "-01", // Payment Date
+      startDate: month + "-01", 
+      endDate: "",
+      cattleId: "", 
+      donorName: "", 
+      phone: "", 
+      email: "", 
+      address: "", 
+      pan: "",
+      scheme: "", 
+      schemeStatus: "Active",
+      amount: "", 
+      paymentMode: "",
+      chequeNumber: "", 
+      referenceNumber: "", 
+      receiptNo: "", 
+      remarks: ""
+    };
+  }
 
   function openAddForm() {
     setEditingRow(null);
-    setForm({
-      ...getEmptyForm(),
-      date: month + "-01",
-    });
+    setForm(getEmptyForm());
     setShowForm(true);
   }
 
   function openEditForm(row) {
     setEditingRow(row);
     setForm({
-      id: row.id || "",
+      id: row.id,
       date: toInputDate(row.date),
-      cattleId: row.cattleId || "",
-      donorName: row.donorName || "",
-      address: row.address || "",
-      phone: row.phone || "",
-      email: row.email || "",
-      scheme: row.scheme || "",
-      amount: row.amount || "",
-      paymentMode: row.paymentMode || "",
-      chequeNumber: row.chequeNumber || "",
-      referenceNumber: row.referenceNumber || "",
-      receiptNo: row.receiptNo || row.receiptNumber || "",
-      schemeStatus: row.schemeStatus || "",
-      expiryDate: row.expiryDate ? toInputDate(row.expiryDate) : "",
-      remarks: row.remarks || "",
+      startDate: toInputDate(row.startDate) || toInputDate(row.date),
+      endDate: toInputDate(row.endDate),
+      cattleId: row.cattleId,
+      donorName: row.donorName,
+      phone: row.phone,
+      email: row.email,
+      address: row.address,
+      pan: row.pan || "",
+      scheme: row.scheme,
+      schemeStatus: row.schemeStatus,
+      amount: row.amount,
+      paymentMode: row.paymentMode,
+      chequeNumber: row.chequeNumber || "", 
+      referenceNumber: row.referenceNumber,
+      receiptNo: row.receiptNo,
+      remarks: row.remarks
     });
     setShowForm(true);
   }
 
-  function closeForm() {
-    setShowForm(false);
-  }
-
-  function handleFormChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  function handleChange(e) {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-
-    const payload = {
-      id: editingRow?.id || form.id || undefined,
-      date: form.date, // yyyy-MM-dd
-      cattleId: form.cattleId,
-      donorName: form.donorName,
-      address: form.address,
-      phone: form.phone,
-      email: form.email,
-      scheme: form.scheme,
-      amount: form.amount,
-      paymentMode: form.paymentMode,
-      chequeNumber: form.chequeNumber,
-      referenceNumber: form.referenceNumber,
-      receiptNumber: form.receiptNo,
-      schemeStatus: form.schemeStatus,
-      expiryDate: form.expiryDate,
-      remarks: form.remarks,
-    };
-
+    setLoading(true);
     try {
-      setLoading(true);
-      setError("");
-      if (editingRow) {
-        await updateDattuYojana(payload);
-      } else {
-        await addDattuYojana(payload);
-      }
-
-      // Reload list from backend so UI is in sync
-      const data = await getDattuYojana();
-      setRows(Array.isArray(data) ? data : []);
+      const payload = { ...form };
+      if (editingRow) await updateDattuYojana(payload);
+      else await addDattuYojana(payload);
+      
+      await loadData();
       setShowForm(false);
-      setEditingRow(null);
     } catch (err) {
-      console.error(err);
-      setError(err.message || "Failed to save Dattu Yojana entry");
-      // keep modal open so user doesn’t lose data
+      alert("Error: " + err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  function openView(entry) {
-    setSelectedEntry(entry);
-  }
-
-  function closeView() {
-    setSelectedEntry(null);
-  }
-
-  const isEditMode = Boolean(editingRow);
-
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "1rem",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.6rem",
-            fontWeight: 700,
-            margin: 0,
-          }}
-        >
-          Dattu Yojana
-        </h1>
-
+      {/* HEADER - Updated to Match Standard */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0, color: "#111827" }}>Dattu Yojana</h1>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.75rem",
-                marginBottom: "0.15rem",
-                color: "#6b7280",
-              }}
-            >
-              Month
-            </label>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              style={{
-                padding: "0.35rem 0.6rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #d1d5db",
-                fontSize: "0.85rem",
-              }}
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" }}>Month</label>
+            <input 
+              type="month" 
+              value={month} 
+              onChange={e => setMonth(e.target.value)} 
+              style={headerInputStyle} 
             />
           </div>
-
-          {/* HIDE ADD BUTTON FOR VIEWERS */}
           {user?.role !== "Viewer" && (
-            <button
-              type="button"
-              onClick={openAddForm}
-              style={{
-                padding: "0.45rem 0.95rem",
-                borderRadius: "999px",
-                border: "none",
-                background: "#16a34a",
-                color: "#ffffff",
-                fontWeight: 600,
-                fontSize: "0.9rem",
-                cursor: "pointer",
-              }}
-            >
-              + Add Entry
-            </button>
+            <button onClick={openAddForm} style={addBtnStyle}>+ Add Entry</button>
           )}
         </div>
       </header>
 
-      {error && (
-        <div
-          style={{
-            marginBottom: "0.75rem",
-            padding: "0.5rem 0.75rem",
-            borderRadius: "0.5rem",
-            background: "#fee2e2",
-            color: "#b91c1c",
-            fontSize: "0.85rem",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Table */}
-      <div
-        style={{
-          background: "#ffffff",
-          borderRadius: "0.75rem",
-          boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
-          overflow: "hidden",
-        }}
-      >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "0.9rem",
-          }}
-        >
-          <thead
-            style={{
-              background: "#f1f5f9",
-              textAlign: "left",
-            }}
-          >
+      {/* TABLE */}
+      <div style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+          <thead style={{ background: "#f9fafb", textAlign: "left" }}>
             <tr>
               <th style={thStyle}>Date</th>
-              <th style={thStyle}>Cattle ID</th>
-              <th style={thStyle}>Donor Name</th>
+              <th style={thStyle}>Donor</th>
+              <th style={thStyle}>Mobile</th>
               <th style={thStyle}>Scheme</th>
               <th style={thStyle}>Amount</th>
-              <th style={thStyle}>Payment Mode</th>
-              <th style={thStyle}>Receipt No.</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
+              <th style={thStyle}>Receipt</th>
+              <th style={thStyle}>Status</th>
+              <th style={{...thStyle, textAlign:"center"}}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {loading && rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={8}
-                  style={{
-                    padding: "0.9rem 1rem",
-                    textAlign: "center",
-                    color: "#6b7280",
-                  }}
-                >
-                  Loading...
+            {filteredRows.length === 0 ? <tr><td colSpan={8} style={emptyStyle}>No entries found for this month.</td></tr> : 
+             filteredRows.map((row, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={tdStyle}>{formatDisplayDate(row.date)}</td>
+                <td style={tdStyle}>
+                    <div style={{fontWeight:"600"}}>{row.donorName}</div>
+                    <div style={{fontSize:"0.8rem", color:"#666"}}>{row.cattleId ? `Cattle: ${row.cattleId}` : "General"}</div>
+                </td>
+                <td style={tdStyle}>{row.phone}</td>
+                <td style={tdStyle}>{row.scheme}</td>
+                <td style={{...tdStyle, fontWeight:"bold"}}>{row.amount}</td>
+                <td style={tdStyle}>{row.receiptNo}</td>
+                <td style={tdStyle}>
+                    <span style={{
+                        background: row.schemeStatus === "Active" ? "#ecfdf5" : "#fef2f2",
+                        color: row.schemeStatus === "Active" ? "#047857" : "#b91c1c",
+                        padding: "2px 8px", borderRadius: "10px", fontSize: "0.8rem", fontWeight: "600"
+                    }}>
+                        {row.schemeStatus}
+                    </span>
+                </td>
+                <td style={{...tdStyle, textAlign:"center"}}>
+                   <button onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️</button>
+                   {user?.role !== "Viewer" && <button onClick={() => openEditForm(row)} style={editBtnStyle}>✏️</button>}
                 </td>
               </tr>
-            ) : filteredRows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={8}
-                  style={{
-                    padding: "0.9rem 1rem",
-                    textAlign: "center",
-                    color: "#6b7280",
-                  }}
-                >
-                  No Dattu Yojana entries for this month.
-                </td>
-              </tr>
-            ) : (
-              filteredRows.map((row, idx) => (
-                <tr
-                  key={row.id || `${row.date}-${idx}`}
-                  style={{
-                    backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
-                  }}
-                >
-                  <td style={tdStyle}>{row.date}</td>
-                  <td style={tdStyle}>{row.cattleId}</td>
-                  <td style={tdStyle}>{row.donorName}</td>
-                  <td style={tdStyle}>{row.scheme}</td>
-                  <td style={tdStyle}>{row.amount}</td>
-                  <td style={tdStyle}>{row.paymentMode}</td>
-                  <td style={tdStyle}>{row.receiptNo || row.receiptNumber}</td>
-                  <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: "center",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => openView(row)}
-                      style={{ ...viewBtnStyle, marginRight: "0.4rem" }}
-                      title="View details"
-                    >
-                      👁️ View
-                    </button>
-                    
-                    {/* HIDE EDIT BUTTON FOR VIEWERS */}
-                    {user?.role !== "Viewer" && (
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(row)}
-                        style={editBtnStyle}
-                        title="Edit entry"
-                      >
-                        ✏️ Edit
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Centered Form Modal (Add / Edit) */}
+      {/* FORM MODAL */}
       {showForm && (
-        <div style={overlayStyle} onClick={closeForm}>
-          <div
-            style={formModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.75rem",
-              }}
-            >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: "1.2rem",
-                }}
-              >
-                {isEditMode ? "Edit Dattu Entry" : "Dattu Yojana Form"}
-              </h2>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  style={headerButtonSecondary}
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="dattu-yojana-form"
-                  style={headerButtonPrimary}
-                  disabled={loading}
-                >
-                  {isEditMode ? "Update" : "Save"}
-                </button>
-              </div>
-            </div>
+        <div style={overlayStyle} onClick={() => setShowForm(false)}>
+          <div style={modalStyle} onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: "1rem" }}>{editingRow ? "Edit" : "Add"} Dattu Entry</h2>
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
+               
+               {/* 1. Donor Details */}
+               <div style={{background:"#f8fafc", padding:"10px", borderRadius:"8px"}}>
+                   <div style={{fontWeight:"bold", marginBottom:"8px", color:"#334155"}}>Donor Details</div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
+                       <Field label="Donor Name *"><input type="text" name="donorName" value={form.donorName} onChange={handleChange} style={inputStyle} required /></Field>
+                       <Field label="Mobile"><input type="tel" name="phone" value={form.phone} onChange={handleChange} style={inputStyle} /></Field>
+                   </div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", marginTop:"10px"}}>
+                       <Field label="Email"><input type="email" name="email" value={form.email} onChange={handleChange} style={inputStyle} /></Field>
+                       <Field label="PAN Number"><input type="text" name="pan" value={form.pan} onChange={handleChange} style={inputStyle} placeholder="ABCDE1234F" /></Field>
+                   </div>
+                   <Field label="Address" style={{marginTop:"10px"}}><input type="text" name="address" value={form.address} onChange={handleChange} style={inputStyle} /></Field>
+               </div>
 
-            {/* Form body */}
-            <form
-              id="dattu-yojana-form"
-              onSubmit={handleSubmit}
-              style={{ display: "grid", gap: "0.85rem" }}
-            >
-              <Field label="Date *">
-                <input
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                  required
-                />
-              </Field>
+               {/* 2. Scheme Details */}
+               <div style={{background:"#f8fafc", padding:"10px", borderRadius:"8px"}}>
+                   <div style={{fontWeight:"bold", marginBottom:"8px", color:"#334155"}}>Scheme Info</div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
+                       <Field label="Scheme *">
+                          <select name="scheme" value={form.scheme} onChange={handleChange} style={inputStyle} required>
+                              <option value="">Select...</option>
+                              <option value="Punyakoti">Punyakoti</option>
+                              <option value="Samrakshana">Samrakshana</option>
+                              <option value="Go Dana">Go Dana</option>
+                              <option value="Shashwatha">Shashwatha</option>
+                          </select>
+                       </Field>
+                       <Field label="Cattle ID (Internal)"><input type="text" name="cattleId" value={form.cattleId} onChange={handleChange} style={inputStyle} /></Field>
+                   </div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", marginTop:"10px"}}>
+                       <Field label="Start Date"><input type="date" name="startDate" value={form.startDate} onChange={handleChange} style={inputStyle} /></Field>
+                       <Field label="End Date"><input type="date" name="endDate" value={form.endDate} onChange={handleChange} style={inputStyle} /></Field>
+                   </div>
+                   <Field label="Status" style={{marginTop:"10px"}}>
+                      <select name="schemeStatus" value={form.schemeStatus} onChange={handleChange} style={inputStyle}>
+                          <option value="Active">Active</option>
+                          <option value="Expired">Expired</option>
+                          <option value="Stopped">Stopped</option>
+                      </select>
+                   </Field>
+               </div>
 
-              <Field label="Cattle ID">
-                <input
-                  type="text"
-                  name="cattleId"
-                  value={form.cattleId}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
+               {/* 3. Payment Details */}
+               <div style={{background:"#f8fafc", padding:"10px", borderRadius:"8px"}}>
+                   <div style={{fontWeight:"bold", marginBottom:"8px", color:"#334155"}}>Payment Info</div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
+                       <Field label="Payment Date *"><input type="date" name="date" value={form.date} onChange={handleChange} style={inputStyle} required /></Field>
+                       <Field label="Amount (₹)"><input type="number" name="amount" value={form.amount} onChange={handleChange} style={inputStyle} /></Field>
+                   </div>
+                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", marginTop:"10px"}}>
+                       <Field label="Mode">
+                           <select name="paymentMode" value={form.paymentMode} onChange={handleChange} style={inputStyle}>
+                               <option value="Online">Online</option>
+                               <option value="Cash">Cash</option>
+                               <option value="Cheque">Cheque</option>
+                               <option value="RTGS/NEFT">RTGS/NEFT</option>
+                           </select>
+                       </Field>
+                       <Field label="Receipt No"><input type="text" name="receiptNo" value={form.receiptNo} onChange={handleChange} style={inputStyle} /></Field>
+                   </div>
+                   <Field label="Reference / Cheque No" style={{marginTop:"10px"}}><input type="text" name="referenceNumber" value={form.referenceNumber} onChange={handleChange} style={inputStyle} /></Field>
+               </div>
 
-              <Field label="Donor Name *">
-                <input
-                  type="text"
-                  name="donorName"
-                  value={form.donorName}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                  required
-                />
-              </Field>
-
-              <Field label="Address">
-                <input
-                  type="text"
-                  name="address"
-                  value={form.address}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Phone Number">
-                <input
-                  type="tel"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Email">
-                <input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Scheme *">
-                <select
-                  name="scheme"
-                  value={form.scheme}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                  required
-                >
-                  <option value="">Select Scheme</option>
-                  <option value="Punyakoti">Punyakoti</option>
-                  <option value="Samrakshana">Samrakshana</option>
-                  <option value="Go Dana">Go Dana</option>
-                  <option value="Shashwatha Dattu Sweekara">
-                    Shashwatha Dattu Sweekara
-                  </option>
-                </select>
-              </Field>
-
-              <Field label="Amount">
-                <input
-                  type="number"
-                  name="amount"
-                  value={form.amount}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                  step="0.01"
-                />
-              </Field>
-
-              <Field label="Payment Mode">
-                <select
-                  name="paymentMode"
-                  value={form.paymentMode}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                >
-                  <option value="">Select Mode</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Online">Online</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="RTGS/NEFT">RTGS/NEFT</option>
-                </select>
-              </Field>
-
-              <Field label="Cheque Number">
-                <input
-                  type="text"
-                  name="chequeNumber"
-                  value={form.chequeNumber}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Reference Number">
-                <input
-                  type="text"
-                  name="referenceNumber"
-                  value={form.referenceNumber}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Receipt Number">
-                <input
-                  type="text"
-                  name="receiptNo"
-                  value={form.receiptNo}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Scheme Status">
-                <input
-                  type="text"
-                  name="schemeStatus"
-                  value={form.schemeStatus}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                  placeholder="Active / Expired / Stopped..."
-                />
-              </Field>
-
-              <Field label="Expiry Date">
-                <input
-                  type="date"
-                  name="expiryDate"
-                  value={form.expiryDate}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Remarks">
-                <input
-                  type="text"
-                  name="remarks"
-                  value={form.remarks}
-                  onChange={handleFormChange}
-                  style={inputStyle}
-                />
-              </Field>
-
-              {/* Picture columns will be handled later */}
+               <Field label="Remarks"><input type="text" name="remarks" value={form.remarks} onChange={handleChange} style={inputStyle} /></Field>
+               
+               <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
+                  <button type="button" onClick={() => setShowForm(false)} style={btnCancelStyle}>Cancel</button>
+                  <button type="submit" disabled={loading} style={btnSaveStyle}>Save</button>
+               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* View Details Modal */}
+      
+      {/* View Modal */}
       {selectedEntry && (
-        <div style={overlayStyle} onClick={closeView}>
-          <div
-            style={viewModalStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.75rem",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: "0.8rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "#6b7280",
-                  }}
-                >
-                  Dattu Yojana Details
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  {selectedEntry.date} – {selectedEntry.donorName}
-                </div>
+        <div style={overlayStyle} onClick={() => setSelectedEntry(null)}>
+           <div style={viewModalStyle} onClick={e => e.stopPropagation()}>
+              <h2 style={{ marginBottom:"1rem", borderBottom:"1px solid #eee" }}>Details: {selectedEntry.donorName}</h2>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", fontSize:"0.9rem"}}>
+                 <DetailItem label="Payment Date" value={formatDisplayDate(selectedEntry.date)} />
+                 <DetailItem label="Amount" value={selectedEntry.amount} isBold />
+                 
+                 <DetailItem label="Donor Name" value={selectedEntry.donorName} />
+                 <DetailItem label="Mobile" value={selectedEntry.phone} />
+                 <DetailItem label="Email" value={selectedEntry.email} />
+                 <DetailItem label="PAN" value={selectedEntry.pan} />
+                 <DetailItem label="Address" value={selectedEntry.address} />
+                 
+                 <DetailItem label="Scheme" value={selectedEntry.scheme} />
+                 <DetailItem label="Status" value={selectedEntry.schemeStatus} />
+                 <DetailItem label="Start Date" value={formatDisplayDate(selectedEntry.startDate)} />
+                 <DetailItem label="End Date" value={formatDisplayDate(selectedEntry.endDate)} />
+                 
+                 <DetailItem label="Cattle ID" value={selectedEntry.cattleId} />
+                 <DetailItem label="Receipt No" value={selectedEntry.receiptNo} />
+                 <DetailItem label="Reference" value={selectedEntry.referenceNumber} />
               </div>
-              <button
-                type="button"
-                onClick={closeView}
-                style={closeBtnStyle}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Details grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "0.5rem 1.25rem",
-                fontSize: "0.85rem",
-              }}
-            >
-              <DetailItem label="Date" value={selectedEntry.date} />
-              <DetailItem label="Cattle ID" value={selectedEntry.cattleId} />
-              <DetailItem label="Donor Name" value={selectedEntry.donorName} />
-              <DetailItem label="Address" value={selectedEntry.address} />
-              <DetailItem label="Phone" value={selectedEntry.phone} />
-              <DetailItem label="Email" value={selectedEntry.email} />
-              <DetailItem label="Scheme" value={selectedEntry.scheme} />
-              <DetailItem label="Amount" value={selectedEntry.amount} />
-              <DetailItem
-                label="Payment Mode"
-                value={selectedEntry.paymentMode}
-              />
-              <DetailItem
-                label="Receipt No."
-                value={selectedEntry.receiptNo || selectedEntry.receiptNumber}
-              />
-              <DetailItem
-                label="Cheque Number"
-                value={selectedEntry.chequeNumber}
-              />
-              <DetailItem
-                label="Reference Number"
-                value={selectedEntry.referenceNumber}
-              />
-              <DetailItem
-                label="Scheme Status"
-                value={selectedEntry.schemeStatus}
-              />
-              <DetailItem label="Expiry Date" value={selectedEntry.expiryDate} />
-              <DetailItem label="Remarks" value={selectedEntry.remarks} />
-            </div>
-          </div>
+              <div style={{marginTop:"1rem", padding:"10px", background:"#f9f9f9", borderRadius:"6px"}}>
+                  <strong>Remarks:</strong> {selectedEntry.remarks}
+              </div>
+              <div style={{marginTop:"1rem", textAlign:"right"}}>
+                 <button onClick={() => setSelectedEntry(null)} style={btnCancelStyle}>Close</button>
+              </div>
+           </div>
         </div>
       )}
     </div>
   );
 }
 
-/* helpers and styles */
-
-function getEmptyForm() {
-  return {
-    id: "",
-    date: "",
-    cattleId: "",
-    donorName: "",
-    address: "",
-    phone: "",
-    email: "",
-    scheme: "",
-    amount: "",
-    paymentMode: "",
-    chequeNumber: "",
-    referenceNumber: "",
-    receiptNo: "",
-    schemeStatus: "",
-    expiryDate: "",
-    remarks: "",
-  };
-}
-
-const thStyle = {
-  padding: "0.6rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  fontWeight: 600,
-  fontSize: "0.8rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.03em",
-  color: "#475569",
-};
-
-const tdStyle = {
-  padding: "0.55rem 1rem",
-  borderBottom: "1px solid #e5e7eb",
-  color: "#111827",
-};
-
-const viewBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.7rem",
-  background: "#e0e7ff",
-  color: "#1d4ed8",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.2rem",
-};
-
-const editBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.7rem",
-  background: "#fee2e2",
-  color: "#b91c1c",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.2rem",
-};
-
-const overlayStyle = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15,23,42,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 50,
-};
-
-const formModalStyle = {
-  width: "100%",
-  maxWidth: "520px",
-  maxHeight: "90vh",
-  overflowY: "auto",
-  background: "#ffffff",
-  borderRadius: "1rem",
-  padding: "1.25rem 1.5rem 1.5rem",
-  boxShadow: "0 25px 60px rgba(15,23,42,0.25)",
-};
-
-const viewModalStyle = {
-  width: "100%",
-  maxWidth: "640px",
-  maxHeight: "90vh",
-  overflowY: "auto",
-  background: "#ffffff",
-  borderRadius: "1rem",
-  padding: "1.25rem 1.5rem 1.5rem",
-  boxShadow: "0 25px 60px rgba(15,23,42,0.25)",
-};
-
-const headerButtonPrimary = {
-  padding: "0.35rem 0.9rem",
-  borderRadius: "999px",
-  border: "none",
-  background: "#2563eb",
-  color: "#ffffff",
-  fontWeight: 600,
-  fontSize: "0.85rem",
-  cursor: "pointer",
-};
-
-const headerButtonSecondary = {
-  padding: "0.35rem 0.9rem",
-  borderRadius: "999px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#374151",
-  fontWeight: 500,
-  fontSize: "0.85rem",
-  cursor: "pointer",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.5rem 0.6rem",
-  borderRadius: "0.5rem",
-  border: "1px solid #d1d5db",
-  fontSize: "0.9rem",
-};
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.85rem",
-          marginBottom: "0.25rem",
-        }}
-      >
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function DetailItem({ label, value }) {
-  if (value === undefined || value === null || value === "") return null;
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: "0.7rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "#9ca3af",
-          marginBottom: "0.1rem",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ color: "#111827" }}>{value}</div>
-    </div>
-  );
-}
-
-const closeBtnStyle = {
-  border: "none",
-  borderRadius: "999px",
-  padding: "0.25rem 0.6rem",
-  background: "#e5e7eb",
-  cursor: "pointer",
-  fontSize: "0.85rem",
-};
+// --- Styles ---
+const headerInputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
+const addBtnStyle = { padding: "0.45rem 0.95rem", borderRadius: "999px", border: "none", background: "#16a34a", color: "#ffffff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer" };
+const thStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", color: "#475569" };
+const tdStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
+const emptyStyle = { padding: "2rem", textAlign: "center", color: "#6b7280" };
+const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.9rem", cursor: "pointer", marginRight:"5px" };
+const editBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50 };
+const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "500px", maxHeight:"90vh", overflowY:"auto" };
+const viewModalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "600px" };
+const inputStyle = { width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
+const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer" };
+const btnSaveStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" };
+function Field({ label, children, style }) { return <div style={style}><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem" }}>{label}</label>{children}</div>; }
+function DetailItem({ label, value, isBold }) { return <div style={{borderBottom:"1px dashed #eee", paddingBottom:"5px"}}><div style={{fontSize:"0.75rem", color:"#666"}}>{label}</div><div style={{fontWeight: isBold ? "700" : "500"}}>{value || "-"}</div></div>; }
