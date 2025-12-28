@@ -78,10 +78,8 @@ export async function getCattleById(id) { return getRequest("getCattleById", { i
 export async function addCattle(payload) { return postRequest("addCattle", payload); }
 export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
 
-// 🔥 NEW: Tag Management Connection
+// 🔥 MERGED CONFLICT: Added both Tag Update and Breed Fetch
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
-
-// Added Fetch Breeds for Dropdown
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
 // --- 2. NEW BORN & BIRTHS ---
@@ -92,12 +90,12 @@ export async function getUnregisteredBirths() { return getRequest("getUnregister
 
 // --- 3. DAILY OPERATIONS ---
 
-// A. MILK PRODUCTION (Cow-wise Yield)
+// A. MILK PRODUCTION
 export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
 export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }
 export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); }
 
-// B. MILK DISTRIBUTION (Sales/Usage)
+// B. MILK DISTRIBUTION
 export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
 export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
 export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
@@ -118,6 +116,7 @@ export async function getTreatments() { return getRequest("getTreatments"); }
 export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
 export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
 export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
+export async function getMedicines() { return getRequest("getMedicines"); }
 
 // --- 5. FINANCE (Dattu Yojana) ---
 export async function getDattuYojana() { return getRequest("getDattuYojana"); }
@@ -138,7 +137,7 @@ export async function getMilkReport(fromDate, toDate) { return getRequest("getMi
 export async function getBioReport(fromDate, toDate) { return getRequest("getBioReport", { fromDate, toDate }); }
 
 // ============================================================================
-// === ALIASES (CRITICAL FOR BACKWARD COMPATIBILITY) ==========================
+// === ALIASES ================================================================
 // ============================================================================
 
 export const fetchCattle = getCattle;
@@ -152,7 +151,6 @@ export const fetchDattuReport = getDattuReport;
 export const fetchMilkReport = getMilkReport;
 export const fetchBioReport = getBioReport;
 
-// Milk Aliases
 export const getMilkYield = getMilkProduction; 
 export const fetchMilkYield = getMilkProduction;
 export const addMilkYield = addMilkProduction;

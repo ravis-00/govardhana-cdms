@@ -8,7 +8,9 @@ const UPLOAD_PRESET = "cattle_upload";
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
-  const location = useLocation(); // 🔥 FIXED: Added space (was 'constlocation')
+  // ✅ FIXED: Removed conflict markers and ensured clean syntax
+  const location = useLocation(); 
+
   const [loading, setLoading] = useState(false);
   const [birthRecords, setBirthRecords] = useState([]); 
   
@@ -148,8 +150,10 @@ export default function CattleRegistration() {
     setForm((prev) => ({ ...prev, disabilityFlag: flag }));
   }
 
-  // 🔥 UPDATED: Redirects to '/cattle/master' because 'active' was deleted
-  function handleCancel() { navigate("/cattle/master"); } 
+  // ✅ FIXED: Standardized redirect to Master list
+  function handleCancel() { 
+    navigate("/cattle/master"); 
+  } 
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -197,7 +201,7 @@ export default function CattleRegistration() {
       
       if (response && response.success) {
         alert(`SUCCESS: Cattle Registered!\nInternal ID: ${response.id}`); 
-        navigate("/cattle/master"); // 🔥 UPDATED: Redirect to Master
+        navigate("/cattle/master"); 
       } else {
         alert("Server Error: " + (response?.error || "Unknown"));
       }
@@ -251,11 +255,11 @@ export default function CattleRegistration() {
                 )}
                 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop:"1rem" }}>
-                     <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={true} />
-                     <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={true} />
-                     <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={true} />
-                     <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={true} />
-                     <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={true} />
+                      <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={true} />
+                      <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={true} />
+                      <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={true} />
+                      <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={true} />
+                      <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={true} />
                 </div>
             </div>
         )}

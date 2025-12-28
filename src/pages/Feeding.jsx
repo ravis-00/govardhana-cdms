@@ -1,6 +1,6 @@
 // src/pages/Feeding.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { getFeeding, addFeeding } from "../api/masterApi";
+import { getFeeding, addFeeding, updateFeeding } from "../api/masterApi"; // Ensure updateFeeding is imported
 
 function getCurrentYearMonth() {
   const d = new Date();
@@ -14,12 +14,14 @@ function formatDisplayDate(isoDate) {
   const parts = String(isoDate).split("T")[0].split("-");
   if (parts.length !== 3) return isoDate;
   const [y, m, d] = parts;
-  return `${d}/${m}/${y}`;
+  return `${d}-${m}-${y}`; 
 }
 
 function getEmptyForm() {
   return {
     date: "",
+    feedType: "General Mix", // Default
+    recordedBy: "",
     nandini: "", surabhi: "", kaveri: "", 
     kamadhenu: "", jayadeva: "", nandiniOld: "",
     totalKg: "", remarks: "",
@@ -30,62 +32,91 @@ export default function Feeding() {
   const [month, setMonth] = useState(getCurrentYearMonth());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modal States
   const [showForm, setShowForm] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [form, setForm] = useState(getEmptyForm());
   const [selectedEntry, setSelectedEntry] = useState(null);
   
-  // Load & PIVOT Data
+  // Load & Pivot Data
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const rawData = await getFeeding(); // Returns array of {shedName, quantityKg, date...}
-
-        // 🔥 PIVOT LOGIC: Group raw rows by Date
-        const grouped = {};
-
-        (rawData || []).forEach(item => {
-            const dateKey = item.date ? item.date.split('T')[0] : "unknown";
-            
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = { 
-                    id: dateKey, date: dateKey, 
-                    nandini: 0, surabhi: 0, kaveri: 0, kamadhenu: 0, jayadeva: 0, nandiniOld: 0, 
-                    totalKg: 0, remarks: item.remarks || "" 
-                };
-            }
-
-            const shed = (item.shedName || "").toLowerCase().trim();
-            const qty = Number(item.quantityKg || 0);
-
-            if (shed.includes("nandini") && !shed.includes("old")) grouped[dateKey].nandini += qty;
-            else if (shed.includes("surabhi")) grouped[dateKey].surabhi += qty;
-            else if (shed.includes("kaveri")) grouped[dateKey].kaveri += qty;
-            else if (shed.includes("kamadhenu")) grouped[dateKey].kamadhenu += qty;
-            else if (shed.includes("jayadeva")) grouped[dateKey].jayadeva += qty;
-            else if (shed.includes("old")) grouped[dateKey].nandiniOld += qty;
-
-            grouped[dateKey].totalKg += qty;
-        });
-
-        const processedRows = Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date));
-        setRows(processedRows);
-
-      } catch (err) {
-        console.error("Failed to load feeding data", err);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    loadData();
   }, [month]);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const rawData = await getFeeding(); 
+      const grouped = {};
+
+      (rawData || []).forEach(item => {
+          const dateKey = item.date ? item.date.split('T')[0] : "unknown";
+          
+          if (!grouped[dateKey]) {
+              grouped[dateKey] = { 
+                  id: dateKey, date: dateKey, 
+                  feedType: item.feedType || "",     // Capture Common Fields
+                  recordedBy: item.recordedBy || "", // Capture Common Fields
+                  nandini: 0, surabhi: 0, kaveri: 0, kamadhenu: 0, jayadeva: 0, nandiniOld: 0, 
+                  totalKg: 0, remarks: item.remarks || "" 
+              };
+          }
+
+          const shed = (item.shedName || "").toLowerCase().trim();
+          const qty = Number(item.quantityKg || 0);
+
+          if (shed.includes("nandini") && !shed.includes("old")) grouped[dateKey].nandini += qty;
+          else if (shed.includes("surabhi")) grouped[dateKey].surabhi += qty;
+          else if (shed.includes("kaveri")) grouped[dateKey].kaveri += qty;
+          else if (shed.includes("kamadhenu")) grouped[dateKey].kamadhenu += qty;
+          else if (shed.includes("jayadeva")) grouped[dateKey].jayadeva += qty;
+          else if (shed.includes("old")) grouped[dateKey].nandiniOld += qty;
+
+          grouped[dateKey].totalKg += qty;
+          
+          // Update common fields if they were empty (take from first non-empty row)
+          if(!grouped[dateKey].feedType && item.feedType) grouped[dateKey].feedType = item.feedType;
+          if(!grouped[dateKey].recordedBy && item.recordedBy) grouped[dateKey].recordedBy = item.recordedBy;
+      });
+
+      const processedRows = Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date));
+      setRows(processedRows);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filteredRows = useMemo(
     () => rows.filter((r) => (r.date || "").startsWith(month)),
     [rows, month]
   );
 
-  function openForm() {
+  // --- HANDLERS ---
+
+  function openAddForm() {
+    setIsEditMode(false);
     setForm({ ...getEmptyForm(), date: month + "-01" });
+    setShowForm(true);
+  }
+
+  function openEditForm(row) {
+    setIsEditMode(true);
+    setForm({
+      date: row.date,
+      feedType: row.feedType || "General Mix",
+      recordedBy: row.recordedBy || "",
+      nandini: row.nandini,
+      surabhi: row.surabhi,
+      kaveri: row.kaveri,
+      kamadhenu: row.kamadhenu,
+      jayadeva: row.jayadeva,
+      nandiniOld: row.nandiniOld,
+      totalKg: row.totalKg,
+      remarks: row.remarks
+    });
     setShowForm(true);
   }
 
@@ -104,10 +135,15 @@ export default function Feeding() {
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      await addFeeding(form);
-      alert("Feeding Data Saved!");
+      if (isEditMode) {
+        await updateFeeding(form); // Ensure this API function exists in masterApi.js
+        alert("Feeding Data Updated!");
+      } else {
+        await addFeeding(form);
+        alert("Feeding Data Saved!");
+      }
       setShowForm(false);
-      window.location.reload(); 
+      loadData(); 
     } catch (err) {
       alert("Error saving: " + err.message);
     }
@@ -123,7 +159,7 @@ export default function Feeding() {
             <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" }}>Month</label>
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} style={headerInputStyle} />
           </div>
-          <button type="button" onClick={openForm} style={addBtnStyle}>+ Add Entry</button>
+          <button type="button" onClick={openAddForm} style={addBtnStyle}>+ Add Entry</button>
         </div>
       </header>
 
@@ -140,7 +176,7 @@ export default function Feeding() {
               <th style={thStyle}>Jayadeva (kg)</th>
               <th style={thStyle}>Old Shed (kg)</th>
               <th style={thStyle}>Total (kg)</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Details</th>
+              <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -148,7 +184,7 @@ export default function Feeding() {
              filteredRows.length === 0 ? ( <tr><td colSpan={9} style={emptyStyle}>No entries for this month.</td></tr> ) : (
               filteredRows.map((row, idx) => (
                 <tr key={row.id} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
-                  <td style={tdStyle}>{formatDisplayDate(row.date)}</td>
+                  <td style={tdStyle}><strong>{formatDisplayDate(row.date)}</strong></td>
                   <td style={tdStyle}>{row.nandini}</td>
                   <td style={tdStyle}>{row.surabhi}</td>
                   <td style={tdStyle}>{row.kaveri}</td>
@@ -157,7 +193,10 @@ export default function Feeding() {
                   <td style={tdStyle}>{row.nandiniOld}</td>
                   <td style={{...tdStyle, fontWeight:"bold"}}>{row.totalKg}</td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <button type="button" onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️ View</button>
+                    <div style={{display:"flex", gap:"5px", justifyContent:"center"}}>
+                        <button type="button" onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️</button>
+                        <button type="button" onClick={() => openEditForm(row)} style={editBtnStyle}>✏️</button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -166,25 +205,35 @@ export default function Feeding() {
         </table>
       </div>
 
-      {/* Add Form Modal */}
+      {/* Add/Edit Form Modal */}
       {showForm && (
         <div style={overlayStyle} onClick={() => setShowForm(false)}>
           <div style={formModalStyle} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem" }}>Add Daily Feeding</h2>
+            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem" }}>{isEditMode ? "Edit" : "Add"} Daily Feeding</h2>
             <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.85rem" }}>
-              <Field label="Date *"><input type="date" name="date" value={form.date} onChange={handleFormChange} style={inputStyle} required /></Field>
-              <NumberField label="Nandini Shed (kg)" name="nandini" value={form.nandini} onChange={handleFormChange} />
-              <NumberField label="Surabhi Shed (kg)" name="surabhi" value={form.surabhi} onChange={handleFormChange} />
-              <NumberField label="Kaveri Shed (kg)" name="kaveri" value={form.kaveri} onChange={handleFormChange} />
-              <NumberField label="Kamadhenu Shed (kg)" name="kamadhenu" value={form.kamadhenu} onChange={handleFormChange} />
-              <NumberField label="Jayadeva Shed (kg)" name="jayadeva" value={form.jayadeva} onChange={handleFormChange} />
-              <NumberField label="Nandini Old Shed (kg)" name="nandiniOld" value={form.nandiniOld} onChange={handleFormChange} />
-              <NumberField label="Total Feeding (Auto)" name="totalKg" value={form.totalKg} onChange={handleFormChange} />
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
+                  <Field label="Date *"><input type="date" name="date" value={form.date} onChange={handleFormChange} style={inputStyle} required disabled={isEditMode} /></Field>
+                  <Field label="Feed Type"><input type="text" name="feedType" value={form.feedType} placeholder="e.g. TMR / Green" onChange={handleFormChange} style={inputStyle} /></Field>
+              </div>
+              
+              <Field label="Recorded By"><input type="text" name="recordedBy" value={form.recordedBy} placeholder="Enter Name" onChange={handleFormChange} style={inputStyle} /></Field>
+
+              <h4 style={{margin:"0.5rem 0 0", color:"#2563eb", borderBottom:"1px solid #eee", paddingBottom:"5px"}}>Shed Quantities (Kg)</h4>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
+                  <NumberField label="Nandini" name="nandini" value={form.nandini} onChange={handleFormChange} />
+                  <NumberField label="Surabhi" name="surabhi" value={form.surabhi} onChange={handleFormChange} />
+                  <NumberField label="Kaveri" name="kaveri" value={form.kaveri} onChange={handleFormChange} />
+                  <NumberField label="Kamadhenu" name="kamadhenu" value={form.kamadhenu} onChange={handleFormChange} />
+                  <NumberField label="Jayadeva" name="jayadeva" value={form.jayadeva} onChange={handleFormChange} />
+                  <NumberField label="Nandini Old" name="nandiniOld" value={form.nandiniOld} onChange={handleFormChange} />
+              </div>
+              
+              <NumberField label="Total Feeding (Auto Calculated)" name="totalKg" value={form.totalKg} onChange={handleFormChange} />
               <Field label="Remarks"><input type="text" name="remarks" value={form.remarks} onChange={handleFormChange} style={inputStyle} /></Field>
               
               <div style={{display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"10px"}}>
                   <button type="button" onClick={() => setShowForm(false)} style={cancelBtnStyle}>Cancel</button>
-                  <button type="submit" style={saveBtnStyle}>Save</button>
+                  <button type="submit" style={saveBtnStyle}>{isEditMode ? "Update" : "Save"}</button>
               </div>
             </form>
           </div>
@@ -195,16 +244,28 @@ export default function Feeding() {
       {selectedEntry && (
         <div style={overlayStyle} onClick={() => setSelectedEntry(null)}>
           <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: "1rem", borderBottom:"1px solid #eee" }}>Details: {formatDisplayDate(selectedEntry.date)}</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-               <DetailItem label="Nandini" value={selectedEntry.nandini} />
-               <DetailItem label="Surabhi" value={selectedEntry.surabhi} />
-               <DetailItem label="Kaveri" value={selectedEntry.kaveri} />
-               <DetailItem label="Kamadhenu" value={selectedEntry.kamadhenu} />
-               <DetailItem label="Jayadeva" value={selectedEntry.jayadeva} />
-               <DetailItem label="Old Shed" value={selectedEntry.nandiniOld} />
-               <DetailItem label="Total" value={selectedEntry.totalKg} />
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #eee", paddingBottom:"10px", marginBottom:"15px"}}>
+                <h2 style={{ margin:0 }}>Details: {formatDisplayDate(selectedEntry.date)}</h2>
+                <button onClick={() => setSelectedEntry(null)} style={closeBtnStyle}>✕</button>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize:"0.95rem" }}>
+               <DetailItem label="Feed Type" value={selectedEntry.feedType} />
+               <DetailItem label="Recorded By" value={selectedEntry.recordedBy} />
+               
+               <DetailItem label="Nandini Shed" value={selectedEntry.nandini} />
+               <DetailItem label="Surabhi Shed" value={selectedEntry.surabhi} />
+               <DetailItem label="Kaveri Shed" value={selectedEntry.kaveri} />
+               <DetailItem label="Kamadhenu Shed" value={selectedEntry.kamadhenu} />
+               <DetailItem label="Jayadeva Shed" value={selectedEntry.jayadeva} />
+               <DetailItem label="Nandini Old Shed" value={selectedEntry.nandiniOld} />
+               
+               <DetailItem label="Total Quantity" value={selectedEntry.totalKg} isBold={true} />
                <DetailItem label="Remarks" value={selectedEntry.remarks} />
+            </div>
+            
+            <div style={{marginTop:"20px", display:"flex", justifyContent:"flex-end"}}>
+                <button onClick={() => { setSelectedEntry(null); openEditForm(selectedEntry); }} style={editBtnStyle}>Edit This Entry</button>
             </div>
             <button onClick={() => setSelectedEntry(null)} style={{...cancelBtnStyle, marginTop:"20px", float:"right"}}>Close</button>
           </div>
@@ -215,19 +276,24 @@ export default function Feeding() {
 }
 
 /* Styles & Helpers */
-function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem" }}>{label}</label>{children}</div>; }
+function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.2rem", fontWeight:"500" }}>{label}</label>{children}</div>; }
 function NumberField({ label, name, value, onChange }) { return <Field label={label}><input type="number" step="0.01" name={name} value={value} onChange={onChange} style={inputStyle} /></Field>; }
-function DetailItem({ label, value }) { return <div><div style={{fontSize:"0.75rem", color:"#888"}}>{label}</div><div style={{fontWeight:"bold"}}>{value} kg</div></div>; }
+function DetailItem({ label, value, isBold }) { return <div style={{padding:"5px 0", borderBottom:"1px dashed #f0f0f0"}}>
+    <div style={{fontSize:"0.75rem", color:"#666", textTransform:"uppercase"}}>{label}</div>
+    <div style={{fontWeight: isBold ? "700" : "500", color:"#111", fontSize: isBold ? "1.1rem" : "1rem"}}>{value || "-"} {Number(value) ? "kg" : ""}</div>
+</div>; }
 
 const headerInputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
 const addBtnStyle = { padding: "0.45rem 0.95rem", borderRadius: "999px", border: "none", background: "#16a34a", color: "#ffffff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer" };
 const thStyle = { padding: "0.6rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#475569" };
 const tdStyle = { padding: "0.55rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
 const emptyStyle = { padding: "0.9rem 1rem", textAlign: "center", color: "#6b7280" };
-const viewBtnStyle = { border: "none", borderRadius: "999px", padding: "0.25rem 0.7rem", background: "#e0e7ff", color: "#1d4ed8", fontSize: "0.8rem", cursor: "pointer" };
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const formModalStyle = { width: "100%", maxWidth: "480px", maxHeight: "90vh", overflowY: "auto", background: "#ffffff", borderRadius: "1rem", padding: "1.5rem" };
-const viewModalStyle = { width: "100%", maxWidth: "600px", background: "#ffffff", borderRadius: "1rem", padding: "1.5rem" };
-const inputStyle = { width: "100%", padding: "0.5rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.9rem" };
-const cancelBtnStyle = { padding: "0.35rem 0.9rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" };
-const saveBtnStyle = { padding: "0.35rem 0.9rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "#fff", cursor: "pointer" };
+const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.9rem", cursor: "pointer" };
+const editBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
+const formModalStyle = { width: "95%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", background: "#ffffff", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" };
+const viewModalStyle = { width: "95%", maxWidth: "600px", background: "#ffffff", borderRadius: "12px", padding: "2rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" };
+const inputStyle = { width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
+const cancelBtnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight:"500" };
+const saveBtnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontWeight:"500" };
+const closeBtnStyle = { background:"none", border:"none", fontSize:"1.2rem", cursor:"pointer", color:"#666" };
