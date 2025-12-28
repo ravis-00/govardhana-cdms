@@ -47,14 +47,18 @@ export default function MilkYield() {
     try {
       const [y, m] = month.split('-');
       const fromDate = `${y}-${m}-01`;
-      const toDate = `${y}-${m}-31`; 
+      
+      const lastDay = new Date(y, m, 0).getDate();
+      const toDate = `${y}-${m}-${lastDay}`; 
 
       if (activeTab === "production") {
         const data = await getMilkProduction({ fromDate, toDate });
-        setProdRows(Array.isArray(data) ? data : []);
+        const sorted = (Array.isArray(data) ? data : []).sort((a,b) => new Date(b.date) - new Date(a.date));
+        setProdRows(sorted);
       } else {
         const data = await getMilkDistribution({ fromDate, toDate });
-        setDistRows(Array.isArray(data) ? data : []);
+        const sorted = (Array.isArray(data) ? data : []).sort((a,b) => new Date(b.date) - new Date(a.date));
+        setDistRows(sorted);
       }
     } catch (err) {
       console.error(err);
@@ -139,8 +143,8 @@ export default function MilkYield() {
         </div>
       </div>
 
-      {/* TABS */}
-      <div style={{ display: "flex", borderBottom: "2px solid #e5e7eb", marginBottom: "1rem" }}>
+      {/* TABS (Updated for Full Width) */}
+      <div style={{ display: "flex", width: "100%", borderBottom: "2px solid #e5e7eb", marginBottom: "1rem" }}>
         <TabButton label="🏭 Production (Shed-wise)" active={activeTab === "production"} onClick={() => setActiveTab("production")} />
         <TabButton label="🚚 Distribution (Usage)" active={activeTab === "distribution"} onClick={() => setActiveTab("distribution")} />
       </div>
@@ -175,7 +179,7 @@ export default function MilkYield() {
             </thead>
             <tbody>
               {(activeTab === "production" ? prodRows : distRows).length === 0 ? (
-                <tr><td colSpan="7" style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>No records found.</td></tr>
+                <tr><td colSpan="7" style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>No records found for {month}.</td></tr>
               ) : (
                 (activeTab === "production" ? prodRows : distRows).map((row, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -183,18 +187,18 @@ export default function MilkYield() {
                     
                     {activeTab === "production" ? (
                       <>
-                        <td style={tdStyle}>{row.shedId}</td>
-                        <td style={tdStyle}>{row.amGood}</td>
-                        <td style={tdStyle}>{row.amColostrum}</td>
-                        <td style={tdStyle}>{row.pmGood}</td>
-                        <td style={tdStyle}>{row.pmColostrum}</td>
+                        <td style={tdStyle}>{row.shedId || row.shed}</td>
+                        <td style={tdStyle}>{row.amGoodQty || row.amGood}</td>
+                        <td style={tdStyle}>{row.amColostrumQty || row.amColostrum}</td>
+                        <td style={tdStyle}>{row.pmGoodQty || row.pmGood}</td>
+                        <td style={tdStyle}>{row.pmColostrumQty || row.pmColostrum}</td>
                       </>
                     ) : (
                       <>
-                        <td style={tdStyle}>{row.amByProd}</td>
+                        <td style={tdStyle}>{row.amToByProducts || row.amByProd}</td>
                         <td style={tdStyle}>{row.amTemple}</td>
                         <td style={tdStyle}>{row.toWorkers}</td>
-                        <td style={tdStyle}>{row.outPassQty} (No: {row.outPassNum})</td>
+                        <td style={tdStyle}>{row.outPassQty} (No: {row.outPassNumber || row.outPassNum})</td>
                       </>
                     )}
                     
@@ -277,20 +281,20 @@ export default function MilkYield() {
                 <ViewItem label="Date" value={formatDate(viewData.date)} />
                 {activeTab === "production" ? (
                     <>
-                        <ViewItem label="Shed ID" value={viewData.shedId} />
-                        <ViewItem label="AM Good" value={viewData.amGood} />
-                        <ViewItem label="AM Colos." value={viewData.amColostrum} />
-                        <ViewItem label="PM Good" value={viewData.pmGood} />
-                        <ViewItem label="PM Colos." value={viewData.pmColostrum} />
+                        <ViewItem label="Shed ID" value={viewData.shedId || viewData.shed} />
+                        <ViewItem label="AM Good" value={viewData.amGood || viewData.amGoodQty} />
+                        <ViewItem label="AM Colos." value={viewData.amColostrum || viewData.amColostrumQty} />
+                        <ViewItem label="PM Good" value={viewData.pmGood || viewData.pmGoodQty} />
+                        <ViewItem label="PM Colos." value={viewData.pmColostrum || viewData.pmColostrumQty} />
                     </>
                 ) : (
                     <>
-                        <ViewItem label="AM ByProd" value={viewData.amByProd} />
+                        <ViewItem label="AM ByProd" value={viewData.amByProd || viewData.amToByProducts} />
                         <ViewItem label="Temple" value={viewData.amTemple} />
                         <ViewItem label="Workers" value={viewData.toWorkers} />
                         <ViewItem label="Canteen" value={viewData.toCanteen} />
                         <ViewItem label="OutPass Qty" value={viewData.outPassQty} />
-                        <ViewItem label="OutPass Num" value={viewData.outPassNum} />
+                        <ViewItem label="OutPass Num" value={viewData.outPassNum || viewData.outPassNumber} />
                     </>
                 )}
                 <ViewItem label="Remarks" value={viewData.remarks} />
@@ -306,9 +310,31 @@ export default function MilkYield() {
 }
 
 // --- STYLES & COMPONENTS ---
+
+// 🔥 UPDATED: Added flex:1 and textAlign:center
 function TabButton({ label, active, onClick }) {
-    return <button onClick={onClick} style={{ padding: "0.75rem 1.5rem", cursor: "pointer", border: "none", background: "none", borderBottom: active ? "3px solid #2563eb" : "3px solid transparent", color: active ? "#2563eb" : "#6b7280", fontWeight: active ? "600" : "500", fontSize: "1rem" }}>{label}</button>;
+    return (
+      <button 
+        onClick={onClick} 
+        style={{ 
+          flex: 1, 
+          textAlign: "center",
+          padding: "0.85rem 1rem", 
+          cursor: "pointer", 
+          border: "none", 
+          background: "none", 
+          borderBottom: active ? "3px solid #2563eb" : "3px solid transparent", 
+          color: active ? "#2563eb" : "#6b7280", 
+          fontWeight: active ? "600" : "500", 
+          fontSize: "1rem",
+          transition: "all 0.2s ease"
+        }}
+      >
+        {label}
+      </button>
+    );
 }
+
 function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem" }}>{label}</label>{children}</div>; }
 function ViewItem({ label, value }) { return <div><div style={{ fontSize:"0.75rem", color:"#6b7280" }}>{label}</div><div style={{ fontWeight:"500" }}>{value || "-"}</div></div>; }
 
