@@ -16,7 +16,7 @@ export default function Deregister() {
       const res = await fetchCattle();
       if (res && (Array.isArray(res) || Array.isArray(res.data))) {
         const allData = Array.isArray(res) ? res : res.data;
-        // Robust filter: Check status existence and value
+        // Filter: Status is Active (case insensitive)
         const activeOnly = allData.filter(c => c.status && String(c.status).toLowerCase() === 'active');
         setRows(activeOnly);
       } else {
@@ -33,7 +33,7 @@ export default function Deregister() {
     loadData();
   }, []);
 
-  // 🔥 FIXED FILTER LOGIC: Wrap everything in String() to prevent crashes
+  // Filter Logic
   const filteredRows = useMemo(() => {
     if (!searchText) return rows;
     const lower = searchText.toLowerCase();
@@ -54,7 +54,7 @@ export default function Deregister() {
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#b91c1c" }}>Herd Exit (Deregister)</h1>
           <p style={{ color: "#6b7280", fontSize: "0.9rem", marginTop: "4px" }}>
-              Mark cattle as Dead, Sold, or Donated. This removes them from the Active list.
+              Mark cattle as Dead, Sold, or Donated. This removes them from the Active list and logs the event.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -129,66 +129,81 @@ export default function Deregister() {
   );
 }
 
-/* ------------ MODAL COMPONENT (UNCHANGED LOGIC) ------------ */
+/* ------------ MODAL COMPONENT (UPDATED FOR EXIT LOG) ------------ */
 
 function DeregisterModal({ selected, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    typeOfDeAdmit: "Death", // Default
-    dateOfDeAdmit: new Date().toISOString().slice(0, 10),
+    type: "Death",
+    date: new Date().toISOString().slice(0, 10),
+    time: "",
     
     // Death Specific
-    causeCategory: "Old age",
-    causeDetails: "",
-    timeOfDeath: "",
-
+    category: "Old Age",
+    specificCause: "",
+    doctorName: "", 
+    
     // Sold Specific
+    buyerName: "",
+    buyerContact: "",
+    buyerAddress: "",
     salePrice: "",
-    soldToName: "",
-    soldToAddress: "",
-    soldToContact: "",
-    gatePassNo: "",
+    gatePass: "",
     paymentRef: "",
-
-    // Donated / Farmer Specific
+    
+    // Donated Specific
     receiverName: "",
-    receiverAddress: "",
     receiverContact: "",
-
+    receiverAddress: "",
+    
     remarks: ""
   });
   
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!window.confirm(`Are you sure you want to mark ${selected.tagNo} as ${formData.typeOfDeAdmit}? This cannot be undone.`)) return;
+    if (!formData.type || !formData.date) return alert("Please fill required fields (Type & Date)");
+    
+    if (!window.confirm(`Are you sure you want to mark ${selected.tagNo} as ${formData.type}? This cannot be undone.`)) return;
 
     setSubmitting(true);
     try {
-      // Construct a detailed remarks string based on the type
-      let detailedRemarks = `[${formData.typeOfDeAdmit}] on ${formData.dateOfDeAdmit}. `;
-      
-      if (formData.typeOfDeAdmit === "Death") {
-        detailedRemarks += `Cause: ${formData.causeCategory}. Details: ${formData.causeDetails}. Time: ${formData.timeOfDeath}. `;
-      } else if (formData.typeOfDeAdmit === "Sold") {
-        detailedRemarks += `Sold to: ${formData.soldToName} (${formData.soldToContact}). Price: ${formData.salePrice}. Gate Pass: ${formData.gatePassNo}. Ref: ${formData.paymentRef}. `;
-      } else if (["Donated", "Given to Farmer"].includes(formData.typeOfDeAdmit)) {
-        detailedRemarks += `Given to: ${formData.receiverName} (${formData.receiverContact}) at ${formData.receiverAddress}. `;
-      }
-      
-      detailedRemarks += `Notes: ${formData.remarks}`;
-
+      // 1. Prepare Base Payload for 'deregisterCattle' action
       const payload = {
-        id: selected.internalId, 
-        status: formData.typeOfDeAdmit === "Sold" ? "Sold" : "Dead", 
-        remarks: detailedRemarks,
-        dateOfDeAdmit: formData.dateOfDeAdmit,
-        typeOfDeAdmit: formData.typeOfDeAdmit
+        action: "deregisterCattle", // 🔥 IMPORTANT: Triggers the new backend logic
+        id: selected.internalId,    // This ID maps to 'cattle_internal_id' in log
+        tagNumber: selected.tagNo,
+        
+        // Common Fields
+        exitType: formData.type,
+        exitDate: formData.date,
+        exitTime: formData.time,
+        remarks: formData.remarks,
+        
+        // 2. Map Specific Fields to Generic Backend Columns
+        // category & specificCause -> Used for Death
+        category: formData.type === "Death" ? formData.category : "",
+        specificCause: formData.type === "Death" ? formData.specificCause : "",
+        
+        // partyName -> Maps to Doctor (Death), Buyer (Sold), or Receiver (Donated)
+        partyName: formData.type === "Death" ? formData.doctorName : (formData.type === "Sold" ? formData.buyerName : formData.receiverName),
+        
+        // partyContact -> Buyer/Receiver Contact
+        partyContact: formData.type === "Sold" ? formData.buyerContact : formData.receiverContact,
+        
+        // partyAddress -> Buyer/Receiver Address
+        partyAddress: formData.type === "Sold" ? formData.buyerAddress : formData.receiverAddress,
+        
+        // amount -> Sale Price
+        amount: formData.type === "Sold" ? formData.salePrice : "",
+        
+        // referenceNumber -> Gate Pass + Payment Ref
+        referenceNumber: formData.type === "Sold" ? `GP:${formData.gatePass} | Ref:${formData.paymentRef}` : ""
       };
 
       const res = await updateCattle(payload); 
       
       if (res && res.success) {
-        alert("Cattle Deregistered Successfully");
+        alert("Cattle Deregistered & Logged Successfully");
         onSuccess();
       } else {
         alert("Failed: " + (res.error || "Unknown Error"));
@@ -231,27 +246,28 @@ function DeregisterModal({ selected, onClose, onSuccess }) {
            {/* Row 1: Reason & Date */}
            <div style={{ gridColumn: "span 1" }}>
              <label style={labelStyle}>Reason / Type *</label>
-             <select name="typeOfDeAdmit" style={inputStyle} value={formData.typeOfDeAdmit} onChange={handleChange}>
+             <select name="type" style={inputStyle} value={formData.type} onChange={handleChange}>
                <option value="Death">Death</option>
                <option value="Sold">Sold</option>
                <option value="Donated">Donated / Gifted</option>
-               <option value="Given to Farmer">Given to Farmer</option>
                <option value="Lost">Lost / Stolen</option>
              </select>
            </div>
 
            <div style={{ gridColumn: "span 1" }}>
-             <label style={labelStyle}>Date *</label>
-             <input type="date" name="dateOfDeAdmit" style={inputStyle} value={formData.dateOfDeAdmit} onChange={handleChange} />
+             <label style={labelStyle}>Exit Date *</label>
+             <input type="date" name="date" style={inputStyle} value={formData.date} onChange={handleChange} />
            </div>
 
            {/* --- SCENARIO 1: DEATH --- */}
-           {formData.typeOfDeAdmit === "Death" && (
-             <>
+           {formData.type === "Death" && (
+             <div style={{ gridColumn: "span 2", background: "#fef2f2", padding: "10px", borderRadius: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", border: "1px solid #fee2e2" }}>
+               <div style={{ gridColumn: "span 2", fontSize: "0.8rem", fontWeight: "bold", color: "#991b1b" }}>DEATH DETAILS</div>
+               
                <div style={{ gridColumn: "span 1" }}>
                  <label style={labelStyle}>Cause Category *</label>
-                 <select name="causeCategory" style={inputStyle} value={formData.causeCategory} onChange={handleChange}>
-                   <option value="Old age">Old age</option>
+                 <select name="category" style={inputStyle} value={formData.category} onChange={handleChange}>
+                   <option value="Old Age">Old Age</option>
                    <option value="Disease">Disease / Illness</option>
                    <option value="Accident">Accident</option>
                    <option value="Natural Calamity">Natural Calamity</option>
@@ -259,48 +275,56 @@ function DeregisterModal({ selected, onClose, onSuccess }) {
                </div>
                <div style={{ gridColumn: "span 1" }}>
                  <label style={labelStyle}>Time (Optional)</label>
-                 <input type="time" name="timeOfDeath" style={inputStyle} value={formData.timeOfDeath} onChange={handleChange} />
+                 <input type="time" name="time" style={inputStyle} value={formData.time} onChange={handleChange} />
                </div>
-               <div style={{ gridColumn: "span 2" }}>
-                 <label style={labelStyle}>Specific Cause / Details</label>
-                 <input type="text" name="causeDetails" placeholder="e.g. Heart failure, fracture..." style={inputStyle} value={formData.causeDetails} onChange={handleChange} />
+               <div style={{ gridColumn: "span 1" }}>
+                 <label style={labelStyle}>Certified By (Doctor)</label>
+                 <input type="text" name="doctorName" placeholder="Dr. Name" style={inputStyle} value={formData.doctorName} onChange={handleChange} />
                </div>
-             </>
+               <div style={{ gridColumn: "span 1" }}>
+                 <label style={labelStyle}>Specific Cause</label>
+                 <input type="text" name="specificCause" placeholder="e.g. Heart Failure" style={inputStyle} value={formData.specificCause} onChange={handleChange} />
+               </div>
+             </div>
            )}
 
            {/* --- SCENARIO 2: SOLD --- */}
-           {formData.typeOfDeAdmit === "Sold" && (
-             <>
+           {formData.type === "Sold" && (
+             <div style={{ gridColumn: "span 2", background: "#f0fdf4", padding: "10px", borderRadius: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", border: "1px solid #dcfce7" }}>
+                <div style={{ gridColumn: "span 2", fontSize: "0.8rem", fontWeight: "bold", color: "#166534" }}>SALE DETAILS</div>
+                
                 <div style={{ gridColumn: "span 1" }}>
                     <label style={labelStyle}>Sale Price (₹)</label>
                     <input type="number" name="salePrice" style={inputStyle} value={formData.salePrice} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 1" }}>
                     <label style={labelStyle}>Gate Pass Number</label>
-                    <input type="text" name="gatePassNo" style={inputStyle} value={formData.gatePassNo} onChange={handleChange} />
+                    <input type="text" name="gatePass" style={inputStyle} value={formData.gatePass} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 1" }}>
                     <label style={labelStyle}>Buyer Name</label>
-                    <input type="text" name="soldToName" style={inputStyle} value={formData.soldToName} onChange={handleChange} />
+                    <input type="text" name="buyerName" style={inputStyle} value={formData.buyerName} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 1" }}>
                     <label style={labelStyle}>Buyer Contact</label>
-                    <input type="text" name="soldToContact" style={inputStyle} value={formData.soldToContact} onChange={handleChange} />
+                    <input type="text" name="buyerContact" style={inputStyle} value={formData.buyerContact} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 2" }}>
                     <label style={labelStyle}>Buyer Address</label>
-                    <input type="text" name="soldToAddress" style={inputStyle} value={formData.soldToAddress} onChange={handleChange} />
+                    <input type="text" name="buyerAddress" style={inputStyle} value={formData.buyerAddress} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 2" }}>
-                    <label style={labelStyle}>Payment Reference (Txn ID/Cheque)</label>
+                    <label style={labelStyle}>Payment Ref (Txn ID/Cheque)</label>
                     <input type="text" name="paymentRef" style={inputStyle} value={formData.paymentRef} onChange={handleChange} />
                 </div>
-             </>
+             </div>
            )}
 
-           {/* --- SCENARIO 3 & 5: DONATED OR GIVEN TO FARMER --- */}
-           {(formData.typeOfDeAdmit === "Donated" || formData.typeOfDeAdmit === "Given to Farmer") && (
-             <>
+           {/* --- SCENARIO 3: DONATED --- */}
+           {formData.type === "Donated" && (
+             <div style={{ gridColumn: "span 2", background: "#eff6ff", padding: "10px", borderRadius: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", border: "1px solid #dbeafe" }}>
+                <div style={{ gridColumn: "span 2", fontSize: "0.8rem", fontWeight: "bold", color: "#1e40af" }}>RECEIVER DETAILS</div>
+                
                 <div style={{ gridColumn: "span 1" }}>
                     <label style={labelStyle}>Receiver Name</label>
                     <input type="text" name="receiverName" style={inputStyle} value={formData.receiverName} onChange={handleChange} />
@@ -310,20 +334,20 @@ function DeregisterModal({ selected, onClose, onSuccess }) {
                     <input type="text" name="receiverContact" style={inputStyle} value={formData.receiverContact} onChange={handleChange} />
                 </div>
                 <div style={{ gridColumn: "span 2" }}>
-                    <label style={labelStyle}>Receiver Address / Village</label>
+                    <label style={labelStyle}>Address / Village</label>
                     <input type="text" name="receiverAddress" style={inputStyle} value={formData.receiverAddress} onChange={handleChange} />
                 </div>
-             </>
+             </div>
            )}
 
-           {/* --- ALL SCENARIOS: REMARKS --- */}
+           {/* --- REMARKS --- */}
            <div style={{ gridColumn: "span 2" }}>
-             <label style={labelStyle}>Remarks / Additional Notes</label>
+             <label style={labelStyle}>Remarks / Notes {formData.type === "Lost" && "*"}</label>
              <textarea 
                name="remarks"
                rows="2"
                style={inputStyle}
-               placeholder="Any additional notes..."
+               placeholder={formData.type === "Lost" ? "Please provide details of incident..." : "Any additional notes..."}
                value={formData.remarks}
                onChange={handleChange}
              />

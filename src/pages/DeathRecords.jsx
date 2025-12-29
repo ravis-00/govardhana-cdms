@@ -1,6 +1,5 @@
 // src/pages/DeathRecords.jsx
 import React, { useEffect, useMemo, useState } from "react";
-// 🔥 UPDATE: Imported generateDeathCert
 import { getDeathRecords, generateDeathCert } from "../api/masterApi.js";
 
 function isoDateOnly(value) {
@@ -30,33 +29,6 @@ function defaultFromDate() {
   return `${y}-${m}-${day}`;
 }
 
-function normalizeRecord(r) {
-  const dateIso =
-    isoDateOnly(r.dateOfDeAdmit || r.dateOfDeAdmission || r.dateOfDeath || "");
-
-  return {
-    id: r.id, // Ensure your backend sends a unique ID for the death record
-    cattleId: r.cattleId || r.tagNo || r.tagNumber || "",
-    govId: r.govtId ?? r.govId ?? "",
-    name: r.name || "",
-    breed: r.breed || "",
-    gender: r.gender || "",
-    cattleType: r.cattleType || "",
-    colour: r.colour || "",
-    ageYears: r.ageYears ?? "",
-    shed: r.locationShed || r.shed || "",
-    location: r.location || "",
-    typeOfDeAdmission: r.typeOfDeAdmit || r.typeOfDeAdmission || "",
-    dateOfDeAdmission: dateIso,
-    causeOfDeath: r.deathCause || r.deathCauseCat || r.causeOfDeath || "",
-    permanentDisabilityAtBirth:
-      r.disabilityFlag ?? r.permanentDisabilityAtBirth ?? "",
-    adoptionStatus: r.adoptionStatus || "",
-    remarks: r.remarks || "",
-    pictureUrl: r.pictureUrl || "",
-  };
-}
-
 export default function DeathRecords() {
   const [fromDate, setFromDate] = useState(defaultFromDate());
   const [toDate, setToDate] = useState(""); 
@@ -66,7 +38,6 @@ export default function DeathRecords() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   
-  // 🔥 NEW: State for certificate generation
   const [generatingId, setGeneratingId] = useState(null);
 
   // Fetch from backend
@@ -78,9 +49,14 @@ export default function DeathRecords() {
       setError("");
       try {
         const data = await getDeathRecords(fromDate || "2024-01-01");
-
+        
+        // Backend now returns sanitized data, so we can use it directly
+        // But let's ensure dates are formatted correctly just in case
         const normalized = Array.isArray(data)
-          ? data.map(normalizeRecord)
+          ? data.map(r => ({
+              ...r,
+              dateOfDeAdmission: isoDateOnly(r.dateOfDeAdmission)
+            }))
           : [];
 
         if (alive) setRows(normalized);
@@ -97,17 +73,16 @@ export default function DeathRecords() {
     };
   }, [fromDate]);
 
-  // Filter: Death only + date range
+  // Filter Logic (Frontend Date Filter)
   const filteredRows = useMemo(() => {
     const from = toDateObj(fromDate);
     const to = toDateObj(toDate);
 
     return rows
       .filter((r) => {
-        const type = String(r.typeOfDeAdmission || "").toLowerCase().trim();
-        const isDeath = type === "death";
-        if (!isDeath) return false;
-
+        // Backend already filters for "Death", but double check if needed
+        // r.typeOfDeAdmission is usually "Death"
+        
         const d = toDateObj(r.dateOfDeAdmission);
         if (!d) return true; 
 
@@ -133,17 +108,16 @@ export default function DeathRecords() {
     setSelected(null);
   }
 
-  // --- 🔥 NEW: GENERATE CERTIFICATE HANDLER ---
+  // --- GENERATE CERTIFICATE HANDLER ---
   async function handleGenerateCert(row) {
-    if (!confirm(`Generate Death Certificate for ${row.cattleId}?`)) return;
+    if (!window.confirm(`Generate Death Certificate for ${row.cattleId}?`)) return;
     
-    setGeneratingId(row.id); // Show loading state for this specific row
+    setGeneratingId(row.id); // row.id is the Exit Log ID (e.g. EXIT2025...)
     try {
-      // Call API
       const response = await generateDeathCert(row.id);
       
       if (response && response.url) {
-        window.open(response.url, "_blank"); // Open PDF
+        window.open(response.url, "_blank"); 
       } else {
         alert("Certificate generated, but no URL returned.");
       }
@@ -155,32 +129,22 @@ export default function DeathRecords() {
     }
   }
 
-  // Legacy Print Handler (keeping as backup)
-  function handlePrint(record) {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    // ... (Your existing HTML print logic is preserved below if needed, omitted for brevity) ...
-    win.document.write(`<html><body><h1>Printing...</h1></body></html>`);
-    win.document.close();
-    win.print();
-  }
-
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
+    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
       <header
         style={{
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "space-between",
-          marginBottom: "1rem",
+          marginBottom: "1.5rem",
           gap: "1rem",
         }}
       >
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0 }}>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>
             Cattle Death Records
           </h1>
-          <div style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: "0.25rem" }}>
+          <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "0.25rem" }}>
             Showing: {filteredRows.length} record(s)
           </div>
         </div>
@@ -208,14 +172,14 @@ export default function DeathRecords() {
       </header>
 
       {error && (
-        <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.75rem", marginBottom: "1rem" }}>
+        <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>
           {error}
         </div>
       )}
 
-      <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 10px 25px rgba(15,23,42,0.05)", overflow: "hidden" }}>
+      <div style={{ background: "#ffffff", borderRadius: "0.5rem", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", overflow: "hidden", border: "1px solid #e5e7eb" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead style={{ background: "#f1f5f9", textAlign: "left" }}>
+          <thead style={{ background: "#f9fafb", textAlign: "left" }}>
             <tr>
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Tag No</th>
@@ -223,48 +187,49 @@ export default function DeathRecords() {
               <th style={thStyle}>Breed</th>
               <th style={thStyle}>Gender</th>
               <th style={thStyle}>Cause</th>
-              <th style={thStyle}>Shed</th>
+              <th style={thStyle}>Doctor / Party</th> {/* Added Column */}
               <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>Loading...</td></tr>
+              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>Loading records...</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>No death records found.</td></tr>
+              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>No death records found for the selected range.</td></tr>
             ) : (
               filteredRows.map((row, idx) => (
-                <tr key={`${row.id}-${idx}`} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
+                <tr key={`${row.id}-${idx}`} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
                   <td style={tdStyle}>{row.dateOfDeAdmission || "-"}</td>
-                  <td style={tdStyle}><strong>{row.cattleId}</strong></td>
+                  <td style={tdStyle}>
+                    <div style={{fontWeight:"600", color:"#111827"}}>{row.cattleId}</div>
+                    <div style={{fontSize:"0.75rem", color:"#9ca3af"}}>{row.id}</div>
+                  </td>
                   <td style={tdStyle}>{row.name || "-"}</td>
                   <td style={tdStyle}>{row.breed || "-"}</td>
                   <td style={tdStyle}>{row.gender || "-"}</td>
                   <td style={tdStyle}>{row.causeOfDeath || "-"}</td>
-                  <td style={tdStyle}>{row.shed || "-"}</td>
+                  <td style={tdStyle}>{row.doctor || "-"}</td> {/* Display Doctor Name */}
+                  
                   <td style={{ ...tdStyle, textAlign: "center", whiteSpace: "nowrap" }}>
-                    
-                    {/* View Button */}
-                    <button onClick={() => openView(row)} style={viewBtnStyle} title="View details">
-                      👁️
-                    </button>
-                    
-                    {/* 🔥 NEW: Generate Certificate Button */}
-                    <button
-                      onClick={() => handleGenerateCert(row)}
-                      disabled={generatingId === row.id}
-                      style={{ 
-                        ...certBtnStyle, 
-                        marginLeft: "0.5rem",
-                        opacity: generatingId === row.id ? 0.7 : 1,
-                        cursor: generatingId === row.id ? "wait" : "pointer"
-                      }}
-                      title="Generate Death Certificate"
-                    >
-                      {generatingId === row.id ? "⏳ Gen..." : "💀 Cert"}
-                    </button>
-
+                    <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+                        <button onClick={() => openView(row)} style={viewBtnStyle} title="View details">
+                        👁 View
+                        </button>
+                        
+                        <button
+                        onClick={() => handleGenerateCert(row)}
+                        disabled={generatingId === row.id}
+                        style={{ 
+                            ...certBtnStyle, 
+                            opacity: generatingId === row.id ? 0.7 : 1,
+                            cursor: generatingId === row.id ? "wait" : "pointer"
+                        }}
+                        title="Generate Death Certificate"
+                        >
+                        {generatingId === row.id ? "⏳ Gen..." : "📜 Cert"}
+                        </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -273,24 +238,33 @@ export default function DeathRecords() {
         </table>
       </div>
 
-      {/* Modal Logic (Unchanged) */}
+      {/* Modal Logic */}
       {selected && (
         <div style={overlayStyle} onClick={closeView}>
           <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid #e5e7eb", paddingBottom: "0.75rem" }}>
               <div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{selected.cattleId} – {selected.name}</div>
+                <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", fontWeight: "bold" }}>Death Record Detail</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "#1f2937" }}>{selected.cattleId} – {selected.name}</div>
               </div>
               <button type="button" onClick={closeView} style={closeBtnStyle}>✕</button>
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-               <DetailItem label="Cause of Death" value={selected.causeOfDeath} />
-               <DetailItem label="Date" value={selected.dateOfDeAdmission} />
-               <DetailItem label="Doctor" value="Dr. Veterinarian" /> {/* Placeholder if not in data */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", fontSize: "0.9rem" }}>
+               <DetailItem label="Date of Death" value={selected.dateOfDeAdmission} />
+               <DetailItem label="Cause" value={selected.causeOfDeath} />
+               <DetailItem label="Doctor / Certified By" value={selected.doctor} />
+               <DetailItem label="Shed / Location" value={selected.shed} />
+               <DetailItem label="Breed" value={selected.breed} />
+               <DetailItem label="Gender" value={selected.gender} />
             </div>
             
-            {selected.remarks && <div style={{marginTop: "1rem", background: "#f9fafb", padding: "10px"}}>{selected.remarks}</div>}
+            {selected.remarks && (
+                <div style={{marginTop: "1.5rem", background: "#f9fafb", padding: "12px", borderRadius: "6px", border: "1px solid #e5e7eb"}}>
+                    <div style={{fontSize: "0.75rem", color: "#6b7280", fontWeight: "bold", marginBottom: "4px"}}>REMARKS</div>
+                    <div style={{color: "#374151"}}>{selected.remarks}</div>
+                </div>
+            )}
           </div>
         </div>
       )}
@@ -299,17 +273,22 @@ export default function DeathRecords() {
 }
 
 // --- STYLES ---
-const labelStyle = { display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" };
-const inputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
-const thStyle = { padding: "0.6rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.03em", color: "#475569" };
-const tdStyle = { padding: "0.55rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
-const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.25rem 0.6rem", background: "#e0e7ff", color: "#1d4ed8", fontSize: "0.8rem", cursor: "pointer" };
-const certBtnStyle = { border: "none", borderRadius: "6px", padding: "0.25rem 0.6rem", background: "#fee2e2", color: "#991b1b", fontSize: "0.8rem", fontWeight: "600" };
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const viewModalStyle = { width: "500px", background: "white", borderRadius: "8px", padding: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
-const closeBtnStyle = { border: "none", background: "#e5e7eb", borderRadius: "50%", width: "24px", height: "24px", cursor: "pointer" };
+const labelStyle = { display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "#4b5563", fontWeight: "500" };
+const inputStyle = { padding: "0.4rem 0.6rem", borderRadius: "0.375rem", border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#1f2937" };
+const thStyle = { padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280" };
+const tdStyle = { padding: "0.75rem 1rem", color: "#1f2937", verticalAlign: "middle" };
+const viewBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#ffffff", color: "#374151", fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
+const certBtnStyle = { border: "1px solid #fecaca", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fef2f2", color: "#991b1b", fontSize: "0.8rem", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
+const viewModalStyle = { width: "100%", maxWidth: "550px", background: "white", borderRadius: "0.75rem", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" };
+const closeBtnStyle = { border: "none", background: "#f3f4f6", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", color: "#6b7280" };
 
 function DetailItem({ label, value }) {
   if (!value) return null;
-  return <div><small style={{color:"#888"}}>{label}</small><div>{value}</div></div>;
+  return (
+    <div>
+      <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.025em", color: "#9ca3af", marginBottom: "0.15rem" }}>{label}</div>
+      <div style={{ color: "#111827", fontWeight: "500" }}>{value}</div>
+    </div>
+  );
 }
