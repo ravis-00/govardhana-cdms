@@ -12,9 +12,11 @@ export default function MainLayout() {
     navigate("/");
   };
 
-  // 🔥 LOGIC FIX: "Super Admin" is just a name, the Role is "Admin".
-  // So we check if the role is Admin.
+  // --- ROLE CHECKS ---
   const isAdmin = user?.role === "Admin"; 
+  
+  // 🔥 NEW: Define Viewer check
+  const isViewer = user?.role === "Viewer";
 
   // --- MENU CONFIGURATION ---
   const menuGroups = [
@@ -53,9 +55,12 @@ export default function MainLayout() {
     {
       title: "FINANCE & ADMIN",
       items: [
-        { name: "Sponsorships", path: "/dattu-yojana", icon: "🤝", restricted: !isAdmin },
+        // 🔥 UPDATE: Restricted ONLY if Viewer. (So Admin & User CAN see it)
+        { name: "Sponsorships", path: "/dattu-yojana", icon: "🤝", restricted: isViewer },
+        
         { name: "Reports & Docs", path: "/certificates-reports", icon: "📄" },
-        // 🔥 FIXED: Changed restricted: !isSuperAdmin -> !isAdmin
+        
+        // User Management: Admin Only
         { name: "User Management", path: "/users", icon: "👥", restricted: !isAdmin },
       ]
     }

@@ -42,7 +42,7 @@ async function handleResponse(res) {
   if (json && json.success === false) {
     throw new Error(json.error || "Unknown API error");
   }
-  return json.data ?? json;
+  return json.data !== undefined ? json.data : (json.user ? json : json); 
 }
 
 async function getRequest(action, params) {
@@ -53,15 +53,19 @@ async function getRequest(action, params) {
 
 async function postRequest(action, body) {
   const url = buildUrl(action);
+  const payload = { action, ...body };
+  
   const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(body ?? {}),
+    body: JSON.stringify(payload ?? {}),
   }, 30000);
   return handleResponse(res);
 }
 
 // --- API FUNCTIONS ---
+
+// 1. CATTLE
 export async function getCattle() { return getRequest("getCattle"); }
 export async function getActiveCattle() { return getRequest("getActiveCattle"); }
 export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
@@ -70,11 +74,13 @@ export async function updateCattle(payload) { return postRequest("updateCattle",
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
+// 2. NEW BORN
 export async function getNewBorn() { return getRequest("getNewBorn"); }
 export async function addNewBorn(payload) { return postRequest("addNewBorn", payload); }
 export async function updateNewBorn(payload) { return postRequest("updateNewBorn", payload); }
 export async function getUnregisteredBirths() { return getRequest("getUnregisteredBirths"); }
 
+// 3. MILK
 export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
 export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }
 export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); }
@@ -83,38 +89,55 @@ export async function getMilkDistribution(params = {}) { return getRequest("getM
 export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
 export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
 
+// 4. BIO WASTE
 export async function getBioWaste(params = {}) { return getRequest("getBioWaste", params); }
 export async function addBioWaste(payload) { return postRequest("addBioWaste", payload); }
 export async function updateBioWaste(payload) { return postRequest("updateBioWaste", payload); }
 
+// 5. FEEDING
 export async function getFeeding() { return getRequest("getFeeding"); }
 export async function addFeeding(payload) { return postRequest("addFeeding", payload); }
 export async function updateFeeding(payload) { return postRequest("updateFeeding", payload); }
 
+// 6. MEDICAL & VET
 export async function getVaccine() { return getRequest("getVaccine"); }
+export async function addVaccine(payload) { return postRequest("addVaccine", payload); }
+export async function updateVaccine(payload) { return postRequest("updateVaccine", payload); }
+
 export async function getTreatments() { return getRequest("getTreatments"); }
 export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
 export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
+
+// 🔥 UPDATED: Use the corrected function name for fetching records
 export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
 export async function getMedicines() { return getRequest("getMedicines"); }
 
+// 7. FINANCE (DATTU)
 export async function getDattuYojana() { return getRequest("getDattuYojana"); }
 export async function addDattuYojana(payload) { return postRequest("addDattuYojana", payload); }
 export async function updateDattuYojana(payload) { return postRequest("updateDattuYojana", payload); }
 
-export async function loginUser(email, password) { return getRequest("login", { email, password }); }
+// 8. AUTH & USERS
+export async function loginUser(email, password) { return postRequest("login", { email, password }); }
+export const login = loginUser; 
 export async function fetchUsers() { return getRequest("getUsers"); }
+export const getUsers = fetchUsers;
 export async function addUser(userData) { return postRequest("addUser", userData); }
 export async function updateUser(userData) { return postRequest("updateUser", userData); }
 
+// 9. REPORTS
 export async function getBirthReport(params = {}) { return getRequest("getBirthReport", params); }
 export async function getSalesReport(params = {}) { return getRequest("getSalesReport", params); }
 export async function getDattuReport(fromDate, toDate) { return getRequest("getDattuReport", { fromDate, toDate }); }
 export async function getMilkReport(fromDate, toDate) { return getRequest("getMilkReport", { fromDate, toDate }); }
 export async function getBioReport(fromDate, toDate) { return getRequest("getBioReport", { fromDate, toDate }); }
 
-export async function addVaccine(payload) { return postRequest("addVaccine", payload); }
-export async function updateVaccine(payload) { return postRequest("updateVaccine", payload); }
+// 🔥 NEW CERTIFICATES (This fixes your error)
+export async function generateDeathCert(id) { return postRequest("generateDeathCert", { id }); }
+export async function generateDattuCert(id) { return postRequest("generateDattuCert", { id }); }
+export async function generateBirthCert(id) { return postRequest("generateBirthCert", { id }); }
+export async function generateIncomingCert(id) { return postRequest("generateIncomingCert", { id }); }
+
 // --- ALIASES ---
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;

@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 export default function UserManagement() {
   const { user } = useAuth();
   
+  // --- STATE ---
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -16,23 +17,25 @@ export default function UserManagement() {
     mobile: "", role: "User", status: "Active", remarks: ""
   });
 
-  // 🔥 ROBUST PERMISSION CHECK
-  // We trim() the role to remove accidental spaces from Google Sheet (e.g., "Admin ")
-  const userRole = user?.role ? String(user.role).trim() : "";
-  const canAccess = userRole === "Admin" || userRole === "Super Admin";
+  // --- PERMISSION CHECK ---
+  // Normalize role to lowercase to ensure "Admin" == "admin"
+  const role = user?.role ? String(user.role).trim().toLowerCase() : "";
+  const canAccess = role.includes("admin"); // Checks for 'admin' or 'super admin'
 
+  // 🔥 DEBUG SCREEN (BLUE)
   if (!canAccess) {
     return (
-      <div style={{ padding: "3rem", textAlign: "center", color: "#b91c1c" }}>
-        <h2>Access Denied</h2>
-        <p>You do not have permission to view this page.</p>
-        <p>Your Role: <strong>"{userRole}"</strong></p> 
-        <p style={{fontSize:"0.8rem", color:"#666"}}>(Check Google Sheet for trailing spaces in 'role' column)</p>
+      <div style={{ padding: "4rem", textAlign: "center", color: "#1e40af", background: "#eff6ff", height: "100vh" }}> 
+        <h1 style={{fontSize: "2rem", marginBottom: "1rem"}}>🚫 Access Logic Debugger</h1>
+        <div style={{background: "white", padding: "20px", borderRadius: "8px", display: "inline-block", boxShadow: "0 4px 6px rgba(0,0,0,0.1)"}}>
+           <p style={{fontSize: "1.2rem", color: "#333"}}>Current Role: <strong>"{user?.role}"</strong></p>
+           <p style={{color: "#666"}}>Normalized: <strong>"{role}"</strong></p>
+           <hr style={{margin: "15px 0", borderTop: "1px solid #eee"}}/>
+           <p style={{fontWeight:"bold", color: "green"}}>Required: Role must contain "admin"</p>
+        </div>
       </div>
     );
   }
-
-  // ... (Rest of the component remains the same) ...
 
   // --- LOAD DATA ---
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function UserManagement() {
   async function loadUsers() {
     setLoading(true);
     try {
-      const data = await fetchUsers(); // Plural
+      const data = await fetchUsers();
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -85,10 +88,10 @@ export default function UserManagement() {
     setLoading(true);
     try {
       if (editingUser) {
-        await updateUser(form); // Singular
+        await updateUser(form);
         alert("User updated successfully!");
       } else {
-        await addUser(form); // Singular
+        await addUser(form);
         alert("User added successfully!");
       }
       setShowForm(false);
@@ -100,7 +103,7 @@ export default function UserManagement() {
     }
   }
 
-  // ... (Render and Styles remain the same) ...
+  // --- RENDER ---
   return (
     <div style={{ padding: "1.5rem 2rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
@@ -132,7 +135,11 @@ export default function UserManagement() {
                   <td style={tdStyle}>{u.role}</td>
                   <td style={tdStyle}>{u.email}</td>
                   <td style={tdStyle}>{u.mobile}</td>
-                  <td style={tdStyle}>{u.status}</td>
+                  <td style={tdStyle}>
+                     <span style={{ color: u.status === "Active" ? "green" : "red", fontWeight: "bold" }}>
+                        {u.status}
+                     </span>
+                  </td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <button onClick={() => openEditForm(u)} style={editBtnStyle}>✏️ Edit</button>
                   </td>

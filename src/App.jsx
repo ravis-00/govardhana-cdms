@@ -9,19 +9,19 @@ import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import UserManagement from "./pages/UserManagement.jsx";
 // ActiveCattle deleted
-import MasterCattle from "./pages/MasterCattle.jsx"; // Now "Herd Registry"
-import CattleRegistration from "./pages/CattleRegistration.jsx"; // Now "Cattle Induction"
-import NewTag from "./pages/NewTag.jsx"; // Now "Tag Management"
-import MilkYield from "./pages/MilkYield.jsx"; // Now "Milk Production"
-import BioWaste from "./pages/BioWaste.jsx"; // Now "Waste Mgmt"
-import Vaccine from "./pages/Vaccine.jsx"; // Now "Preventive Care"
-import Treatment from "./pages/Treatment.jsx"; // Now "Clinical Records"
-import NewBorn from "./pages/NewBorn.jsx"; // Now "Calving Log"
-import Feeding from "./pages/Feeding.jsx"; // Now "Nutrition"
-import DattuYojana from "./pages/DattuYojana.jsx"; // Now "Sponsorships"
-import Deregister from "./pages/Deregister.jsx"; // Now "Herd Exit"
-import DeathRecords from "./pages/DeathRecords.jsx"; // Now "Mortality Register"
-import CertificatesReports from "./pages/CertificatesReports.jsx"; // Now "Reports & Docs"
+import MasterCattle from "./pages/MasterCattle.jsx"; 
+import CattleRegistration from "./pages/CattleRegistration.jsx"; 
+import NewTag from "./pages/NewTag.jsx"; 
+import MilkYield from "./pages/MilkYield.jsx"; 
+import BioWaste from "./pages/BioWaste.jsx"; 
+import Vaccine from "./pages/Vaccine.jsx"; 
+import Treatment from "./pages/Treatment.jsx"; 
+import NewBorn from "./pages/NewBorn.jsx"; 
+import Feeding from "./pages/Feeding.jsx"; 
+import DattuYojana from "./pages/DattuYojana.jsx"; 
+import Deregister from "./pages/Deregister.jsx"; 
+import DeathRecords from "./pages/DeathRecords.jsx"; 
+import CertificatesReports from "./pages/CertificatesReports.jsx"; 
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
@@ -36,12 +36,22 @@ function ProtectedRoute({ children, allowedRoles }) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  // 🔥 LOGIC FIX: Normalize role (trim spaces) to ensure matching works
+  const userRole = user.role ? String(user.role).trim() : "";
+
+  // Check permissions (Admin matches "Admin", "Super Admin" matches "Super Admin")
+  // We check if the allowedRoles array includes the user's role
+  const hasPermission = allowedRoles 
+    ? allowedRoles.some(r => r === userRole || r === user.role) 
+    : true;
+
+  if (allowedRoles && !hasPermission) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "#b91c1c" }}>
         <h2>Access Denied</h2>
         <p>You do not have permission to view this page.</p>
-        <p>Your Role: <strong>{user.role}</strong></p>
+        <p>Your Role: <strong>{userRole}</strong></p>
+        <p style={{fontSize: "0.8rem", color: "#666"}}>Required: {allowedRoles.join(", ")}</p>
       </div>
     );
   }
@@ -56,6 +66,7 @@ export default function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
+        {/* MAIN LAYOUT WRAPPER */}
         <Route element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
           
           {/* --- DASHBOARD --- */}
@@ -79,11 +90,12 @@ export default function App() {
           <Route path="/death-records" element={<DeathRecords />} />
 
           {/* --- FINANCE & ADMIN --- */}
-          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><DattuYojana /></ProtectedRoute>} />
+          {/* 🔥 UPDATE: Added "User" so they can access Dattu Yojana */}
+          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User"]}><DattuYojana /></ProtectedRoute>} />
           <Route path="/certificates-reports" element={<CertificatesReports />} />
           
-          {/* USER MGMT - LOCKED for non-Super Admins */}
-          <Route path="/users" element={<ProtectedRoute allowedRoles={["Super Admin"]}><UserManagement /></ProtectedRoute>} />
+          {/* 🔥 SECURITY FIX: Removed "User" from here. User Management is Admin ONLY. */}
+          <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><UserManagement /></ProtectedRoute>} />
 
         </Route>
 
