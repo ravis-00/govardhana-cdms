@@ -3,12 +3,15 @@ import React, { useEffect, useState } from "react";
 import {
   getCattle,
   getMilkYield,
+  getMilkDistribution,
   getNewBorn,
   getDattuYojana,
   getFeeding,
+  getCattleExitLog,
 } from "../api/masterApi";
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList,
+  PieChart, Pie, Legend 
 } from "recharts";
 
 // --- 1. HELPERS ---
@@ -24,7 +27,7 @@ function toArray(result) {
   return [];
 }
 
-// Normalize Breeds (Fix spelling variations)
+// Normalize Breeds
 function normalizeBreed(rawName) {
   if (!rawName) return "Unknown";
   const lower = String(rawName).toLowerCase().trim();
@@ -46,9 +49,11 @@ export default function Dashboard() {
     maleCattle: 0,
     avgMilkYieldPerDay: 0,
     avgMilkSoldPerDay: 0,
-    newBornCurrentYear: 0,
+    newBorn12M: 0,
     activeDattuYojana: 0,
     avgFeedingPerDay: 0,
+    deathsLastYear: 0,
+    soldLastYear: 0,
   });
 
   const [breedData, setBreedData] = useState([]);
@@ -62,21 +67,28 @@ export default function Dashboard() {
         setLoading(true);
         setError("");
 
-        const [cattleRes, milkRes, newBornRes, dattuRes, feedingRes] = await Promise.all([
+        const [cattleRes, milkRes, distRes, newBornRes, dattuRes, feedingRes, exitRes] = await Promise.all([
           getCattle(),
           getMilkYield(),
+          getMilkDistribution(),
           getNewBorn(),
           getDattuYojana(),
           getFeeding(),
+          getCattleExitLog(),
         ]);
 
         const cattle = toArray(cattleRes);
         const milkYield = toArray(milkRes);
+        const milkDist = toArray(distRes);
         const newBorn = toArray(newBornRes);
         const dattu = toArray(dattuRes);
         const feeding = toArray(feedingRes);
+        const exitLog = toArray(exitRes);
 
         const currentYear = new Date().getFullYear();
+        const todayDate = new Date();
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(todayDate.getFullYear() - 1);
 
         // --- CATTLE STATS ---
         let activeCount = 0;
@@ -105,30 +117,38 @@ export default function Dashboard() {
           }
         });
 
-        // --- MILK STATS ---
-        const milkByDate = new Map();
+        // --- MILK YIELD ---
+        const yieldByDate = new Map();
         milkYield.forEach((row) => {
           const day = String(row.date || "").slice(0, 10);
           if (!day) return;
-          const existing = milkByDate.get(day) || { yield: 0, sold: 0 };
-          
-          existing.yield += Number(row.dayTotalYield || row.dayTotalYeild || 0) || 0;
-          existing.sold += Number(row.outPass || 0) || 0;
-          
-          milkByDate.set(day, existing);
+          const currentTotal = yieldByDate.get(day) || 0;
+          yieldByDate.set(day, currentTotal + (Number(row.totalYield) || 0));
         });
 
-        const milkDays = Array.from(milkByDate.values());
-        let avgYield = 0, avgSold = 0;
-        if (milkDays.length > 0) {
-           avgYield = milkDays.reduce((acc, d) => acc + d.yield, 0) / milkDays.length;
-           avgSold = milkDays.reduce((acc, d) => acc + d.sold, 0) / milkDays.length;
-        }
+        const yieldDays = Array.from(yieldByDate.values());
+        const avgYield = yieldDays.length > 0 
+           ? yieldDays.reduce((a, b) => a + b, 0) / yieldDays.length 
+           : 0;
 
-        // --- NEW BORN ---
-        const bornThisYear = newBorn.filter(nb => {
+        // --- MILK SOLD ---
+        const soldByDate = new Map();
+        milkDist.forEach((row) => {
+          const day = String(row.date || "").slice(0, 10);
+          if (!day) return;
+          const currentTotal = soldByDate.get(day) || 0;
+          soldByDate.set(day, currentTotal + (Number(row.outPassQty) || 0));
+        });
+
+        const soldDays = Array.from(soldByDate.values());
+        const avgSold = soldDays.length > 0 
+           ? soldDays.reduce((a, b) => a + b, 0) / soldDays.length 
+           : 0;
+
+        // --- NEW BORN (12M) ---
+        const bornLast12M = newBorn.filter(nb => {
            const d = new Date(nb.date || nb.dateOfBirth);
-           return !isNaN(d) && d.getFullYear() === currentYear;
+           return !isNaN(d) && d >= oneYearAgo && d <= todayDate;
         }).length;
 
         // --- DATTU ---
@@ -140,12 +160,28 @@ export default function Dashboard() {
            const day = String(row.date || "").slice(0, 10);
            if (!day) return;
            const cur = feedByDate.get(day) || 0;
-           feedByDate.set(day, cur + (Number(row.totalKg) || 0));
+           feedByDate.set(day, cur + (Number(row.quantityKg || row.totalKg) || 0));
         });
         const feedDays = Array.from(feedByDate.values());
         const avgFeed = feedDays.length > 0 
            ? feedDays.reduce((a, b) => a + b, 0) / feedDays.length 
            : 0;
+
+        // --- DEATHS & SOLD (12M) ---
+        let deaths12m = 0;
+        let sold12m = 0;
+
+        exitLog.forEach(log => {
+          const exitDate = new Date(log.date);
+          if (!isNaN(exitDate) && exitDate >= oneYearAgo && exitDate <= todayDate) {
+            const reason = String(log.reason || "").toLowerCase();
+            if (reason.includes("death") || reason.includes("died") || reason.includes("mortality") || reason.includes("expired")) {
+              deaths12m++;
+            } else if (reason.includes("sold") || reason.includes("sale") || reason.includes("auction") || reason.includes("given")) {
+              sold12m++;
+            }
+          }
+        });
 
         setStats({
           activeCattle: activeCount,
@@ -153,13 +189,15 @@ export default function Dashboard() {
           maleCattle: maleCount,
           avgMilkYieldPerDay: avgYield,
           avgMilkSoldPerDay: avgSold,
-          newBornCurrentYear: bornThisYear,
+          newBorn12M: bornLast12M,
           activeDattuYojana: activeDattu,
           avgFeedingPerDay: avgFeed,
+          deathsLastYear: deaths12m,
+          soldLastYear: sold12m,
         });
 
         const breedChart = Object.keys(breedCounts).map(k => ({ name: k, count: breedCounts[k] }))
-                               .sort((a,b) => b.count - a.count); 
+                                .sort((a,b) => b.count - a.count); 
         setBreedData(breedChart);
 
         const catChart = [
@@ -168,7 +206,8 @@ export default function Dashboard() {
           { name: "Calves", count: catCounts["Calves"], color: "#059669" },
           { name: "Bulls", count: catCounts["Bulls"], color: "#f59e0b" }
         ];
-        setCategoryData(catChart);
+        // Filter out zero categories for cleaner Donut
+        setCategoryData(catChart.filter(c => c.count > 0));
 
       } catch (err) {
         console.error("Dashboard Load Error:", err);
@@ -188,26 +227,29 @@ export default function Dashboard() {
   return (
     <div style={{ padding: "1.5rem 2rem", maxWidth: "1400px", margin: "0 auto" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>Dashboard</h1>
-        <div style={{ background: "#fff", padding: "6px 12px", borderRadius: "20px", border: "1px solid #e5e7eb", fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#111827" }}>Dashboard</h1>
+        <div style={{ background: "#fff", padding: "6px 12px", borderRadius: "20px", border: "1px solid #d1d5db", fontSize: "0.85rem", fontWeight: "700", color: "#111827" }}>
           Date: {today}
         </div>
       </header>
 
+      {/* STAT CARDS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         <StatCard title="ACTIVE CATTLE" value={stats.activeCattle} color="#2563eb" />
         <StatCard title="FEMALE CATTLE" value={stats.femaleCattle} color="#ec4899" />
         <StatCard title="MALE CATTLE" value={stats.maleCattle} color="#f59e0b" />
         <StatCard title="AVG MILK / DAY (L)" value={formatNumber(stats.avgMilkYieldPerDay)} color="#059669" />
-        <StatCard title="AVG MILK SOLD (L)" value={formatNumber(stats.avgMilkSoldPerDay)} color="#10b981" />
-        <StatCard title="NEW BORN (THIS YEAR)" value={stats.newBornCurrentYear} color="#0ea5e9" />
+        <StatCard title="AVG MILK SOLD / DAY (L)" value={formatNumber(stats.avgMilkSoldPerDay)} color="#10b981" />
+        <StatCard title="NEW BORN (12M)" value={stats.newBorn12M} color="#0ea5e9" />
         <StatCard title="ACTIVE SPONSORSHIPS" value={stats.activeDattuYojana} color="#8b5cf6" />
         <StatCard title="AVG FEEDING (KG)" value={formatNumber(stats.avgFeedingPerDay)} color="#d97706" />
+        <StatCard title="DEATHS (12M)" value={stats.deathsLastYear} color="#ef4444" />
+        <StatCard title="SOLD (12M)" value={stats.soldLastYear} color="#f97316" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: "1.5rem" }}>
         
-        {/* Breed Distribution Chart */}
+        {/* Breed Bar Chart */}
         <div style={chartCardStyle}>
           <h3 style={chartTitleStyle}>Breed Distribution</h3>
           <div style={{ height: "350px", width: "100%" }}>
@@ -220,50 +262,55 @@ export default function Dashboard() {
                   dataKey="name" 
                   fontSize={11} 
                   interval={0} 
-                  tick={{fill: '#6b7280'}} 
+                  tick={{fill: '#374151', fontWeight: 600 }} // Darker Axis Labels
                   angle={-45}        
                   textAnchor="end"   
                   height={70}        
                 />
-                <YAxis fontSize={12} tick={{fill: '#6b7280'}} />
+                <YAxis fontSize={12} tick={{fill: '#374151', fontWeight: 600 }} /> 
                 <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                   {/* This line adds the labels on top */}
-                   <LabelList dataKey="count" position="top" style={{ fill: '#374151', fontSize: '0.75rem', fontWeight: 'bold' }} />
-                   
+                   {/* Darker Labels on Bars */}
+                   <LabelList dataKey="count" position="top" style={{ fill: '#111827', fontSize: '0.75rem', fontWeight: 'bold' }} />
                    {breedData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getBarColor(index)} />
                    ))}
                 </Bar>
-
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Categories Progress Bars */}
+        {/* DONUT CHART FOR CATEGORIES */}
         <div style={chartCardStyle}>
           <h3 style={chartTitleStyle}>Cattle Categories</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", padding: "1rem 0" }}>
-            {categoryData.map((cat) => (
-              <div key={cat.name}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "0.9rem", fontWeight: "600", color: "#374151" }}>
-                  <span>{cat.name}</span>
-                  <span>{cat.count}</span>
-                </div>
-                <div style={{ width: "100%", height: "10px", background: "#f3f4f6", borderRadius: "99px", overflow: "hidden" }}>
-                  <div style={{ 
-                    width: `${stats.activeCattle > 0 ? (cat.count / stats.activeCattle) * 100 : 0}%`, 
-                    height: "100%", 
-                    background: cat.color, 
-                    borderRadius: "99px",
-                    transition: "width 1s ease-in-out"
-                  }}></div>
-                </div>
-              </div>
-            ))}
-            {categoryData.length === 0 && <div style={{color: "#ccc", textAlign:"center"}}>No Category Data</div>}
+          <div style={{ height: "350px", width: "100%" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60} 
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="count"
+                  nameKey="name"
+                  // 🔥 Darker Data Labels Configured Here
+                  label={{ fill: '#000000', fontSize: 12, fontWeight: 'bold' }} 
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36} 
+                  wrapperStyle={{ color: '#000000', fontWeight: 'bold' }} // Darker Legend
+                />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
@@ -277,14 +324,16 @@ export default function Dashboard() {
 function StatCard({ title, value, color }) {
   return (
     <div style={{ background: "#fff", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", borderLeft: `4px solid ${color}` }}>
-      <div style={{ fontSize: "0.75rem", fontWeight: "bold", color: "#9ca3af", textTransform: "uppercase", marginBottom: "0.5rem" }}>{title}</div>
-      <div style={{ fontSize: "2rem", fontWeight: "800", color: "#1f2937" }}>{value}</div>
+      {/* Darker Title Color (#374151 instead of light gray) */}
+      <div style={{ fontSize: "0.75rem", fontWeight: "bold", color: "#374151", textTransform: "uppercase", marginBottom: "0.5rem" }}>{title}</div>
+      <div style={{ fontSize: "2rem", fontWeight: "800", color: "#111827" }}>{value}</div>
     </div>
   );
 }
 
 const chartCardStyle = { background: "#fff", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" };
-const chartTitleStyle = { margin: "0 0 1.5rem 0", fontSize: "1rem", fontWeight: "700", color: "#374151" };
+// Darker Chart Title
+const chartTitleStyle = { margin: "0 0 1.5rem 0", fontSize: "1rem", fontWeight: "700", color: "#111827" };
 
 function getBarColor(index) {
   const colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];

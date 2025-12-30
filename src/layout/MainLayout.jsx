@@ -1,4 +1,3 @@
-// src/layout/MainLayout.jsx
 import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -15,7 +14,7 @@ export default function MainLayout() {
   // --- ROLE CHECKS ---
   const isAdmin = user?.role === "Admin"; 
   
-  // 🔥 NEW: Define Viewer check
+  // Define Viewer check
   const isViewer = user?.role === "Viewer";
 
   // --- MENU CONFIGURATION ---
@@ -55,10 +54,11 @@ export default function MainLayout() {
     {
       title: "FINANCE & ADMIN",
       items: [
-        // 🔥 UPDATE: Restricted ONLY if Viewer. (So Admin & User CAN see it)
+        // Restricted ONLY if Viewer. (So Admin & User CAN see it)
         { name: "Sponsorships", path: "/dattu-yojana", icon: "🤝", restricted: isViewer },
         
-        { name: "Reports & Docs", path: "/certificates-reports", icon: "📄" },
+        // 🔥 FIXED: Renamed to 'Reports' and pointed to the correct path '/reports'
+        { name: "Reports", path: "/reports", icon: "📄" },
         
         // User Management: Admin Only
         { name: "User Management", path: "/users", icon: "👥", restricted: !isAdmin },

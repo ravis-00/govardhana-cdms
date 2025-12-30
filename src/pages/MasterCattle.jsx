@@ -70,22 +70,26 @@ export default function MasterCattle() {
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
 
   /* =========================================
-     🔥 CERTIFICATE GENERATION LOGIC (NEW)
+     🔥 CERTIFICATE GENERATION LOGIC (FIXED)
      ========================================= */
   const handleGenerateCert = (row) => {
     const type = String(row.admissionType || "").toLowerCase();
     
-    // Check type to decide which certificate to print
-    if (type.includes("born")) {
+    // 1. Birth Certificate (Handles "Born at Goshala" OR "Birth")
+    if (type.includes("born") || type.includes("birth")) {
       printBirthCertificate(row);
-    } else if (type.includes("purchase") || type.includes("donation")) {
+    } 
+    // 2. Incoming Certificate (Purchase, Donation, Farmer)
+    else if (type.includes("purchase") || type.includes("donation") || type.includes("farmer")) {
       printIncomingCertificate(row);
-    } else {
-      alert("No certificate available for Admission Type: " + row.admissionType);
+    } 
+    // Fallback
+    else {
+      alert("No certificate template available for Admission Type: " + row.admissionType);
     }
   };
 
-  // 1. Birth Certificate Template
+  // --- 1. BIRTH CERTIFICATE TEMPLATE ---
   const printBirthCertificate = (row) => {
     const html = `
       <html>
@@ -137,7 +141,7 @@ export default function MasterCattle() {
     if (win) { win.document.write(html); win.document.close(); }
   };
 
-  // 2. Incoming Certificate Template
+  // --- 2. INCOMING CERTIFICATE TEMPLATE ---
   const printIncomingCertificate = (row) => {
     const html = `
       <html>
@@ -236,33 +240,41 @@ export default function MasterCattle() {
             {displayedRows.length === 0 ? (
                <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
             ) : (
-              displayedRows.map((row, idx) => (
-                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                  <td style={tdStyle}>
-                    <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
-                    <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{row.internalId}</div>
-                  </td>
-                  <td style={tdStyle}>{row.name}</td>
-                  <td style={tdStyle}>{row.breed}</td>
-                  <td style={tdStyle}>{row.gender}</td>
-                  <td style={tdStyle}><StatusPill status={row.status} /></td>
-                  <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
-                        <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
-                        {/* 🔥 CERTIFICATE BUTTON */}
-                        {!String(row.admissionType || "").toLowerCase().includes("rescue") && (
-                            <button 
-                                onClick={() => handleGenerateCert(row)} 
-                                style={certBtnStyle}
-                                title={String(row.admissionType).toLowerCase().includes("born") ? "Birth Certificate" : "Incoming Certificate"}
-                            >
-                                📜 Cert
-                            </button>
-                        )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+              displayedRows.map((row, idx) => {
+                const type = String(row.admissionType || "").toLowerCase();
+                
+                // 🔥 LOGIC: Show Cert UNLESS it's Rescue or Slaughter House
+                const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
+
+                return (
+                  <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={tdStyle}>
+                      <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
+                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{row.internalId}</div>
+                    </td>
+                    <td style={tdStyle}>{row.name}</td>
+                    <td style={tdStyle}>{row.breed}</td>
+                    <td style={tdStyle}>{row.gender}</td>
+                    <td style={tdStyle}><StatusPill status={row.status} /></td>
+                    <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+                          <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                          
+                          {/* 🔥 CERTIFICATE BUTTON */}
+                          {showCert && (
+                              <button 
+                                  onClick={() => handleGenerateCert(row)} 
+                                  style={certBtnStyle}
+                                  title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
+                              >
+                                  📜 Cert
+                              </button>
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -288,7 +300,7 @@ export default function MasterCattle() {
 }
 
 /* ------------------------------------------------
-   🔥 PHOTO COMPONENT
+   PHOTO COMPONENT
    ------------------------------------------------ */
 function CattlePhoto({ url, imgStyle = largePhotoStyle }) {
   if (!url) return <div style={placeholderStyle}>No Photo</div>;

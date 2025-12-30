@@ -74,6 +74,11 @@ export async function updateCattle(payload) { return postRequest("updateCattle",
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
+// 🔥 NEW: Exit & Deregister Logic
+export async function getCattleExitLog(params = {}) { return getRequest("getCattleExitLog", params); }
+export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
+
+
 // 2. NEW BORN
 export async function getNewBorn() { return getRequest("getNewBorn"); }
 export async function addNewBorn(payload) { return postRequest("addNewBorn", payload); }
@@ -108,7 +113,6 @@ export async function getTreatments() { return getRequest("getTreatments"); }
 export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
 export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
 
-// 🔥 UPDATED: Use the corrected function name for fetching records
 export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
 export async function getMedicines() { return getRequest("getMedicines"); }
 
@@ -125,29 +129,17 @@ export const getUsers = fetchUsers;
 export async function addUser(userData) { return postRequest("addUser", userData); }
 export async function updateUser(userData) { return postRequest("updateUser", userData); }
 
-// 9. REPORTS
-export async function getBirthReport(params = {}) { return getRequest("getBirthReport", params); }
-export async function getSalesReport(params = {}) { return getRequest("getSalesReport", params); }
-export async function getDattuReport(fromDate, toDate) { return getRequest("getDattuReport", { fromDate, toDate }); }
-export async function getMilkReport(fromDate, toDate) { return getRequest("getMilkReport", { fromDate, toDate }); }
-export async function getBioReport(fromDate, toDate) { return getRequest("getBioReport", { fromDate, toDate }); }
-
-// 🔥 NEW CERTIFICATES (This fixes your error)
-export async function generateDeathCert(id) { return postRequest("generateDeathCert", { id }); }
-export async function generateDattuCert(id) { return postRequest("generateDattuCert", { id }); }
-export async function generateBirthCert(id) { return postRequest("generateBirthCert", { id }); }
-export async function generateIncomingCert(id) { return postRequest("generateIncomingCert", { id }); }
+// 9. REPORTS (🔥 UPDATED for New Smart Report Builder)
+export async function getReportData(reportType, startDate, endDate) { 
+  return getRequest("getReportData", { reportType, startDate, endDate }); 
+}
 
 // --- ALIASES ---
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
 export const fetchUnregisteredBirths = getUnregisteredBirths;
-export const fetchBirthReport = getBirthReport;
-export const fetchSalesReport = getSalesReport;
-export const fetchDattuReport = getDattuReport;
-export const fetchMilkReport = getMilkReport;
-export const fetchBioReport = getBioReport;
+export const fetchDattuReport = getDattuYojana; // Fallback alias
 export const getMilkYield = getMilkProduction; 
 export const fetchMilkYield = getMilkProduction;
 export const addMilkYield = addMilkProduction;

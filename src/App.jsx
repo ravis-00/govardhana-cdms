@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -8,7 +7,6 @@ import MainLayout from "./layout/MainLayout.jsx";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import UserManagement from "./pages/UserManagement.jsx";
-// ActiveCattle deleted
 import MasterCattle from "./pages/MasterCattle.jsx"; 
 import CattleRegistration from "./pages/CattleRegistration.jsx"; 
 import NewTag from "./pages/NewTag.jsx"; 
@@ -21,7 +19,7 @@ import Feeding from "./pages/Feeding.jsx";
 import DattuYojana from "./pages/DattuYojana.jsx"; 
 import Deregister from "./pages/Deregister.jsx"; 
 import DeathRecords from "./pages/DeathRecords.jsx"; 
-import CertificatesReports from "./pages/CertificatesReports.jsx"; 
+import Reports from "./pages/Reports.jsx"; // ✅ Correct Import
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
@@ -36,11 +34,10 @@ function ProtectedRoute({ children, allowedRoles }) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // 🔥 LOGIC FIX: Normalize role (trim spaces) to ensure matching works
+  // Normalize role to ensure matching works
   const userRole = user.role ? String(user.role).trim() : "";
 
-  // Check permissions (Admin matches "Admin", "Super Admin" matches "Super Admin")
-  // We check if the allowedRoles array includes the user's role
+  // Check permissions
   const hasPermission = allowedRoles 
     ? allowedRoles.some(r => r === userRole || r === user.role) 
     : true;
@@ -90,11 +87,12 @@ export default function App() {
           <Route path="/death-records" element={<DeathRecords />} />
 
           {/* --- FINANCE & ADMIN --- */}
-          {/* 🔥 UPDATE: Added "User" so they can access Dattu Yojana */}
           <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User"]}><DattuYojana /></ProtectedRoute>} />
-          <Route path="/certificates-reports" element={<CertificatesReports />} />
           
-          {/* 🔥 SECURITY FIX: Removed "User" from here. User Management is Admin ONLY. */}
+          {/* ✅ REPORTS ROUTE (Correctly points to Reports.jsx) */}
+          <Route path="/reports" element={<Reports />} />
+          
+          {/* USER MANAGEMENT (Admin Only) */}
           <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><UserManagement /></ProtectedRoute>} />
 
         </Route>
