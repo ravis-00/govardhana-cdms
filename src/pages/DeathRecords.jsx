@@ -1,7 +1,10 @@
 // src/pages/DeathRecords.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { getDeathRecords, generateDeathCert } from "../api/masterApi.js";
+import { getDeathRecords } from "../api/masterApi.js"; 
 
+// --- HELPERS ---
+
+// 1. Keeps date as YYYY-MM-DD for Logic & Sorting
 function isoDateOnly(value) {
   if (!value) return "";
   if (typeof value === "string") return value.slice(0, 10);
@@ -12,6 +15,16 @@ function isoDateOnly(value) {
     return `${y}-${m}-${d}`;
   }
   return String(value).slice(0, 10);
+}
+
+// 2. Converts YYYY-MM-DD to DD-MM-YYYY for Display
+function formatDateDisplay(isoDate) {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-"); // Expecting yyyy-mm-dd
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`; // Returns dd-mm-yyyy
+  }
+  return isoDate;
 }
 
 function toDateObj(iso) {
@@ -29,63 +42,73 @@ function defaultFromDate() {
   return `${y}-${m}-${day}`;
 }
 
+// Normalize Backend Data
+function normalizeRecord(r) {
+  // We keep this as ISO (yyyy-mm-dd) for sorting logic to work
+  const dateIso = isoDateOnly(r.dateOfDeAdmit || r.dateOfDeAdmission || r.dateOfDeath || r.date || "");
+
+  return {
+    id: r.id, 
+    cattleId: r.cattleId || r.tagNo || r.tagNumber || "",
+    name: r.name || "",
+    breed: r.breed || "",
+    gender: r.gender || "",
+    dob: r.dateOfBirth || r.dob || "",
+    colour: r.colour || r.color || "",
+    shed: r.locationShed || r.shed || "",
+    
+    // Death Details
+    dateOfDeAdmission: dateIso,
+    time: r.time || "",
+    causeOfDeath: r.causeOfDeath || r.cause || r.cause_details || "",
+    doctor: r.doctor || r.partyName || r.doctorName || "-", 
+    
+    // Certificate Specifics
+    teeth: r.teethDetails || r.teeth || "-",
+    age: r.teethAge || r.age || "-",
+    pregnancy: r.pregnancy || r.pregnancyStatus || "No",
+    marketValue: r.marketValue || "-",
+
+    photoUrl: r.photoUrl || "", 
+    remarks: r.remarks || "",
+  };
+}
+
 export default function DeathRecords() {
   const [fromDate, setFromDate] = useState(defaultFromDate());
   const [toDate, setToDate] = useState(""); 
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
-  const [generatingId, setGeneratingId] = useState(null);
 
-  // Fetch from backend
+  // Fetch Data
   useEffect(() => {
     let alive = true;
-
     async function load() {
       setLoading(true);
       setError("");
       try {
         const data = await getDeathRecords(fromDate || "2024-01-01");
-        
-        // Backend now returns sanitized data, so we can use it directly
-        // But let's ensure dates are formatted correctly just in case
-        const normalized = Array.isArray(data)
-          ? data.map(r => ({
-              ...r,
-              dateOfDeAdmission: isoDateOnly(r.dateOfDeAdmission)
-            }))
-          : [];
-
+        const normalized = Array.isArray(data) ? data.map(normalizeRecord) : [];
         if (alive) setRows(normalized);
       } catch (e) {
-        if (alive) setError(e?.message || "Failed to load death records");
+        if (alive) setError(e?.message || "Failed to load records");
       } finally {
         if (alive) setLoading(false);
       }
     }
-
     load();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [fromDate]);
 
-  // Filter Logic (Frontend Date Filter)
+  // Filter Logic
   const filteredRows = useMemo(() => {
     const from = toDateObj(fromDate);
     const to = toDateObj(toDate);
-
-    return rows
-      .filter((r) => {
-        // Backend already filters for "Death", but double check if needed
-        // r.typeOfDeAdmission is usually "Death"
-        
+    return rows.filter((r) => {
         const d = toDateObj(r.dateOfDeAdmission);
         if (!d) return true; 
-
         if (from && d < from) return false;
         if (to) {
           const toInclusive = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1);
@@ -100,84 +123,103 @@ export default function DeathRecords() {
       });
   }, [rows, fromDate, toDate]);
 
-  function openView(row) {
-    setSelected(row);
-  }
+  // --- HTML CERTIFICATE GENERATOR ---
+  function printCertificate(row) {
+    const formattedDeathDate = formatDateDisplay(row.dateOfDeAdmission);
+    const formattedDob = formatDateDisplay(row.dob);
+    const PRINT_H1 = "MADHAVA SRUSTI RASHTROTTHANA GOSHALA";
 
-  function closeView() {
-    setSelected(null);
-  }
+    const html = `
+      <html>
+      <head>
+        <title>Death Certificate - ${row.name}</title>
+        <style>
+          body { font-family: "Times New Roman", serif; padding: 20px; text-align: center; }
+          .container { border: 3px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
+          .header h1 { font-size: 22px; font-weight: 800; margin: 0; text-decoration: underline; }
+          .header h2 { font-size: 16px; font-weight: 700; margin: 5px 0; }
+          .cert-title { border: 2px solid #000; padding: 6px; font-size: 18px; font-weight: 800; display: inline-block; width: 100%; margin-top: 10px; background: #eee; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 2px solid #000; }
+          td { border: 1px solid #000; padding: 8px 10px; text-align: left; width: 50%; font-size: 14px; vertical-align: middle; }
+          .label { font-weight: 800; text-transform: uppercase; margin-right: 5px; }
+          .value { font-weight: 500; text-transform: uppercase; }
+          .certification-text { text-align: left; margin: 20px 0; font-size: 14px; line-height: 1.6; font-weight: 700; }
+          .footer { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 10px; align-items: flex-end; }
+          .sign-box { text-align: center; margin-bottom: 10px; }
+          .sign-line { width: 160px; border-bottom: 1px solid #000; margin-bottom: 5px; }
+          .sign-label { font-weight: 700; font-size: 11px; text-transform: uppercase; }
+          @media print { @page { size: A4; margin: 10mm; } body { padding: 0; } .container { height: 95vh; } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>${PRINT_H1}</h1>
+            <h2>SS GHATI DODDABALLAPURA</h2>
+            <div class="cert-title">DEATH CERTIFICATE</div>
+          </div>
+          
+          <div style="width:100%; height:250px; border:2px solid #000; margin:15px 0; display:flex; align-items:center; justify-content:center; background:#fafafa; overflow:hidden;">
+             ${row.photoUrl ? `<img src="${row.photoUrl}" style="height:100%; width:auto; object-fit:contain;" alt="Cattle Photo" />` : `<div style="color:#999; font-style:italic;">[ Photo Not Provided ]</div>`}
+          </div>
 
-  // --- GENERATE CERTIFICATE HANDLER ---
-  async function handleGenerateCert(row) {
-    if (!window.confirm(`Generate Death Certificate for ${row.cattleId}?`)) return;
-    
-    setGeneratingId(row.id); // row.id is the Exit Log ID (e.g. EXIT2025...)
-    try {
-      const response = await generateDeathCert(row.id);
-      
-      if (response && response.url) {
-        window.open(response.url, "_blank"); 
-      } else {
-        alert("Certificate generated, but no URL returned.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to generate certificate: " + err.message);
-    } finally {
-      setGeneratingId(null);
+          <table>
+            <tr><td><span class="label">DATE:</span> <span class="value">${formattedDeathDate}</span></td><td><span class="label">TIME:</span> <span class="value">${row.time}</span></td></tr>
+            <tr><td><span class="label">NAME:</span> <span class="value">${row.name}</span></td><td><span class="label">EAR TAG NO:</span> <span class="value">${row.cattleId}</span></td></tr>
+            <tr><td><span class="label">BREED NAME:</span> <span class="value">${row.breed}</span></td><td><span class="label">GENDER:</span> <span class="value">${row.gender}</span></td></tr>
+            <tr><td><span class="label">DATE OF BIRTH:</span> <span class="value">${formattedDob}</span></td><td><span class="label">COLOUR:</span> <span class="value">${row.colour}</span></td></tr>
+            <tr><td><span class="label">TEETH DETAILS:</span> <span class="value">${row.teeth}</span></td><td><span class="label">TEETH AGE:</span> <span class="value">${row.age}</span></td></tr>
+            <tr><td><span class="label">PREGNANCY STATUS:</span> <span class="value">${row.pregnancy}</span></td><td><span class="label">MARKET VALUE:</span> <span class="value">${row.marketValue}</span></td></tr>
+            <tr><td colspan="2"><span class="label">REASON FOR DEATH:</span> <span class="value">${row.causeOfDeath}</span></td></tr>
+          </table>
+
+          <div class="certification-text">
+            THIS IS TO CERTIFY THAT THIS DAY THE ................................................................ I HAVE EXAMINED................................................................
+          </div>
+
+          <div class="footer">
+            <div class="sign-box"><div class="sign-line"></div><div class="sign-label">SUPERVISOR SIGNATURE</div></div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:30px;">
+                <div class="sign-box">
+                    <div style="font-size:12px; font-weight:bold; margin-bottom:5px;">${row.doctor !== "-" ? row.doctor : ""}</div>
+                    <div class="sign-line"></div>
+                    <div class="sign-label">DOCTOR SIGNATURE & SEAL</div>
+                </div>
+                <div class="sign-box"><div class="sign-line"></div><div class="sign-label">PROJECT MANAGER SIGNATURE</div></div>
+            </div>
+          </div>
+        </div>
+        <script>setTimeout(function() { window.print(); }, 500);</script>
+      </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank", "width=900,height=1100");
+    if(win) { 
+        win.document.write(html); 
+        win.document.close(); 
+    } else { 
+        alert("Popup blocked. Please allow popups for this site."); 
     }
   }
 
+  // --- RENDER ---
   return (
     <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          marginBottom: "1.5rem",
-          gap: "1rem",
-        }}
-      >
+      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>
-            Cattle Death Records
-          </h1>
-          <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "0.25rem" }}>
-            Showing: {filteredRows.length} record(s)
-          </div>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>Cattle Death Records</h1>
+          <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "0.25rem" }}>Showing: {filteredRows.length} record(s)</div>
         </div>
-
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div>
-            <label style={labelStyle}>From</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>To (optional)</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+          <div><label style={labelStyle}>From</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>To</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={inputStyle} /></div>
         </div>
       </header>
 
-      {error && (
-        <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>{error}</div>}
 
-      <div style={{ background: "#ffffff", borderRadius: "0.5rem", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+      <div style={{ background: "#ffffff", borderRadius: "0.5rem", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", border: "1px solid #e5e7eb" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
           <thead style={{ background: "#f9fafb", textAlign: "left" }}>
             <tr>
@@ -185,86 +227,81 @@ export default function DeathRecords() {
               <th style={thStyle}>Tag No</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Breed</th>
-              <th style={thStyle}>Gender</th>
               <th style={thStyle}>Cause</th>
-              <th style={thStyle}>Doctor / Party</th> {/* Added Column */}
+              <th style={thStyle}>Doctor</th>
               <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
-
           <tbody>
-            {loading ? (
-              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>Loading records...</td></tr>
-            ) : filteredRows.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>No death records found for the selected range.</td></tr>
-            ) : (
-              filteredRows.map((row, idx) => (
-                <tr key={`${row.id}-${idx}`} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={tdStyle}>{row.dateOfDeAdmission || "-"}</td>
-                  <td style={tdStyle}>
-                    <div style={{fontWeight:"600", color:"#111827"}}>{row.cattleId}</div>
-                    <div style={{fontSize:"0.75rem", color:"#9ca3af"}}>{row.id}</div>
-                  </td>
-                  <td style={tdStyle}>{row.name || "-"}</td>
-                  <td style={tdStyle}>{row.breed || "-"}</td>
-                  <td style={tdStyle}>{row.gender || "-"}</td>
-                  <td style={tdStyle}>{row.causeOfDeath || "-"}</td>
-                  <td style={tdStyle}>{row.doctor || "-"}</td> {/* Display Doctor Name */}
+            {loading ? <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center" }}>Loading...</td></tr> :
+             filteredRows.length === 0 ? <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center" }}>No records found.</td></tr> :
+             filteredRows.map((row, idx) => (
+                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
+                  {/* 🔥 UPDATED DATE FORMAT DISPLAY 🔥 */}
+                  <td style={tdStyle}>{formatDateDisplay(row.dateOfDeAdmission)}</td>
                   
-                  <td style={{ ...tdStyle, textAlign: "center", whiteSpace: "nowrap" }}>
+                  <td style={tdStyle}><strong>{row.cattleId}</strong></td>
+                  <td style={tdStyle}>{row.name}</td>
+                  <td style={tdStyle}>{row.breed}</td>
+                  <td style={tdStyle}>{row.causeOfDeath.split("-")[0]}</td>
+                  <td style={tdStyle}>{row.doctor}</td>
+                  <td style={{ ...tdStyle, textAlign: "center" }}>
                     <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
-                        <button onClick={() => openView(row)} style={viewBtnStyle} title="View details">
-                        👁 View
-                        </button>
-                        
-                        <button
-                        onClick={() => handleGenerateCert(row)}
-                        disabled={generatingId === row.id}
-                        style={{ 
-                            ...certBtnStyle, 
-                            opacity: generatingId === row.id ? 0.7 : 1,
-                            cursor: generatingId === row.id ? "wait" : "pointer"
-                        }}
-                        title="Generate Death Certificate"
-                        >
-                        {generatingId === row.id ? "⏳ Gen..." : "📜 Cert"}
-                        </button>
+                      <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                      <button onClick={() => printCertificate(row)} style={certBtnStyle}>📜 Cert</button>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Modal Logic */}
+      {/* Modal View */}
       {selected && (
-        <div style={overlayStyle} onClick={closeView}>
+        <div style={overlayStyle} onClick={() => setSelected(null)}>
           <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid #e5e7eb", paddingBottom: "0.75rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem", borderBottom:"1px solid #eee", paddingBottom:"10px" }}>
               <div>
-                <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", fontWeight: "bold" }}>Death Record Detail</div>
-                <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "#1f2937" }}>{selected.cattleId} – {selected.name}</div>
+                  <div style={{ fontWeight: "bold", fontSize: "1.3rem" }}>{selected.cattleId} | {selected.name}</div>
+                  <div style={{ color:"#666", fontSize:"0.9rem"}}>{selected.breed} • {selected.gender}</div>
               </div>
-              <button type="button" onClick={closeView} style={closeBtnStyle}>✕</button>
+              <button onClick={() => setSelected(null)} style={closeBtnStyle}>✕</button>
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", fontSize: "0.9rem" }}>
-               <DetailItem label="Date of Death" value={selected.dateOfDeAdmission} />
-               <DetailItem label="Cause" value={selected.causeOfDeath} />
-               <DetailItem label="Doctor / Certified By" value={selected.doctor} />
-               <DetailItem label="Shed / Location" value={selected.shed} />
-               <DetailItem label="Breed" value={selected.breed} />
-               <DetailItem label="Gender" value={selected.gender} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", alignContent: "start" }}>
+                   {/* 🔥 UPDATED DATE FORMAT IN MODAL 🔥 */}
+                   <DetailItem label="Date of Death" value={formatDateDisplay(selected.dateOfDeAdmission)} />
+                   
+                   <DetailItem label="Time of Death" value={selected.time} />
+                   <DetailItem label="Cause" value={selected.causeOfDeath} fullWidth />
+                   <DetailItem label="Certified By" value={selected.doctor} fullWidth />
+                   <DetailItem label="Shed" value={selected.shed} />
+                   <DetailItem label="Date of Birth" value={formatDateDisplay(selected.dob)} />
+                   
+                   <div style={{ gridColumn: "span 2", borderTop:"1px solid #eee", paddingTop:"10px", marginTop:"5px", fontWeight:"bold", color:"#444" }}>Certificate Details</div>
+                   <DetailItem label="Teeth" value={selected.teeth} />
+                   <DetailItem label="Age" value={selected.age} />
+                   <DetailItem label="Pregnancy" value={selected.pregnancy} />
+                   <DetailItem label="Value" value={selected.marketValue} />
+               </div>
+
+               <div style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
+                   <div style={{ border: "1px solid #ddd", borderRadius: "8px", height: "250px", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb", overflow: "hidden" }}>
+                       {selected.photoUrl ? 
+                         <img src={selected.photoUrl} alt={selected.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
+                         <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No Photo Available</span>
+                       }
+                   </div>
+                   {selected.remarks && (
+                     <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", padding: "10px", borderRadius: "6px", fontSize:"0.9rem" }}>
+                        <div style={{fontWeight:"bold", color:"#92400e", marginBottom:"4px"}}>Remarks</div>
+                        <div style={{color:"#78350f"}}>{selected.remarks}</div>
+                     </div>
+                   )}
+               </div>
             </div>
-            
-            {selected.remarks && (
-                <div style={{marginTop: "1.5rem", background: "#f9fafb", padding: "12px", borderRadius: "6px", border: "1px solid #e5e7eb"}}>
-                    <div style={{fontSize: "0.75rem", color: "#6b7280", fontWeight: "bold", marginBottom: "4px"}}>REMARKS</div>
-                    <div style={{color: "#374151"}}>{selected.remarks}</div>
-                </div>
-            )}
           </div>
         </div>
       )}
@@ -273,22 +310,13 @@ export default function DeathRecords() {
 }
 
 // --- STYLES ---
-const labelStyle = { display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "#4b5563", fontWeight: "500" };
-const inputStyle = { padding: "0.4rem 0.6rem", borderRadius: "0.375rem", border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#1f2937" };
-const thStyle = { padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280" };
-const tdStyle = { padding: "0.75rem 1rem", color: "#1f2937", verticalAlign: "middle" };
-const viewBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#ffffff", color: "#374151", fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
-const certBtnStyle = { border: "1px solid #fecaca", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fef2f2", color: "#991b1b", fontSize: "0.8rem", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" };
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const viewModalStyle = { width: "100%", maxWidth: "550px", background: "white", borderRadius: "0.75rem", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" };
-const closeBtnStyle = { border: "none", background: "#f3f4f6", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", color: "#6b7280" };
-
-function DetailItem({ label, value }) {
-  if (!value) return null;
-  return (
-    <div>
-      <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.025em", color: "#9ca3af", marginBottom: "0.15rem" }}>{label}</div>
-      <div style={{ color: "#111827", fontWeight: "500" }}>{value}</div>
-    </div>
-  );
-}
+const labelStyle = { display: "block", fontSize: "0.75rem", color: "#4b5563", fontWeight: "500" };
+const inputStyle = { padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #d1d5db" };
+const thStyle = { padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, color: "#6b7280" };
+const tdStyle = { padding: "0.75rem 1rem", color: "#1f2937" };
+const viewBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fff", cursor: "pointer" };
+const certBtnStyle = { border: "1px solid #fecaca", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fef2f2", color: "#991b1b", fontWeight: "600", cursor: "pointer" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
+const viewModalStyle = { width: "700px", maxWidth: "95%", background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" };
+const closeBtnStyle = { border: "none", background: "#eee", borderRadius: "50%", width: "32px", height: "32px", cursor: "pointer", fontSize:"1.1rem" };
+function DetailItem({ label, value, fullWidth }) { return <div style={{ gridColumn: fullWidth ? "span 2" : "span 1" }}><div style={{fontSize:"0.75rem", color:"#999", textTransform:"uppercase"}}>{label}</div><div style={{fontWeight:"500"}}>{value}</div></div>; }

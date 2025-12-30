@@ -6,11 +6,19 @@ import { useAuth } from "../context/AuthContext";
 
 // --- CLOUDINARY CONFIG ---
 const CLOUD_NAME = "dvcwgkszp";       
-const UPLOAD_PRESET = "cattle_upload"; // Reusing the preset you created!
+const UPLOAD_PRESET = "cattle_upload"; 
 
 // Configuration
 const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
+
+// --- DATE HELPER FOR CERTIFICATES ---
+function formatDateDisplay(isoDate) {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  return isoDate;
+}
 
 export default function MasterCattle() {
   const { user } = useAuth(); 
@@ -60,6 +68,126 @@ export default function MasterCattle() {
   const handleNext = () => { if (currentPage < totalPages) setCurrentPage(p => p + 1); };
   const handlePrev = () => { if (currentPage > 1) setCurrentPage(p => p - 1); };
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
+
+  /* =========================================
+     🔥 CERTIFICATE GENERATION LOGIC (NEW)
+     ========================================= */
+  const handleGenerateCert = (row) => {
+    const type = String(row.admissionType || "").toLowerCase();
+    
+    // Check type to decide which certificate to print
+    if (type.includes("born")) {
+      printBirthCertificate(row);
+    } else if (type.includes("purchase") || type.includes("donation")) {
+      printIncomingCertificate(row);
+    } else {
+      alert("No certificate available for Admission Type: " + row.admissionType);
+    }
+  };
+
+  // 1. Birth Certificate Template
+  const printBirthCertificate = (row) => {
+    const html = `
+      <html>
+      <head>
+        <title>Birth Certificate - ${row.name}</title>
+        <style>
+          body { font-family: "Times New Roman", serif; padding: 20px; text-align: center; }
+          .container { border: 3px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; }
+          .header h1 { font-size: 22px; font-weight: 800; margin: 0; text-decoration: underline; }
+          .header h2 { font-size: 16px; font-weight: 700; margin: 5px 0; }
+          .cert-title { border: 2px solid #000; padding: 6px; font-size: 18px; font-weight: 800; display: inline-block; width: 100%; margin-top: 10px; background: #eee; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 2px solid #000; }
+          td { border: 1px solid #000; padding: 10px; text-align: left; width: 50%; font-size: 14px; vertical-align: middle; }
+          .label { font-weight: 800; text-transform: uppercase; margin-right: 5px; }
+          .value { font-weight: 500; text-transform: uppercase; }
+          .footer { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 30px; }
+          .sign-line { width: 180px; border-bottom: 1px solid #000; margin-bottom: 8px; }
+          .sign-label { font-weight: 700; font-size: 13px; text-transform: uppercase; }
+          @media print { @page { size: A4; margin: 10mm; } body { padding: 0; } .container { height: 95vh; } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+            <h2>SS GHATI DODDABALLAPURA</h2>
+            <div class="cert-title">BIRTH CERTIFICATE</div>
+          </div>
+          <div style="width:100%; height:280px; border:2px solid #000; margin:15px 0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+            ${row.photo ? `<img src="${row.photo}" style="height:100%; object-fit:contain;" />` : `<div style="color:#999; font-style:italic;">[ Photo Not Provided ]</div>`}
+          </div>
+          <table>
+            <tr><td><span class="label">NAME:</span> <span class="value">${row.name}</span></td><td><span class="label">COLOUR:</span> <span class="value">${row.color || "-"}</span></td></tr>
+            <tr><td><span class="label">DATE OF BIRTH:</span> <span class="value">${formatDateDisplay(row.dob)}</span></td><td><span class="label">TAG NO:</span> <span class="value">${row.tag}</span></td></tr>
+            <tr><td><span class="label">BREED NAME:</span> <span class="value">${row.breed}</span></td><td><span class="label">GENDER:</span> <span class="value">${row.gender}</span></td></tr>
+            <tr><td><span class="label">MOTHER BREED:</span> <span class="value">${row.damBreed || "-"}</span></td><td><span class="label">MOTHER TAG NO:</span> <span class="value">${row.damId || "-"}</span></td></tr>
+            <tr><td><span class="label">FATHER BREED:</span> <span class="value">${row.sireBreed || "-"}</span></td><td><span class="label">FATHER TAG NO:</span> <span class="value">${row.sireId || "-"}</span></td></tr>
+          </table>
+          <div class="footer">
+            <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">SUPERVISOR SIGNATURE</div></div>
+            <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">PROJECT MANAGER SIGNATURE</div></div>
+          </div>
+        </div>
+        <script>setTimeout(() => window.print(), 500);</script>
+      </body>
+      </html>
+    `;
+    const win = window.open("", "_blank", "width=900,height=1100");
+    if (win) { win.document.write(html); win.document.close(); }
+  };
+
+  // 2. Incoming Certificate Template
+  const printIncomingCertificate = (row) => {
+    const html = `
+      <html>
+      <head>
+        <title>Incoming Certificate - ${row.tag}</title>
+        <style>
+          body { font-family: "Times New Roman", serif; padding: 20px; text-align: center; }
+          .container { border: 3px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; }
+          .header h1 { font-size: 22px; font-weight: 800; margin: 0; text-decoration: underline; }
+          .header h2 { font-size: 16px; font-weight: 700; margin: 5px 0; }
+          .cert-title { border: 2px solid #000; padding: 6px; font-size: 18px; font-weight: 800; display: inline-block; width: 100%; margin-top: 10px; background: #eee; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 2px solid #000; }
+          td { border: 1px solid #000; padding: 10px; text-align: left; width: 50%; font-size: 14px; vertical-align: middle; }
+          .label { font-weight: 800; text-transform: uppercase; margin-right: 5px; }
+          .value { font-weight: 500; text-transform: uppercase; }
+          .footer { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 30px; }
+          .sign-line { width: 180px; border-bottom: 1px solid #000; margin-bottom: 8px; }
+          .sign-label { font-weight: 700; font-size: 13px; text-transform: uppercase; }
+          @media print { @page { size: A4; margin: 10mm; } body { padding: 0; } .container { height: 95vh; } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+            <h2>SS GHATI DODDABALLAPURA</h2>
+            <div class="cert-title">INCOMING CATTLE CERTIFICATE</div>
+          </div>
+          <div style="width:100%; height:280px; border:2px solid #000; margin:15px 0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+            ${row.photo ? `<img src="${row.photo}" style="height:100%; object-fit:contain;" />` : `<div style="color:#999; font-style:italic;">[ Photo Not Provided ]</div>`}
+          </div>
+          <table>
+            <tr><td><span class="label">ADMISSION DATE:</span> <span class="value">${formatDateDisplay(row.admissionDate)}</span></td><td><span class="label">TYPE:</span> <span class="value">${row.admissionType}</span></td></tr>
+            <tr><td><span class="label">TAG NO:</span> <span class="value">${row.tag}</span></td><td><span class="label">NAME:</span> <span class="value">${row.name}</span></td></tr>
+            <tr><td><span class="label">BREED:</span> <span class="value">${row.breed}</span></td><td><span class="label">GENDER:</span> <span class="value">${row.gender}</span></td></tr>
+            <tr><td><span class="label">COLOUR:</span> <span class="value">${row.color || "-"}</span></td><td><span class="label">CATTLE TYPE:</span> <span class="value">${row.category}</span></td></tr>
+            <tr><td><span class="label">SOURCE NAME:</span> <span class="value">${row.sourceName || "-"}</span></td><td><span class="label">ADDRESS:</span> <span class="value">${row.sourceAddress || "-"}</span></td></tr>
+          </table>
+          <div class="footer">
+            <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">SUPERVISOR SIGNATURE</div></div>
+            <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">PROJECT MANAGER SIGNATURE</div></div>
+          </div>
+        </div>
+        <script>setTimeout(() => window.print(), 500);</script>
+      </body>
+      </html>
+    `;
+    const win = window.open("", "_blank", "width=900,height=1100");
+    if (win) { win.document.write(html); win.document.close(); }
+  };
 
   if (loading) return <div style={{ padding: "2rem" }}>Loading Master Data...</div>;
   if (error) return <div style={{ padding: "2rem", color: "red" }}>{error}</div>;
@@ -119,7 +247,19 @@ export default function MasterCattle() {
                   <td style={tdStyle}>{row.gender}</td>
                   <td style={tdStyle}><StatusPill status={row.status} /></td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
-                    <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                    <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+                        <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                        {/* 🔥 CERTIFICATE BUTTON */}
+                        {!String(row.admissionType || "").toLowerCase().includes("rescue") && (
+                            <button 
+                                onClick={() => handleGenerateCert(row)} 
+                                style={certBtnStyle}
+                                title={String(row.admissionType).toLowerCase().includes("born") ? "Birth Certificate" : "Incoming Certificate"}
+                            >
+                                📜 Cert
+                            </button>
+                        )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -169,7 +309,7 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null); // Reference to hidden file input
+  const fileInputRef = useRef(null); 
 
   useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
 
@@ -189,7 +329,7 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
     }
   };
 
-  // 🔥 UPLOAD LOGIC
+  // UPLOAD LOGIC
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -198,7 +338,7 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
     const data = new FormData();
     data.append("file", file);
     data.append("upload_preset", UPLOAD_PRESET); 
-    data.append("folder", "cattle_photos"); // Organize in folder
+    data.append("folder", "cattle_photos"); 
 
     try {
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
@@ -208,7 +348,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
       const fileData = await res.json();
       
       if (fileData.secure_url) {
-        // Update form data with new URL automatically
         setFormData(prev => ({ ...prev, photo: fileData.secure_url }));
       } else {
         alert("Upload failed. Check console.");
@@ -257,7 +396,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
         {/* LARGE PHOTO CONTAINER */}
         <div style={largePhotoContainerStyle}>
              {isEditing ? (
-                // Show Preview of the URL in the text box, or the existing photo
                 formData.photo ? <img src={formData.photo} style={largePhotoStyle} alt="Preview" /> : <div style={placeholderStyle}>No Photo Selected</div>
              ) : (
                 <CattlePhoto url={selected.photo} />
@@ -278,40 +416,23 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                 <EditInput label="Shed (Location)" name="shed" value={formData.shed} onChange={handleChange} />
                 <EditInput label="Category" name="category" value={formData.category} onChange={handleChange} type="select" options={["Milking", "Dry", "Heifer", "Calf", "Bull"]} />
                 
-                {/* 🔥 UPLOAD BUTTON CONTROL */}
+                {/* UPLOAD BUTTON CONTROL */}
                 <div style={{ gridColumn: "1 / -1", background: "#f0f9ff", padding: "10px", borderRadius: "8px", border: "1px solid #bae6fd" }}>
                   <label style={{...labelStyle, color:"#0369a1"}}>Photo URL (Auto-filled on Upload)</label>
                   <div style={{ display: "flex", gap: "10px" }}>
                     <input 
-                      type="text" 
-                      name="photo" 
-                      value={formData.photo || ""} 
-                      onChange={handleChange} 
-                      placeholder="Paste link or Upload ->" 
+                      type="text" name="photo" value={formData.photo || ""} 
+                      onChange={handleChange} placeholder="Paste link or Upload ->" 
                       style={{...inputStyle, flex:1}} 
                     />
-                    
-                    {/* HIDDEN FILE INPUT */}
-                    <input 
-                       type="file" 
-                       accept="image/*" 
-                       ref={fileInputRef} 
-                       onChange={handleFileSelect} 
-                       style={{display:"none"}} 
-                    />
-                    
-                    {/* TRIGGER BUTTON */}
+                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} style={{display:"none"}} />
                     <button 
                       onClick={() => fileInputRef.current.click()} 
                       disabled={uploading}
                       style={{
-                        background: uploading ? "#ccc" : "#0ea5e9",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "5px",
-                        padding: "0 15px",
-                        fontWeight: "bold",
-                        cursor: uploading ? "not-allowed" : "pointer",
+                        background: uploading ? "#ccc" : "#0ea5e9", color: "#fff",
+                        border: "none", borderRadius: "5px", padding: "0 15px",
+                        fontWeight: "bold", cursor: uploading ? "not-allowed" : "pointer",
                         display: "flex", alignItems: "center", gap: "5px", whiteSpace:"nowrap"
                       }}
                     >
@@ -481,6 +602,7 @@ const primaryBtnStyle = {
 };
 
 const viewBtnStyle = { background: "#eff6ff", color: "#1d4ed8", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bfdbfe", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
+const certBtnStyle = { background: "#f0fdf4", color: "#15803d", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bbf7d0", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 };
 const modalContentStyle = { background: "#fff", width: "700px", maxWidth:"95%", padding: "1.5rem", borderRadius: "10px", maxHeight: "95vh", overflowY: "auto", display:"flex", flexDirection:"column" };
 const scrollableAreaStyle = { overflowY: "auto", paddingRight: "0.5rem", flex: 1, marginTop: "0.5rem" };
