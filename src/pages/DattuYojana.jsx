@@ -451,7 +451,8 @@ const viewBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding
 const editBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
 const certBtnStyle = { border: "1px solid #bbf7d0", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#f0fdf4", color: "#15803d", fontSize: "0.9rem", cursor: "pointer", fontWeight:"bold" };
 const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 };
-const modalStyle = { background: "white", padding: "0", borderRadius: "12px", width: "95%", maxWidth: "650px", maxHeight:"90vh", overflowY:"auto", padding: "1.5rem" };
+// Fixed the duplicate padding key in modalStyle
+const modalStyle = { background: "white", borderRadius: "12px", width: "95%", maxWidth: "650px", maxHeight:"90vh", overflowY:"auto", padding: "1.5rem" };
 const viewModalStyle = { background: "white", padding: "1.5rem", borderRadius: "12px", width: "95%", maxWidth: "600px" };
 const inputStyle = { width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem", boxSizing: "border-box" };
 const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontWeight: "600" };
