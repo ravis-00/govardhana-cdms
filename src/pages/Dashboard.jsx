@@ -50,7 +50,11 @@ export default function Dashboard() {
     avgMilkYieldPerDay: 0,
     avgMilkSoldPerDay: 0,
     newBorn12M: 0,
+    calfMortality12M: 0,
+    calfMortalityRate: 0, // <--- Added for % Calculation
+    pureBredRate: 0,
     activeDattuYojana: 0,
+    sponsorshipCoverage: 0,
     avgFeedingPerDay: 0,
     deathsLastYear: 0,
     soldLastYear: 0,
@@ -90,6 +94,13 @@ export default function Dashboard() {
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(todayDate.getFullYear() - 1);
 
+        // Lookup Map
+        const cattleMap = new Map();
+        cattle.forEach(c => {
+            if(c.tag) cattleMap.set(String(c.tag).toLowerCase().trim(), c);
+            if(c.id) cattleMap.set(String(c.id).toLowerCase().trim(), c);
+        });
+
         // --- CATTLE STATS ---
         let activeCount = 0;
         let femaleCount = 0;
@@ -97,16 +108,20 @@ export default function Dashboard() {
         const breedCounts = {};
         const catCounts = { "Cows": 0, "Heifers": 0, "Bulls": 0, "Calves": 0 };
 
+        let pureBredCount = 0;
+        let totalBirths12M = 0;
+
         cattle.forEach(c => {
           const status = String(c.status || "").toLowerCase().trim();
+          const dob = c.dob ? new Date(c.dob) : null;
+          const stdBreed = normalizeBreed(c.breed);
+          
           if (status === "active") {
             activeCount++;
-            
             const gender = String(c.gender || "").toLowerCase();
             if (gender.startsWith("f")) femaleCount++;
             else if (gender.startsWith("m")) maleCount++;
 
-            const stdBreed = normalizeBreed(c.breed);
             breedCounts[stdBreed] = (breedCounts[stdBreed] || 0) + 1;
 
             const cat = String(c.category || c.cattleType || "").toLowerCase();
@@ -115,9 +130,32 @@ export default function Dashboard() {
             else if (cat.includes("bull") || cat.includes("ox")) catCounts["Bulls"]++;
             else if (cat.includes("calf")) catCounts["Calves"]++;
           }
+
+          if (dob && dob >= oneYearAgo && dob <= todayDate) {
+            totalBirths12M++;
+            if (stdBreed !== "Mix / Cross" && stdBreed !== "Unknown") {
+              pureBredCount++;
+            }
+          }
         });
 
-        // --- MILK YIELD ---
+        const newBornLogCount = newBorn.filter(nb => {
+           const d = new Date(nb.date || nb.dateOfBirth);
+           return !isNaN(d) && d >= oneYearAgo && d <= todayDate;
+        }).length;
+
+        const finalBirthCount = Math.max(totalBirths12M, newBornLogCount);
+        const pureRate = finalBirthCount > 0 
+          ? ((pureBredCount / finalBirthCount) * 100).toFixed(0) 
+          : 0;
+
+        // --- DATTU ---
+        const activeDattu = dattu.filter(d => String(d.schemeStatus || "").toLowerCase() === "active").length;
+        const sponsorRate = activeCount > 0 
+          ? ((activeDattu / activeCount) * 100).toFixed(1) 
+          : 0;
+
+        // --- MILK ---
         const yieldByDate = new Map();
         milkYield.forEach((row) => {
           const day = String(row.date || "").slice(0, 10);
@@ -125,13 +163,11 @@ export default function Dashboard() {
           const currentTotal = yieldByDate.get(day) || 0;
           yieldByDate.set(day, currentTotal + (Number(row.totalYield) || 0));
         });
-
         const yieldDays = Array.from(yieldByDate.values());
         const avgYield = yieldDays.length > 0 
            ? yieldDays.reduce((a, b) => a + b, 0) / yieldDays.length 
            : 0;
 
-        // --- MILK SOLD ---
         const soldByDate = new Map();
         milkDist.forEach((row) => {
           const day = String(row.date || "").slice(0, 10);
@@ -139,20 +175,10 @@ export default function Dashboard() {
           const currentTotal = soldByDate.get(day) || 0;
           soldByDate.set(day, currentTotal + (Number(row.outPassQty) || 0));
         });
-
         const soldDays = Array.from(soldByDate.values());
         const avgSold = soldDays.length > 0 
            ? soldDays.reduce((a, b) => a + b, 0) / soldDays.length 
            : 0;
-
-        // --- NEW BORN (12M) ---
-        const bornLast12M = newBorn.filter(nb => {
-           const d = new Date(nb.date || nb.dateOfBirth);
-           return !isNaN(d) && d >= oneYearAgo && d <= todayDate;
-        }).length;
-
-        // --- DATTU ---
-        const activeDattu = dattu.filter(d => String(d.schemeStatus || "").toLowerCase() === "active").length;
 
         // --- FEEDING ---
         const feedByDate = new Map();
@@ -167,21 +193,38 @@ export default function Dashboard() {
            ? feedDays.reduce((a, b) => a + b, 0) / feedDays.length 
            : 0;
 
-        // --- DEATHS & SOLD (12M) ---
+        // --- DEATHS & CALF MORTALITY ---
         let deaths12m = 0;
         let sold12m = 0;
+        let calfDeaths12m = 0;
 
         exitLog.forEach(log => {
           const exitDate = new Date(log.date);
           if (!isNaN(exitDate) && exitDate >= oneYearAgo && exitDate <= todayDate) {
             const reason = String(log.reason || "").toLowerCase();
+            const tag = String(log.cattleId || "").toLowerCase().trim();
+
             if (reason.includes("death") || reason.includes("died") || reason.includes("mortality") || reason.includes("expired")) {
               deaths12m++;
+              
+              const animal = cattleMap.get(tag);
+              if (animal) {
+                  const cat = String(animal.category || "").toLowerCase();
+                  if (cat.includes("calf")) {
+                      calfDeaths12m++;
+                  }
+              }
             } else if (reason.includes("sold") || reason.includes("sale") || reason.includes("auction") || reason.includes("given")) {
               sold12m++;
             }
           }
         });
+
+        // 🔥 CALCULATE MORTALITY PERCENTAGE
+        // Formula: (Dead Calves / Total Born) * 100
+        const mortalityRate = finalBirthCount > 0 
+            ? ((calfDeaths12m / finalBirthCount) * 100).toFixed(1) 
+            : 0;
 
         setStats({
           activeCattle: activeCount,
@@ -189,8 +232,12 @@ export default function Dashboard() {
           maleCattle: maleCount,
           avgMilkYieldPerDay: avgYield,
           avgMilkSoldPerDay: avgSold,
-          newBorn12M: bornLast12M,
+          newBorn12M: finalBirthCount,
+          calfMortality12M: calfDeaths12m,
+          calfMortalityRate: mortalityRate, // <--- Store Rate
+          pureBredRate: pureRate,
           activeDattuYojana: activeDattu,
+          sponsorshipCoverage: sponsorRate,
           avgFeedingPerDay: avgFeed,
           deathsLastYear: deaths12m,
           soldLastYear: sold12m,
@@ -206,7 +253,6 @@ export default function Dashboard() {
           { name: "Calves", count: catCounts["Calves"], color: "#059669" },
           { name: "Bulls", count: catCounts["Bulls"], color: "#f59e0b" }
         ];
-        // Filter out zero categories for cleaner Donut
         setCategoryData(catChart.filter(c => c.count > 0));
 
       } catch (err) {
@@ -235,16 +281,40 @@ export default function Dashboard() {
 
       {/* STAT CARDS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+        
         <StatCard title="ACTIVE CATTLE" value={stats.activeCattle} color="#2563eb" />
         <StatCard title="FEMALE CATTLE" value={stats.femaleCattle} color="#ec4899" />
         <StatCard title="MALE CATTLE" value={stats.maleCattle} color="#f59e0b" />
+        
+        <StatCard title="NEW BORN (12M)" value={stats.newBorn12M} color="#0ea5e9" />
+        
+        {/* 🔥 UPDATED CALF MORTALITY CARD */}
+        {/* Shows Count + Percentage in brackets */}
+        <StatCard 
+          title="CALF MORTALITY (12M)" 
+          value={`${stats.calfMortality12M} (${stats.calfMortalityRate}%)`} 
+          color={stats.calfMortalityRate > 5 ? "#ef4444" : "#10b981"} // Red if > 5%, else Green
+        />
+
+        <StatCard 
+          title="PUREBRED BIRTHS %" 
+          value={`${stats.pureBredRate}%`} 
+          color={stats.pureBredRate >= 80 ? "#16a34a" : "#ca8a04"} 
+        />
+
         <StatCard title="AVG MILK / DAY (L)" value={formatNumber(stats.avgMilkYieldPerDay)} color="#059669" />
         <StatCard title="AVG MILK SOLD / DAY (L)" value={formatNumber(stats.avgMilkSoldPerDay)} color="#10b981" />
-        <StatCard title="NEW BORN (12M)" value={stats.newBorn12M} color="#0ea5e9" />
-        <StatCard title="ACTIVE SPONSORSHIPS" value={stats.activeDattuYojana} color="#8b5cf6" />
-        <StatCard title="AVG FEEDING (KG)" value={formatNumber(stats.avgFeedingPerDay)} color="#d97706" />
-        <StatCard title="DEATHS (12M)" value={stats.deathsLastYear} color="#ef4444" />
+        <StatCard title="AVG FEEDING / DAY (KG)" value={formatNumber(stats.avgFeedingPerDay)} color="#d97706" />
+
         <StatCard title="SOLD (12M)" value={stats.soldLastYear} color="#f97316" />
+        <StatCard title="DEATHS (12M)" value={stats.deathsLastYear} color="#ef4444" />
+        
+        <StatCard title="ACTIVE SPONSORSHIPS" value={stats.activeDattuYojana} color="#8b5cf6" />
+        <StatCard 
+          title="SPONSOR COVERAGE %" 
+          value={`${stats.sponsorshipCoverage}%`} 
+          color={stats.sponsorshipCoverage >= 20 ? "#8b5cf6" : "#ef4444"} 
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: "1.5rem" }}>
@@ -254,23 +324,11 @@ export default function Dashboard() {
           <h3 style={chartTitleStyle}>Breed Distribution</h3>
           <div style={{ height: "350px", width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={breedData} 
-                margin={{ top: 20, right: 30, left: 0, bottom: 60 }} 
-              >
-                <XAxis 
-                  dataKey="name" 
-                  fontSize={11} 
-                  interval={0} 
-                  tick={{fill: '#374151', fontWeight: 600 }} // Darker Axis Labels
-                  angle={-45}        
-                  textAnchor="end"   
-                  height={70}        
-                />
+              <BarChart data={breedData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                <XAxis dataKey="name" fontSize={11} interval={0} tick={{fill: '#374151', fontWeight: 600 }} angle={-45} textAnchor="end" height={70} />
                 <YAxis fontSize={12} tick={{fill: '#374151', fontWeight: 600 }} /> 
                 <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                   {/* Darker Labels on Bars */}
                    <LabelList dataKey="count" position="top" style={{ fill: '#111827', fontSize: '0.75rem', fontWeight: 'bold' }} />
                    {breedData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getBarColor(index)} />
@@ -281,7 +339,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* DONUT CHART FOR CATEGORIES */}
+        {/* Categories Donut Chart */}
         <div style={chartCardStyle}>
           <h3 style={chartTitleStyle}>Cattle Categories</h3>
           <div style={{ height: "350px", width: "100%" }}>
@@ -296,7 +354,6 @@ export default function Dashboard() {
                   paddingAngle={5}
                   dataKey="count"
                   nameKey="name"
-                  // 🔥 Darker Data Labels Configured Here
                   label={{ fill: '#000000', fontSize: 12, fontWeight: 'bold' }} 
                 >
                   {categoryData.map((entry, index) => (
@@ -304,11 +361,7 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36} 
-                  wrapperStyle={{ color: '#000000', fontWeight: 'bold' }} // Darker Legend
-                />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: '#000000', fontWeight: 'bold' }}/>
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -324,7 +377,6 @@ export default function Dashboard() {
 function StatCard({ title, value, color }) {
   return (
     <div style={{ background: "#fff", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", borderLeft: `4px solid ${color}` }}>
-      {/* Darker Title Color (#374151 instead of light gray) */}
       <div style={{ fontSize: "0.75rem", fontWeight: "bold", color: "#374151", textTransform: "uppercase", marginBottom: "0.5rem" }}>{title}</div>
       <div style={{ fontSize: "2rem", fontWeight: "800", color: "#111827" }}>{value}</div>
     </div>
@@ -332,7 +384,6 @@ function StatCard({ title, value, color }) {
 }
 
 const chartCardStyle = { background: "#fff", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" };
-// Darker Chart Title
 const chartTitleStyle = { margin: "0 0 1.5rem 0", fontSize: "1rem", fontWeight: "700", color: "#111827" };
 
 function getBarColor(index) {
