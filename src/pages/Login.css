@@ -1,0 +1,330 @@
+/* src/pages/Login.css */
+
+/* --- PAGE LAYOUT --- */
+.login-container {
+  min-height: 100vh;
+  width: 100%;
+  /* Slate Blue Gradient */
+  /* background: linear-gradient(135deg, #334155 0%, #0f172a 100%); */
+  /* background: linear-gradient(135deg, #14532d 0%, #022c22 100%); */
+  /* background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); */
+/* background: linear-gradient(135deg, #1e293b 0%, #020617 100%); */
+background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
+  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  color: #ffffff;
+}
+
+/* --- HEADER SECTION --- */
+.login-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  max-width: 700px;
+}
+
+.main-logo {
+  height: 120px; /* Increased from 100px */
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+}
+
+.app-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-subtitle-highlight {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #ea580c; /* Brand Orange */
+  margin: 0.5rem 0 1rem 0;
+}
+
+.app-tagline {
+  font-size: 1.1rem; /* Slightly larger */
+  color: #38bdf8; /* Electric Blue (Sky-400) for high contrast on dark bg */
+  line-height: 1.6;
+  font-weight: 500;
+  max-width: 600px; /* Limits width for better reading */
+  margin: 0 auto;   /* Centers the text block */
+}
+
+/* --- FEATURE CARDS --- */
+.feature-cards-container {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  width: 100%;
+  max-width: 900px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.feature-card {
+  background: rgba(255, 255, 255, 0.150); 
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  flex: 1 1 300px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column; /* Stacks items vertically */
+  text-align: center;     /* Optional: Centers the Title & Text too */
+}
+
+
+.feature-icon-wrapper {
+  display: inline-flex;
+  padding: 12px;
+  border-radius: 50%; /* Make it circular */
+  
+  /* 🔥 THE GLOW EFFECT 🔥 */
+  background: rgba(234, 88, 12, 0.15); /* Low opacity orange background */
+  box-shadow: 0 0 15px rgba(234, 88, 12, 0.3); /* Soft orange glow */
+  border: 1px solid rgba(234, 88, 12, 0.2); /* Subtle border definition */
+  
+  color: #fb923c; /* Brighter orange icon color */
+  margin-bottom: 1rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+
+
+.feature-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.feature-description {
+  font-size: 0.9rem;
+  color: #d1d5db;
+  line-height: 1.4;
+}
+
+/* --- LOGIN FORM CONTAINER --- */
+.form-container {
+  background-color: #ffffff;
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 420px;
+  color: #374151;
+  border-top: 4px solid #ea580c; /* Adds a nice brand accent bar at the top */
+}
+
+.form-title {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 1.5rem;
+}
+
+/* --- INPUTS --- */
+.input-group {
+  margin-bottom: 1.25rem;
+}
+
+.input-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.4rem;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.icon-left {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+  display: flex;
+}
+
+.login-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+  outline: none;
+  box-sizing: border-box; /* Crucial for width */
+  transition: border-color 0.2s;
+}
+
+.login-input:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
+}
+
+.icon-right {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+}
+
+/* --- OPTIONS (Remember / Forgot) --- */
+.options-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.remember-text {
+  margin-left: 8px;
+}
+
+.forgot-link {
+  color: #ea580c;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.error-msg {
+  background-color: #fee2e2;
+  color: #991b1b;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+/* --- 🔥 ORANGE ACTION BUTTON 🔥 --- */
+/* This specific class is used for Login and Modal OK button */
+.action-btn {
+  width: 100%;
+  padding: 12px 20px;
+  background: linear-gradient(to right, #f97316, #ea580c);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(234, 88, 12, 0.3);
+}
+
+.action-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.action-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* --- 🔥 CUSTOM MODAL (Popup) 🔥 --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6); /* Dimmed background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(3px);
+}
+
+.modal-box {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 350px;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  animation: popIn 0.3s ease-out;
+  color: #374151;
+}
+
+.modal-title {
+  margin-top: 0;
+  color: #111827;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.modal-text {
+  color: #4b5563;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .feature-cards-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  .feature-card {
+    width: 100%;
+  }
+}
+
+.authorized-note {
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+}

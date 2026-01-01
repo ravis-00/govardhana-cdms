@@ -3,9 +3,18 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-// --- ASSETS ---
+// --- STYLES & ASSETS ---
+import "./Login.css";
 import rashtrotthanaLogo from "../assets/Logo.png";
-import logoCdms from "../assets/Logo-CDMS.png"; 
+
+// --- ICONS ---
+const CowIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 9H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V15z"/></svg>
+);
+
+const ChartIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.06 6.1L12 4 9.94 6.1 8.5 4.6l-1.4 1.4L12 10.9l4.9-4.9-1.4-1.4zM20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+);
 
 export default function Login() {
   const navigate = useNavigate();
@@ -17,6 +26,9 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // State for Custom Modal
+  const [showModal, setShowModal] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -37,260 +49,133 @@ export default function Login() {
     }
   }
 
-  return (
-    <div style={styles.container}>
-      
-      {/* --- LEFT SIDE: LOGO-CDMS BRANDING --- */}
-      <div style={styles.leftSection}>
-        <img 
-          src={logoCdms} 
-          alt="Govardhana CDMS Branding" 
-          style={styles.fullHeightImage}
-        />
-      </div>
+  // Handle "Forgot Password" Click
+  const handleForgotClick = (e) => {
+    e.preventDefault();
+    setShowModal(true); // Open the custom popup
+  };
 
-      {/* --- RIGHT SIDE: LOGIN FORM --- */}
-      <div style={styles.rightSection}>
-        <div style={styles.formWrapper}>
-          
-          {/* APP HEADER */}
-          <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
-            
-            {/* RASHTROTTHANA LOGO */}
-            <div style={styles.logoContainer}>
-               <img 
-                 src={rashtrotthanaLogo} 
-                 alt="Rashtrotthana Parishat" 
-                 style={styles.mainLogo} 
-               />
+  return (
+    <div className="login-container">
+      
+      {/* --- HEADER --- */}
+      <header className="login-header">
+        <img src={rashtrotthanaLogo} alt="Rashtrotthana Parishat" className="main-logo" />
+        <h1 className="app-title">Rashtrotthana Parishat</h1>
+        <h2 className="app-subtitle-highlight">Madhava Srushti</h2>
+        <p className="app-tagline">
+          Govardhana - Cattel Data Management System: A comprehensive platform for the holistic management, preservation, and development of indigenous cattle breeds.
+        </p>
+      </header>
+
+      {/* --- FEATURES --- */}
+      <section className="feature-cards-container">
+        <div className="feature-card">
+          <div className="feature-icon-wrapper"><CowIcon /></div>
+          <h3 className="feature-title">Cattle Data Management</h3>
+          <p className="feature-description">
+            Maintain a digital registry of your cattle, track genealogy, manage health records, vaccinations, and breeding history efficiently.
+          </p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon-wrapper"><ChartIcon /></div>
+          <h3 className="feature-title">Operations & Insights</h3>
+          <p className="feature-description">
+            Monitor daily milk production, optimize feeding & nutrition plans, and gain valuable insights through analytics.
+          </p>
+        </div>
+      </section>
+
+      {/* --- FORM --- */}
+      <main className="form-container">
+        <h3 className="form-title">Sign In to Your Account</h3>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="input-group">
+            <label className="input-label">Email Address</label>
+            <div className="input-wrapper">
+              <div className="icon-left">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="login-input"
+                placeholder="admin@rashtrotthana.org"
+                required
+              />
             </div>
-            
-            {/* UPDATED TITLES */}
-            <h2 style={styles.appTitle}>
-              Rashtrotthana Parishat
-            </h2>
-            <h3 style={styles.appSubtitleHighlight}>
-              Madhava Srushti
-            </h3>
           </div>
 
-          {/* LOGIN FORM */}
-          <form onSubmit={handleSubmit} style={styles.form}>
-            
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Email Address</label>
-              <div style={styles.inputWrapper}>
-                <div style={styles.iconLeft}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={styles.input}
-                  placeholder="admin@rashtrotthana.org"
-                  required
-                />
+          <div className="input-group">
+            <label className="input-label">Password</label>
+            <div className="input-wrapper">
+              <div className="icon-left">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-input"
+                placeholder="••••••••"
+                required
+              />
+              <div className="icon-right" onClick={() => setShowPassword(!showPassword)}>
+                {showPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
               </div>
             </div>
+          </div>
 
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Password</label>
-              <div style={styles.inputWrapper}>
-                <div style={styles.iconLeft}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={styles.input}
-                  placeholder="••••••••"
-                  required
-                />
-                <div 
-                  style={styles.iconRight}
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.optionsRow}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={rememberMe} 
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{ accentColor: "#ea580c", marginRight: "8px" }} 
-                />
-                <span style={{ fontSize: "0.9rem", color: "#374151" }}>Remember me</span>
-              </label>
-              <a href="#" style={{ fontSize: "0.9rem", color: "#ea580c", fontWeight: 600, textDecoration: 'none' }}>Forgot password?</a>
-            </div>
-
-            {error && <div style={styles.errorMsg}>{error}</div>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                ...styles.button,
-                opacity: loading ? 0.7 : 1,
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
-            >
-              {loading ? "Authenticating..." : "Login"}
+          <div className="options-row">
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={rememberMe} 
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ accentColor: "#ea580c" }} 
+              />
+              <span className="remember-text">Remember me</span>
+            </label>
+            <button type="button" className="forgot-link" onClick={handleForgotClick}>
+              Forgot password?
             </button>
-          </form>
+          </div>
 
-          <div style={styles.footerMobile}>
-             © 2025 Rashtrotthana Parishat
+          {error && <div className="error-msg">{error}</div>}
+
+          {/* 🔥 FIXED ACTION BUTTON 🔥 */}
+          <button type="submit" disabled={loading} className="action-btn">
+            {loading ? "Authenticating..." : "Login"}
+          </button>
+        </form>
+      </main>
+
+      <footer className="login-footer">
+        © 2025 Rashtrotthana Parishat. All rights reserved.
+      </footer>
+
+      {/* --- CUSTOM POPUP MODAL --- */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Reset Password</h3>
+            <p className="modal-text">
+              Contact system administrator to Reset password.
+            </p>
+            {/* Same orange button style reused here */}
+            <button className="action-btn" style={{ width: "auto", minWidth: "100px", margin: "0 auto" }} onClick={() => setShowModal(false)}>
+              OK
+            </button>
           </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
-
-// --- STYLES OBJECT ---
-const styles = {
-  container: {
-    display: "flex",
-    minHeight: "100vh",
-    width: "100%",
-    backgroundColor: "#ffffff",
-    fontFamily: "'Segoe UI', sans-serif",
-  },
-  // --- LEFT SECTION ---
-  leftSection: {
-    flex: 1,
-    position: "relative",
-    backgroundColor: "#f3f4f6",
-    overflow: "hidden",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fullHeightImage: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-  },
-  
-  // --- RIGHT SECTION ---
-  rightSection: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "2rem",
-    backgroundColor: "#ffffff",
-  },
-  formWrapper: {
-    width: "100%",
-    maxWidth: "420px",
-  },
-  logoContainer: {
-    display: "flex",
-    justifyContent: "center",
-    marginBottom: "1.5rem",
-  },
-  mainLogo: {
-    height: "110px", // Slightly larger
-    width: "auto",
-    objectFit: "contain",
-  },
-  // Updated Title Styles
-  appTitle: {
-    fontSize: "1.6rem",
-    fontWeight: "700",
-    color: "#111827",
-    margin: "0",
-  },
-  appSubtitleHighlight: {
-    fontSize: "1.8rem",
-    fontWeight: "600",
-    color: "#ea580c", // Brand Orange
-    margin: "0.5rem 0 0 0",
-  },
-  form: {
-    marginTop: "2rem",
-  },
-  inputGroup: {
-    marginBottom: "1.5rem",
-  },
-  label: {
-    display: "block",
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: "0.5rem",
-  },
-  inputWrapper: {
-    position: "relative",
-  },
-  iconLeft: {
-    position: "absolute",
-    left: "12px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    display: "flex",
-    pointerEvents: "none",
-  },
-  input: {
-    width: "100%",
-    padding: "0.75rem 1rem 0.75rem 2.75rem",
-    borderRadius: "8px",
-    border: "1px solid #d1d5db",
-    fontSize: "0.95rem",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  iconRight: {
-    position: "absolute",
-    right: "12px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    cursor: "pointer",
-    display: "flex",
-  },
-  optionsRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1.5rem",
-  },
-  button: {
-    width: "100%",
-    padding: "0.85rem",
-    borderRadius: "8px",
-    border: "none",
-    background: "linear-gradient(to right, #f97316, #ea580c)",
-    color: "white",
-    fontSize: "1rem",
-    fontWeight: "600",
-    boxShadow: "0 4px 6px -1px rgba(234, 88, 12, 0.3)",
-    transition: "all 0.2s",
-  },
-  errorMsg: {
-    backgroundColor: "#fee2e2",
-    color: "#991b1b",
-    padding: "0.75rem",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    textAlign: "center",
-    marginBottom: "1.5rem",
-  },
-  footerMobile: {
-    marginTop: "3rem",
-    textAlign: "center",
-    fontSize: "0.8rem",
-    color: "#9ca3af",
-  }
-};
