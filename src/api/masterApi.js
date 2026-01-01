@@ -53,6 +53,7 @@ async function getRequest(action, params) {
 
 async function postRequest(action, body) {
   const url = buildUrl(action);
+  // Apps Script often prefers action in the payload for POST
   const payload = { action, ...body };
   
   const res = await fetchWithTimeout(url, {
@@ -74,10 +75,9 @@ export async function updateCattle(payload) { return postRequest("updateCattle",
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
-// 🔥 NEW: Exit & Deregister Logic
+// Exit & Deregister
 export async function getCattleExitLog(params = {}) { return getRequest("getCattleExitLog", params); }
 export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
-
 
 // 2. NEW BORN
 export async function getNewBorn() { return getRequest("getNewBorn"); }
@@ -129,9 +129,43 @@ export const getUsers = fetchUsers;
 export async function addUser(userData) { return postRequest("addUser", userData); }
 export async function updateUser(userData) { return postRequest("updateUser", userData); }
 
-// 9. REPORTS (🔥 UPDATED for New Smart Report Builder)
+// 9. REPORTS
 export async function getReportData(reportType, startDate, endDate) { 
   return getRequest("getReportData", { reportType, startDate, endDate }); 
+}
+
+// =========================================================================
+// 10. MASTER CONFIGURATION (🔥 FIXED SECTION 🔥)
+// =========================================================================
+
+// Helper to Capitalize: "breeds" -> "Breeds"
+const formatType = (type) => {
+  if (!type) return "";
+  return type.charAt(0).toUpperCase() + type.slice(1);
+};
+
+export async function fetchMaster(type) { 
+  const properType = formatType(type);
+  // Result: "getBreedsMaster"
+  return getRequest(`get${properType}Master`); 
+}
+
+export async function addMaster(type, data) { 
+  const properType = formatType(type);
+  // Result: "addBreedsMaster"
+  return postRequest(`add${properType}Master`, data); 
+}
+
+export async function updateMaster(type, id, data) { 
+  const properType = formatType(type);
+  // Result: "updateBreedsMaster"
+  return postRequest(`update${properType}Master`, { id, ...data }); 
+}
+
+export async function deleteMaster(type, id) { 
+  const properType = formatType(type);
+  // Result: "deleteBreedsMaster"
+  return postRequest(`delete${properType}Master`, { id }); 
 }
 
 // --- ALIASES ---
@@ -139,7 +173,7 @@ export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;
 export const fetchUnregisteredBirths = getUnregisteredBirths;
-export const fetchDattuReport = getDattuYojana; // Fallback alias
+export const fetchDattuReport = getDattuYojana;
 export const getMilkYield = getMilkProduction; 
 export const fetchMilkYield = getMilkProduction;
 export const addMilkYield = addMilkProduction;

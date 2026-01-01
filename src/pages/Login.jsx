@@ -151,7 +151,7 @@ export default function Login() {
 
           {/* 🔥 FIXED ACTION BUTTON 🔥 */}
           <button type="submit" disabled={loading} className="action-btn">
-            {loading ? "Authenticating..." : "Login"}
+            {loading ? "Authenticating..." : "Sign In"}
           </button>
         </form>
       </main>

@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -19,7 +20,12 @@ import Feeding from "./pages/Feeding.jsx";
 import DattuYojana from "./pages/DattuYojana.jsx"; 
 import Deregister from "./pages/Deregister.jsx"; 
 import DeathRecords from "./pages/DeathRecords.jsx"; 
-import Reports from "./pages/Reports.jsx"; // ✅ Correct Import
+import Reports from "./pages/Reports.jsx"; 
+import Breeds from "./pages/config/Breeds";
+import Medicines from "./pages/config/Medicines";
+import Rates from "./pages/config/Rates";
+import Weight from "./pages/config/Weight";
+import Symptoms from "./pages/config/Symptoms";
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
@@ -60,10 +66,11 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* PUBLIC ROUTES */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
-        {/* MAIN LAYOUT WRAPPER */}
+        {/* MAIN LAYOUT WRAPPER (PROTECTED) */}
         <Route element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
           
           {/* --- DASHBOARD --- */}
@@ -89,14 +96,22 @@ export default function App() {
           {/* --- FINANCE & ADMIN --- */}
           <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User"]}><DattuYojana /></ProtectedRoute>} />
           
-          {/* ✅ REPORTS ROUTE (Correctly points to Reports.jsx) */}
+          {/* --- REPORTS --- */}
           <Route path="/reports" element={<Reports />} />
+
+          {/* --- MASTER CONFIGURATION (🔥 NEW ROUTES ADDED HERE 🔥) --- */}
+          <Route path="/config/breeds" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Breeds /></ProtectedRoute>} />
+          <Route path="/config/medicines" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Medicines /></ProtectedRoute>} />
+          <Route path="/config/rates" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Rates /></ProtectedRoute>} />
+          <Route path="/config/weight" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Weight /></ProtectedRoute>} />
+          <Route path="/config/symptoms" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Symptoms /></ProtectedRoute>} />
           
-          {/* USER MANAGEMENT (Admin Only) */}
+          {/* --- USER MANAGEMENT --- */}
           <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><UserManagement /></ProtectedRoute>} />
 
         </Route>
 
+        {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
