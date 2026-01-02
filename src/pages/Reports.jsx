@@ -43,11 +43,114 @@ const REPORT_TYPES = [
       { label: "Reason for Death", key: "reason" }
     ] 
   },
-  { id: "sales", label: "Sales Report", columns: [{label:"Date", key:"date"}, {label:"Tag", key:"tag"}] },
-  { id: "incoming", label: "Incoming Report", columns: [{label:"Date", key:"date"}, {label:"Tag", key:"tag"}] },
-  { id: "dattu", label: "Dattu Yojana Report", columns: [{label:"Date", key:"date"}, {label:"Donor", key:"donor"}] },
-  { id: "milk", label: "Milk Yield Report", columns: [{label:"Date", key:"date"}, {label:"Total", key:"total"}] },
-  { id: "bio", label: "Bio-Waste Report", columns: [{label:"Date", key:"date"}, {label:"Item", key:"item"}] },
+  { 
+    id: "sales", 
+    label: "Sales Report", 
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Date", key: "date" },
+      { label: "Cattle Name", key: "name" },
+      { label: "Tag Number", key: "tag" },
+      { label: "Breed", key: "breed" },
+      { label: "Gender", key: "gender" },
+      { label: "Colour", key: "color" },
+      { label: "Cattle Type", key: "cattleType" },
+      { label: "Party's Name", key: "partyName" },
+      { label: "Party's Address", key: "partyAddr" },
+      { label: "Contact Number", key: "partyPhone" },
+      { label: "Gate Pass No", key: "gatePass" },
+      { label: "Receipt No", key: "receipt" },
+      { label: "Amount", key: "amount" }
+    ] 
+  },
+  { 
+    id: "incoming", 
+    label: "Incoming Report", 
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Date", key: "date" },
+      { label: "Tag Number", key: "tag" },
+      { label: "Cattle Name", key: "name" },
+      { label: "Breed", key: "breed" },
+      { label: "Gender", key: "gender" },
+      { label: "Colour", key: "color" },
+      { label: "Cattle Type", key: "cattleType" },
+      { label: "Age (Y-M)", key: "age" },
+      { label: "Party Name", key: "partyName" },
+      { label: "Party Address", key: "partyAddr" }
+    ] 
+  },
+  { 
+    id: "dattu", 
+    label: "Dattu Yojana Report", 
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Date", key: "date" },
+      { label: "Breed", key: "breed" },
+      { label: "Tag Number", key: "tag" },
+      { label: "Cattle Name", key: "name" },
+      { label: "Donor Name", key: "donor" },
+      { label: "Donor Address", key: "address" },
+      { label: "Contact Number", key: "contact" },
+      { label: "Scheme", key: "scheme" },
+      { label: "Payment Mode", key: "mode" },
+      { label: "Receipt Number", key: "receipt" },
+      { label: "Expiry Date", key: "expiry" },
+      { label: "Amount", key: "amount" }
+    ] 
+  },
+  { 
+    id: "milk", 
+    label: "Daily Milk Report", 
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Date", key: "date" },
+      // AM
+      { label: "Morning Yield", key: "amYield" },
+      { label: "Left to By-Prod", key: "amByProd" },
+      { label: "Good Milk (AM)", key: "amGood" },
+      { label: "Colostrum (AM)", key: "amCol" },
+      { label: "Temple", key: "temple" },
+      // PM
+      { label: "Evening Yield", key: "pmYield" },
+      { label: "Left to By-Prod", key: "pmByProd" },
+      { label: "Good Milk (PM)", key: "pmGood" },
+      { label: "Colostrum (PM)", key: "pmCol" },
+      // Distribution
+      { label: "Bulls", key: "bulls" },
+      { label: "Free to Workers", key: "workers" },
+      // Totals
+      { label: "Total Yield", key: "totalYield" },
+      { label: "Total Colostrum", key: "totalColostrum" },
+      { label: "Total Free Milk", key: "totalFree" },
+      { label: "Total By-Products", key: "totalLeftByProd" }
+    ] 
+  },
+  { 
+    id: "govardhana", 
+    label: "Govardhana Internal Outgoing", 
+    // 🔥 NEW COLUMNS FOR GOVARDHANA
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Date", key: "date" },
+      { label: "Invoice", key: "invoice" },
+      { label: "Sector", key: "sector" },
+      // Milk
+      { label: "Milk (Kg)", key: "milkQty" },
+      { label: "Milk (Rs)", key: "milkRs" },
+      // Gaumaya (Dung)
+      { label: "Gaumaya (Kg)", key: "dungQty" },
+      { label: "Gaumaya (Rs)", key: "dungRs" },
+      // Gomuthra (Urine)
+      { label: "Gomuthra (Ltr)", key: "urineQty" },
+      { label: "Gomuthra (Rs)", key: "urineRs" },
+      // Slurry
+      { label: "Slurry (Tanks)", key: "slurryQty" },
+      { label: "Slurry (Rs)", key: "slurryRs" },
+      // Total
+      { label: "Total Amount", key: "totalAmount" }
+    ] 
+  }
 ];
 
 export default function Reports() {
@@ -55,7 +158,6 @@ export default function Reports() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Default Dates: Jan 1st of current year to Today
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), 0, 1).toISOString().slice(0,10);
   const currentDay = today.toISOString().slice(0,10);
@@ -64,7 +166,7 @@ export default function Reports() {
   const [toDate, setToDate] = useState(currentDay);
 
   useEffect(() => {
-    setRows([]); // Clear old data when switching tabs
+    setRows([]); 
     loadReport();
   }, [activeReport]); 
 
@@ -73,8 +175,6 @@ export default function Reports() {
     try {
       const res = await getReportData(activeReport.id, fromDate, toDate);
       const rawData = Array.isArray(res) ? res : (res?.data || []);
-      
-      // Add Sl.No to every row
       const processed = rawData.map((row, index) => ({
         ...row,
         slno: index + 1
@@ -180,19 +280,20 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Data Table */}
-        <div style={{ flex: 1, padding: "2rem", overflowY: "auto" }}>
-          <div style={{ background: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-              <thead style={{ background: "#f9fafb", textAlign: "left" }}>
-                <tr>{activeReport.columns.map((col) => <th key={col.key} style={{padding:"10px", borderBottom:"1px solid #eee"}}>{col.label}</th>)}</tr>
+        {/* Data Table Container */}
+        <div style={{ flex: 1, padding: "2rem", overflow: "hidden", display:"flex", flexDirection:"column" }}>
+          {/* Scrollable Container */}
+          <div style={{ background: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "auto", flex: 1, maxWidth: "100%" }}>
+            <table style={{ width: "100%", minWidth: "max-content", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+              <thead style={{ background: "#f9fafb", textAlign: "left", position: "sticky", top: 0, zIndex: 10 }}>
+                <tr>{activeReport.columns.map((col) => <th key={col.key} style={{padding:"12px 10px", borderBottom:"1px solid #eee", whiteSpace: "nowrap"}}>{col.label}</th>)}</tr>
               </thead>
               <tbody>
                 {loading ? <tr><td colSpan={activeReport.columns.length} style={{padding:"2rem", textAlign:"center"}}>Loading...</td></tr> : 
                  rows.length === 0 ? <tr><td colSpan={activeReport.columns.length} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr> :
                  rows.map((row, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      {activeReport.columns.map((col) => <td key={col.key} style={{padding:"10px"}}>{row[col.key] || "-"}</td>)}
+                      {activeReport.columns.map((col) => <td key={col.key} style={{padding:"10px", whiteSpace: "nowrap"}}>{row[col.key] || "-"}</td>)}
                     </tr>
                  ))}
               </tbody>
