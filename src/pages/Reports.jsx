@@ -2,15 +2,86 @@
 import React, { useState, useEffect } from "react";
 import { getReportData } from "../api/masterApi"; 
 
-// Report Configuration
+// Report Configuration with EXACT Backend Keys
 const REPORT_TYPES = [
-  { id: "birth", label: "Birth Report", columns: ["Date", "Tag", "Name", "Breed", "Gender", "Mother", "Father"] },
-  { id: "death", label: "Death Report", columns: ["Date", "Tag", "Cause", "Doctor", "Time"] },
-  { id: "sales", label: "Sales Report", columns: ["Date", "Tag", "Buyer", "Amount", "Receipt"] },
-  { id: "incoming", label: "Incoming Report", columns: ["Date", "ID", "Type", "Source", "Price"] },
-  { id: "dattu", label: "Dattu Yojana Report", columns: ["Date", "Donor", "Scheme", "Amount", "Receipt"] },
-  { id: "milk", label: "Milk Yield Report", columns: ["Date", "Shed", "Morning", "Evening", "Total"] },
-  { id: "bio", label: "Bio-Waste Report", columns: ["Date", "Item", "Qty", "Amount", "Buyer"] },
+  { 
+    id: "birth", 
+    label: "Birth Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Tag / ID", key: "tag" },
+      { label: "Name", key: "name" },
+      { label: "Breed", key: "breed" },
+      { label: "Gender", key: "gender" },
+      { label: "Mother", key: "mother" },
+      { label: "Father", key: "father" },
+      { label: "Status", key: "status" }
+    ] 
+  },
+  { 
+    id: "death", 
+    label: "Death Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Tag", key: "tag" },
+      { label: "Reason", key: "reason" },
+      { label: "Remarks", key: "remarks" }
+    ] 
+  },
+  { 
+    id: "sales", 
+    label: "Sales Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Tag", key: "tag" },
+      { label: "Buyer", key: "buyer" },
+      { label: "Amount", key: "amount" },
+      { label: "Receipt", key: "receipt" }
+    ] 
+  },
+  { 
+    id: "incoming", 
+    label: "Incoming Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Tag", key: "tag" },
+      { label: "Source", key: "source" },
+      { label: "Cost", key: "cost" },
+      { label: "Breed", key: "breed" }
+    ] 
+  },
+  { 
+    id: "dattu", 
+    label: "Dattu Yojana Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Donor", key: "donor" },
+      { label: "Scheme", key: "scheme" },
+      { label: "Amount", key: "amount" },
+      { label: "Receipt", key: "receipt" }
+    ] 
+  },
+  { 
+    id: "milk", 
+    label: "Milk Yield Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Morning", key: "morning" },
+      { label: "Evening", key: "evening" },
+      { label: "Total", key: "total" },
+      { label: "Fat %", key: "fat" }
+    ] 
+  },
+  { 
+    id: "bio", 
+    label: "Bio-Waste Report", 
+    columns: [
+      { label: "Date", key: "date" },
+      { label: "Dung (kg)", key: "dung" },
+      { label: "Urine (L)", key: "urine" },
+      { label: "Slurry (L)", key: "slurry" }
+    ] 
+  },
 ];
 
 export default function Reports() {
@@ -18,9 +89,10 @@ export default function Reports() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Date Filters (Default: Current Month)
+  // Date Filters (Default: Current Year to capture test data)
+  // Changed default to Jan 1st of current year to ensure you see data immediately
   const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  const firstDay = new Date(today.getFullYear(), 0, 1).toISOString().slice(0,10);
   const currentDay = today.toISOString().slice(0,10);
   
   const [fromDate, setFromDate] = useState(firstDay);
@@ -34,14 +106,16 @@ export default function Reports() {
     setLoading(true);
     try {
       const res = await getReportData(activeReport.id, fromDate, toDate);
-      if (res && res.data) {
-        setRows(res.data);
+      if (Array.isArray(res)) {
+        setRows(res); // Handle direct array return
+      } else if (res && res.data && Array.isArray(res.data)) {
+        setRows(res.data); // Handle { success: true, data: [...] }
       } else {
         setRows([]);
       }
     } catch (err) {
       console.error("Report Error:", err);
-      alert("Failed to load report data.");
+      // alert("Failed to load report data."); // Optional: suppress alert to avoid annoyance
     } finally {
       setLoading(false);
     }
@@ -68,16 +142,12 @@ export default function Reports() {
           <div class="meta">Period: ${fromDate} to ${toDate} | Generated on: ${new Date().toLocaleDateString()}</div>
           <table>
             <thead>
-              <tr>${activeReport.columns.map(c => `<th>${c}</th>`).join("")}</tr>
+              <tr>${activeReport.columns.map(c => `<th>${c.label}</th>`).join("")}</tr>
             </thead>
             <tbody>
               ${rows.map(r => `
                 <tr>
-                  ${activeReport.columns.map(col => {
-                    // Smart key matching to find data regardless of case
-                    const key = Object.keys(r).find(k => k.toLowerCase().includes(col.toLowerCase().replace(" ","")));
-                    return `<td>${r[key] || "-"}</td>`;
-                  }).join("")}
+                  ${activeReport.columns.map(col => `<td>${r[col.key] || "-"}</td>`).join("")}
                 </tr>
               `).join("")}
             </tbody>
@@ -153,7 +223,7 @@ export default function Reports() {
               <thead style={{ background: "#f9fafb", textAlign: "left" }}>
                 <tr>
                   {activeReport.columns.map((col) => (
-                    <th key={col} style={thStyle}>{col}</th>
+                    <th key={col.key} style={thStyle}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -165,15 +235,18 @@ export default function Reports() {
                 ) : (
                   rows.map((row, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      {activeReport.columns.map((col) => {
-                        const key = Object.keys(row).find(k => k.toLowerCase().includes(col.toLowerCase().replace(" ","")));
-                        return <td key={col} style={tdStyle}>{row[key] || "-"}</td>;
-                      })}
+                      {activeReport.columns.map((col) => (
+                         // 🔥 Direct Key Mapping (No fuzzy match)
+                        <td key={col.key} style={tdStyle}>{row[col.key] || "-"}</td>
+                      ))}
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+          <div style={{ marginTop: "1rem", textAlign: "right", color: "#6b7280", fontSize: "0.85rem" }}>
+            Total Records: {rows.length}
           </div>
         </div>
 
