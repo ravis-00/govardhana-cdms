@@ -33,6 +33,7 @@ function getEmptyForm() {
     calfId: "",        
     calfSex: "",
     calfBreed: "",
+    color: "", // 🔥 ADDED: Color Field
     calfWeight: "",
     deliveryType: "",
     birthStatus: "",
@@ -117,17 +118,14 @@ export default function NewBorn() {
     setShowView(true);
   }
 
-  // In src/pages/NewBorn.jsx
-
-function handleRegister(entry) {
-  // 🔥 FIXED: Matches the path in your App.jsx
-  navigate("/cattle/register", { 
-    state: { 
-      source: "birth_log",
-      birthData: entry 
-    } 
-  });
-}
+  function handleRegister(entry) {
+    navigate("/cattle/register", { 
+      state: { 
+        source: "birth_log",
+        birthData: entry 
+      } 
+    });
+  }
 
   function handleFormChange(e) {
     const { name, value } = e.target;
@@ -202,7 +200,7 @@ function handleRegister(entry) {
 
   const breedOptions = ["Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal", "Punganur", "Kankrej", "Deoni", "Malnad Gidda", "Krishna Valley", "Bargur", "Ongole", "Rathi"];
 
-  // Helper to check if a row needs registration (Active/Pending but no Real ID)
+  // Helper to check if a row needs registration
   const needsRegistration = (entry) => {
      if(!entry) return false;
      const status = entry.status || "Pending";
@@ -264,7 +262,6 @@ function handleRegister(entry) {
                   </td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <button onClick={() => openView(row)} style={viewBtnStyle} title="View Details">👁️ View</button>
-                    {/* 🔥 REGISTER BUTTON: Uses smart check */}
                     {needsRegistration(row) && (
                         <button onClick={() => handleRegister(row)} style={registerBtnStyle} title="Induct to Master">® Register</button>
                     )}
@@ -299,7 +296,6 @@ function handleRegister(entry) {
                        <StatusBadge status={selectedEntry.status} />
                    </div>
                    
-                   {/* Register Action in Modal too */}
                    {needsRegistration(selectedEntry) && (
                        <button onClick={() => handleRegister(selectedEntry)} style={{...registerBtnStyle, width:"100%", justifyContent:"center", padding:"8px"}}>
                            ® Register to Master
@@ -326,6 +322,8 @@ function handleRegister(entry) {
                      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"15px"}}>
                         <Detail label="Gender" value={selectedEntry.calfSex} />
                         <Detail label="Breed" value={selectedEntry.calfBreed} />
+                        {/* 🔥 ADDED COLOR VIEW */}
+                        <Detail label="Color" value={selectedEntry.color} />
                         <Detail label="Weight" value={selectedEntry.calfWeight ? `${selectedEntry.calfWeight} Kg` : "-"} />
                         <Detail label="Health" value={selectedEntry.birthStatus} />
                      </div>
@@ -414,31 +412,36 @@ function handleRegister(entry) {
               </div>
 
               <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
+                   {/* 🔥 ADDED COLOR INPUT */}
+                   <Field label="Calf Color *">
+                     <input type="text" name="color" value={form.color} onChange={handleFormChange} style={inputStyle} required placeholder="e.g. White, Black, Brown" />
+                   </Field>
                    <Field label="Weight (Kg)">
                     <input type="number" name="calfWeight" value={form.calfWeight} onChange={handleFormChange} style={inputStyle} />
                   </Field>
+              </div>
+
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
                   <Field label="Delivery Type">
                      <select name="deliveryType" value={form.deliveryType} onChange={handleFormChange} style={inputStyle}>
                         <option value="">Select</option><option value="Normal">Normal</option><option value="Assisted">Assisted</option><option value="Caesarean">Caesarean</option>
                      </select>
                   </Field>
-              </div>
-
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem"}}>
                   <Field label="Health Status">
                      <select name="birthStatus" value={form.birthStatus} onChange={handleFormChange} style={inputStyle}>
                         <option value="">Select</option><option value="Healthy">Healthy</option><option value="Weak">Weak</option><option value="Stillborn">Stillborn</option><option value="Abortion">Abortion</option>
                      </select>
                   </Field>
-                  <Field label="Workflow Status">
-                     <select name="status" value={form.status} onChange={handleFormChange} style={inputStyle} disabled={form.status === "Archived"}>
-                        <option value="Pending">Pending (Untagged)</option>
-                        <option value="Registered">Registered (Tagged)</option>
-                        <option value="Died after Birth">Died after Birth</option>
-                        <option value="Archived">Archived (Stillborn)</option>
-                     </select>
-                  </Field>
               </div>
+              
+              <Field label="Workflow Status">
+                  <select name="status" value={form.status} onChange={handleFormChange} style={inputStyle} disabled={form.status === "Archived"}>
+                    <option value="Pending">Pending (Untagged)</option>
+                    <option value="Registered">Registered (Tagged)</option>
+                    <option value="Died after Birth">Died after Birth</option>
+                    <option value="Archived">Archived (Stillborn)</option>
+                  </select>
+              </Field>
               
               {editingEntry && form.calfId && (
                 <div style={{padding:"8px", background:"#dcfce7", borderRadius:"6px", marginBottom:"1rem", border:"1px solid #bbf7d0"}}>
