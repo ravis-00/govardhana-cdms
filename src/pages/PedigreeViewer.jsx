@@ -7,26 +7,15 @@ export default function PedigreeViewer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Initial load (optional)
-  useEffect(() => {
-    // handleSearch("RPCAT0001");
-  }, []);
-
   const handleSearch = async (query) => {
     if (!query) return;
     setLoading(true);
     setError(null);
     try {
-      // 🔥 FIX: masterApi returns the data directly (unwrapped).
-      // It throws an error if success === false.
       const data = await getPedigree(query);
-      
-      // If we reach here, it means success is true
       setTreeData(data);
-      
     } catch (err) {
       console.error("Pedigree Fetch Error:", err);
-      // 🔥 FIX: Use the actual error message from the backend
       setError(err.message || "Animal not found");
       setTreeData(null);
     } finally {
@@ -37,6 +26,28 @@ export default function PedigreeViewer() {
   const onSearchSubmit = (e) => {
     e.preventDefault();
     handleSearch(search);
+  };
+
+  // 🔥 UPDATED PRINT FUNCTION FOR CUSTOM FILENAME
+  const handlePrint = () => {
+    if (!treeData) return;
+
+    // 1. Save original title
+    const originalTitle = document.title;
+    
+    // 2. Set new title (This becomes the default PDF filename)
+    // Format: Pedigree_Name_Tag (e.g., Pedigree_Sashi_063537105677)
+    const cleanName = (treeData.name || "Cattle").replace(/\s+/g, "_");
+    const cleanTag = (treeData.tag || treeData.id).replace(/\s+/g, "");
+    document.title = `Pedigree_${cleanName}_${cleanTag}`;
+
+    // 3. Open Print Dialog
+    window.print();
+
+    // 4. Restore original title after a short delay (so browser catches the new one)
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
   };
 
   // --- HELPERS TO EXTRACT NODES ---
@@ -50,17 +61,69 @@ export default function PedigreeViewer() {
   const damDam = dam?.dam;
 
   return (
-    <div style={{ padding: "1.5rem 2rem", background: "#f9fafb", minHeight: "100vh" }}>
-      {/* Header */}
-      <header style={{ marginBottom: "2rem" }}>
+    <div className="pedigree-container" style={{ padding: "1.5rem 2rem", background: "#f9fafb", minHeight: "100vh" }}>
+      
+      {/* --- PRINT STYLES --- */}
+      <style>{`
+        @media print {
+          /* Hide everything by default */
+          body * {
+            visibility: hidden;
+          }
+          /* Hide Sidebar and Header explicitly */
+          aside, header, nav, .sidebar {
+            display: none !important;
+          }
+          
+          /* Show only the Pedigree Container and its children */
+          .pedigree-container, .pedigree-container * {
+            visibility: visible;
+          }
+          
+          .pedigree-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 20px !important;
+            background: white !important;
+          }
+
+          /* Hide Search Bar & Print Button during print */
+          .no-print {
+            display: none !important;
+          }
+          
+          /* Show specific print header */
+          .print-only-header {
+            display: block !important;
+          }
+
+          /* Force Background Colors (for borders/lines) */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Landscape hint */
+          @page {
+            size: landscape;
+            margin: 10mm;
+          }
+        }
+      `}</style>
+
+      {/* Header (Hidden on Print) */}
+      <header className="no-print" style={{ marginBottom: "2rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#111827" }}>🧬 Pedigree Viewer</h1>
         <div style={{ fontSize: "0.95rem", color: "#6b7280" }}>
           Trace lineage up to 3 generations (Parents & Grandparents).
         </div>
       </header>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: "2rem", display: "flex", gap: "10px", maxWidth: "600px" }}>
+      {/* Search Bar & Print Button (Hidden on Print) */}
+      <div className="no-print" style={{ marginBottom: "2rem", display: "flex", gap: "10px", maxWidth: "700px" }}>
         <input
           type="text"
           value={search}
@@ -72,6 +135,11 @@ export default function PedigreeViewer() {
         <button onClick={onSearchSubmit} style={primaryButtonStyle} disabled={loading}>
           {loading ? "Searching..." : "Search"}
         </button>
+        {treeData && (
+          <button onClick={handlePrint} style={secondaryButtonStyle}>
+            🖨️ Print / PDF
+          </button>
+        )}
       </div>
 
       {/* Error Message */}
@@ -90,8 +158,16 @@ export default function PedigreeViewer() {
 
       {/* Tree Visualization */}
       {!loading && treeData && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "2rem", alignItems: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "2rem", alignItems: "center", width: "100%" }}>
           
+          {/* PRINT TITLE (Visible ONLY on print) */}
+          <div className="print-only-header" style={{ display: "none", textAlign: "center", marginBottom: "20px", borderBottom: "2px solid #333", paddingBottom: "10px", width: "100%" }}>
+            <h1 style={{ margin: 0, fontSize: "24px" }}>PEDIGREE CHART</h1>
+            <div style={{ fontSize: "16px", marginTop: "5px" }}>
+              <strong>{child.name}</strong> (Tag: {child.tag || child.id})
+            </div>
+          </div>
+
           {/* LEVEL 3: GRANDPARENTS */}
           <div style={treeRowStyle}>
             <TreeCard title="Paternal Grand Sire" animal={sireSire} onClick={() => handleSearch(sireSire?.tag || sireSire?.id)} />
@@ -101,7 +177,7 @@ export default function PedigreeViewer() {
           </div>
 
           {/* Connector Lines */}
-          <div style={{ width: "100%", height: "1px", background: "#e5e7eb", maxWidth: "800px" }}></div>
+          <div style={{ width: "100%", height: "2px", background: "#e5e7eb", maxWidth: "800px" }}></div>
 
           {/* LEVEL 2: PARENTS */}
           <div style={{ ...treeRowStyle, maxWidth: "600px" }}>
@@ -110,11 +186,16 @@ export default function PedigreeViewer() {
           </div>
 
           {/* Connector */}
-          <div style={{ width: "1px", height: "30px", background: "#9ca3af" }}></div>
+          <div style={{ width: "2px", height: "30px", background: "#9ca3af" }}></div>
 
           {/* LEVEL 1: FOCUS ANIMAL */}
           <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
             <TreeCard title="Focus Animal" animal={child} strong isFemale={child.gender === "Female" || child.gender === "Cow"} />
+          </div>
+
+          {/* FOOTER DATE */}
+          <div style={{ marginTop: "30px", fontSize: "0.8rem", color: "#9ca3af", textAlign: "center" }}>
+            Generated on: {new Date().toLocaleDateString()}
           </div>
 
         </div>
@@ -141,7 +222,6 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
     );
   }
 
-  // Border Color based on Gender (Blue for Male, Pink for Female)
   const genderColor = isFemale ? "#ec4899" : "#3b82f6"; 
   const borderColor = strong ? genderColor : (highlight ? "#9ca3af" : "#e5e7eb");
   const bgColor = strong ? "#ffffff" : "#f9fafb";
@@ -160,8 +240,6 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
       }}
     >
       <div style={treeTitleStyle}>{title}</div>
-      
-      {/* Content */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         {/* Photo Thumbnail or Placeholder */}
         <div style={{ 
@@ -176,7 +254,6 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
             <span style={{ fontSize: "1.2rem" }}>{isFemale ? "🐄" : "🐂"}</span>
           )}
         </div>
-
         <div>
           <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1f2937" }}>
             {animal.name}
@@ -194,7 +271,6 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
 }
 
 /* ---- STYLES ---- */
-
 const searchInputStyle = {
   flex: 1,
   padding: "0.75rem 1rem",
@@ -211,6 +287,18 @@ const primaryButtonStyle = {
   border: "none",
   background: "#2563eb",
   color: "#ffffff",
+  fontSize: "1rem",
+  fontWeight: 600,
+  cursor: "pointer",
+  transition: "background 0.2s"
+};
+
+const secondaryButtonStyle = {
+  padding: "0 1.5rem",
+  borderRadius: "8px",
+  border: "1px solid #d1d5db",
+  background: "#ffffff",
+  color: "#374151",
   fontSize: "1rem",
   fontWeight: 600,
   cursor: "pointer",
