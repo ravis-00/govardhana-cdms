@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getReportData } from "../api/masterApi"; 
 
 // --- 1. CONFIGURATION ---
@@ -128,8 +128,7 @@ const REPORT_TYPES = [
   },
   { 
     id: "govardhana", 
-    label: "Govardhana Internal Outgoing", 
-    // 🔥 NEW COLUMNS FOR GOVARDHANA
+    label: "Govardhana Internal Outgoing Report", 
     columns: [
       { label: "Sl.No", key: "slno" },
       { label: "Date", key: "date" },
@@ -152,6 +151,9 @@ const REPORT_TYPES = [
     ] 
   }
 ];
+
+// 🔥 Reports that SHOULD have a Total Row
+const REPORTS_WITH_TOTALS = ["sales", "dattu", "milk", "govardhana"];
 
 export default function Reports() {
   const [activeReport, setActiveReport] = useState(REPORT_TYPES[0]);
@@ -187,10 +189,59 @@ export default function Reports() {
     }
   };
 
+  // CALCULATE TOTALS
+  const totals = useMemo(() => {
+    // 🔥 Skip calculation if not needed
+    if (!rows.length || !REPORTS_WITH_TOTALS.includes(activeReport.id)) return {};
+    
+    const summableKeys = [
+      "milkQty", "milkRs", "dungQty", "dungRs", 
+      "urineQty", "urineRs", "slurryQty", "slurryRs", "totalAmount",
+      "amount",
+      "amYield", "amByProd", "amGood", "amCol", "temple", 
+      "pmYield", "pmByProd", "pmGood", "pmCol", 
+      "bulls", "workers", 
+      "totalYield", "totalColostrum", "totalFree", "totalLeftByProd"
+    ];
+
+    const sums = {};
+    activeReport.columns.forEach(col => {
+      if (summableKeys.includes(col.key)) {
+        const sum = rows.reduce((acc, row) => {
+          const val = parseFloat(row[col.key]);
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        sums[col.key] = Math.round(sum * 100) / 100;
+      }
+    });
+    return sums;
+  }, [rows, activeReport]);
+
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
     const fmtDate = (d) => d ? d.split('-').reverse().join('-') : ""; 
-    const uniqueTitle = `${activeReport.label} ${fmtDate(fromDate)} to ${fmtDate(toDate)}`;
+    const uniqueTitle = `${activeReport.label} (${fmtDate(fromDate)} to ${fmtDate(toDate)})`;
+
+    // 1. Generate Rows HTML
+    const rowsHtml = rows.map(r => `
+      <tr>
+        ${activeReport.columns.map(col => `<td>${r[col.key] || "-"}</td>`).join("")}
+      </tr>
+    `).join("");
+
+    // 2. Generate Total Row HTML (Only for allowed reports)
+    let totalRowHtml = "";
+    if (REPORTS_WITH_TOTALS.includes(activeReport.id)) {
+      totalRowHtml = `
+        <tr class="total-row">
+          ${activeReport.columns.map(col => {
+            if (col.key === "slno") return "<td>Total</td>";
+            if (totals[col.key] !== undefined) return `<td>${totals[col.key]}</td>`;
+            return "<td></td>";
+          }).join("")}
+        </tr>
+      `;
+    }
 
     const html = `
       <html>
@@ -206,6 +257,12 @@ export default function Reports() {
             th, td { border: 1px solid #000; padding: 4px; text-align: center; word-wrap: break-word; }
             th { background-color: #f0f0f0; font-weight: bold; }
             
+            .total-row td { 
+              background-color: #e5e7eb; 
+              font-weight: bold; 
+              border-top: 2px solid #000; 
+            }
+            
             .footer { display: flex; justify-content: space-between; margin-top: 60px; padding: 0 40px; }
             .signature-block { text-align: center; width: 200px; }
             .signature-line { border-top: 1px solid #000; padding-top: 5px; font-weight: bold; font-size: 12px; }
@@ -216,19 +273,15 @@ export default function Reports() {
         <body>
           <div class="header">
             <div class="main-title">Madhava Srusti Rashtrotthana Goshala</div>
-            <div class="sub-title">${activeReport.label} Period: ${fmtDate(fromDate)} to ${fmtDate(toDate)}</div>
+            <div class="sub-title">${activeReport.label} (Period: ${fmtDate(fromDate)} to ${fmtDate(toDate)})</div>
           </div>
           <table>
             <thead>
               <tr>${activeReport.columns.map(c => `<th>${c.label}</th>`).join("")}</tr>
             </thead>
             <tbody>
-              ${rows.map(r => `
-                <tr>
-                  ${activeReport.columns.map(col => `<td>${r[col.key] || "-"}</td>`).join("")}
-                </tr>
-              `).join("")}
-            </tbody>
+              ${rowsHtml}
+              ${totalRowHtml} </tbody>
           </table>
           <div class="footer">
             <div class="signature-block"><div class="signature-line">Supervisor Signature</div></div>
@@ -282,7 +335,6 @@ export default function Reports() {
 
         {/* Data Table Container */}
         <div style={{ flex: 1, padding: "2rem", overflow: "hidden", display:"flex", flexDirection:"column" }}>
-          {/* Scrollable Container */}
           <div style={{ background: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "auto", flex: 1, maxWidth: "100%" }}>
             <table style={{ width: "100%", minWidth: "max-content", borderCollapse: "collapse", fontSize: "0.85rem" }}>
               <thead style={{ background: "#f9fafb", textAlign: "left", position: "sticky", top: 0, zIndex: 10 }}>
@@ -297,9 +349,23 @@ export default function Reports() {
                     </tr>
                  ))}
               </tbody>
+              
+              {/* 🔥 Conditional Footer for Screen View */}
+              {rows.length > 0 && REPORTS_WITH_TOTALS.includes(activeReport.id) && (
+                <tfoot style={{ background: "#f1f5f9", position: "sticky", bottom: 0, zIndex: 10, fontWeight: "bold" }}>
+                  <tr>
+                    {activeReport.columns.map((col) => (
+                      <td key={col.key} style={{ padding: "10px", borderTop: "2px solid #e2e8f0", whiteSpace: "nowrap", color: "#1e293b" }}>
+                        {col.key === "slno" ? "Total" : (totals[col.key] !== undefined ? totals[col.key] : "")}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              )}
+
             </table>
           </div>
-          <div style={{marginTop:"10px", textAlign:"right", color:"#666", fontSize:"0.8rem"}}>Total: {rows.length}</div>
+          <div style={{marginTop:"10px", textAlign:"right", color:"#666", fontSize:"0.8rem"}}>Total: {rows.length} records</div>
         </div>
       </div>
     </div>

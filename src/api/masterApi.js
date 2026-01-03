@@ -75,6 +75,9 @@ export async function updateCattle(payload) { return postRequest("updateCattle",
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
+// 1.1 PEDIGREE (🔥 NEW ADDITION 🔥)
+export async function getPedigree(searchQuery) { return getRequest("getPedigree", { searchQuery }); }
+
 // Exit & Deregister
 export async function getCattleExitLog(params = {}) { return getRequest("getCattleExitLog", params); }
 export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
@@ -135,7 +138,7 @@ export async function getReportData(reportType, startDate, endDate) {
 }
 
 // =========================================================================
-// 10. MASTER CONFIGURATION (🔥 FIXED SECTION 🔥)
+// 10. MASTER CONFIGURATION
 // =========================================================================
 
 // Helper to Capitalize: "breeds" -> "Breeds"
@@ -146,25 +149,21 @@ const formatType = (type) => {
 
 export async function fetchMaster(type) { 
   const properType = formatType(type);
-  // Result: "getBreedsMaster"
   return getRequest(`get${properType}Master`); 
 }
 
 export async function addMaster(type, data) { 
   const properType = formatType(type);
-  // Result: "addBreedsMaster"
   return postRequest(`add${properType}Master`, data); 
 }
 
 export async function updateMaster(type, id, data) { 
   const properType = formatType(type);
-  // Result: "updateBreedsMaster"
   return postRequest(`update${properType}Master`, { id, ...data }); 
 }
 
 export async function deleteMaster(type, id) { 
   const properType = formatType(type);
-  // Result: "deleteBreedsMaster"
   return postRequest(`delete${properType}Master`, { id }); 
 }
 

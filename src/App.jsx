@@ -1,7 +1,8 @@
-// src/App.jsx
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+
+// ✅ CORRECT IMPORT PATH (src/layout/)
 import MainLayout from "./layout/MainLayout.jsx";
 
 // Import Pages
@@ -21,11 +22,16 @@ import DattuYojana from "./pages/DattuYojana.jsx";
 import Deregister from "./pages/Deregister.jsx"; 
 import DeathRecords from "./pages/DeathRecords.jsx"; 
 import Reports from "./pages/Reports.jsx"; 
+
+// --- CONFIG PAGES ---
 import Breeds from "./pages/config/Breeds";
 import Medicines from "./pages/config/Medicines";
 import Rates from "./pages/config/Rates";
 import Weight from "./pages/config/Weight";
 import Symptoms from "./pages/config/Symptoms";
+
+// 🔥 IMPORT PEDIGREE VIEWER
+import PedigreeViewer from "./pages/PedigreeViewer.jsx";
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }) {
@@ -71,6 +77,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* MAIN LAYOUT WRAPPER (PROTECTED) */}
+        {/* Accessible by Admin, Super Admin, User, Viewer */}
         <Route element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User", "Viewer"]}><MainLayout /></ProtectedRoute>}>
           
           {/* --- DASHBOARD --- */}
@@ -79,6 +86,10 @@ export default function App() {
           {/* --- HERD MANAGEMENT --- */}
           <Route path="/cattle/master" element={<MasterCattle />} />
           <Route path="/cattle/register" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><CattleRegistration /></ProtectedRoute>} />
+          
+          {/* 🔥 PEDIGREE ROUTE */}
+          <Route path="/pedigree" element={<PedigreeViewer />} />
+
           <Route path="/newborn" element={<NewBorn />} />
           <Route path="/new-tag" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><NewTag /></ProtectedRoute>} />
           <Route path="/deregister" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Deregister /></ProtectedRoute>} />
@@ -99,7 +110,7 @@ export default function App() {
           {/* --- REPORTS --- */}
           <Route path="/reports" element={<Reports />} />
 
-          {/* --- MASTER CONFIGURATION (🔥 NEW ROUTES ADDED HERE 🔥) --- */}
+          {/* --- MASTER CONFIGURATION --- */}
           <Route path="/config/breeds" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Breeds /></ProtectedRoute>} />
           <Route path="/config/medicines" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Medicines /></ProtectedRoute>} />
           <Route path="/config/rates" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Rates /></ProtectedRoute>} />

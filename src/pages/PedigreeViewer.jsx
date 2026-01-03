@@ -1,442 +1,263 @@
-// src/pages/PedigreeViewer.jsx
-import React, { useMemo, useState } from "react";
-
-/**
- * Mock data: very small animal master with simple parent links.
- * In real app we will fetch this via code.gs from CattleMaster sheet.
- */
-const MOCK_ANIMALS = [
-  {
-    animalId: "A-631228",
-    tagNo: "631228",
-    name: "Vasundara",
-    breed: "Hallikar",
-    sex: "Cow",
-    sireId: "A-420001",
-    damId: "A-410010",
-  },
-  {
-    animalId: "A-420001",
-    tagNo: "420001",
-    name: "Rudra",
-    breed: "Hallikar",
-    sex: "Bull",
-    sireId: "A-300101",
-    damId: "A-300102",
-  },
-  {
-    animalId: "A-410010",
-    tagNo: "410010",
-    name: "Ganga",
-    breed: "Hallikar",
-    sex: "Cow",
-    sireId: "A-300103",
-    damId: "A-300104",
-  },
-  {
-    animalId: "A-300101",
-    name: "Mahadeva",
-    breed: "Hallikar",
-    sex: "Bull",
-  },
-  {
-    animalId: "A-300102",
-    name: "Bhavani",
-    breed: "Hallikar",
-    sex: "Cow",
-  },
-  {
-    animalId: "A-300103",
-    name: "Keshava",
-    breed: "Hallikar",
-    sex: "Bull",
-  },
-  {
-    animalId: "A-300104",
-    name: "Kamakshi",
-    breed: "Hallikar",
-    sex: "Cow",
-  },
-];
-
-function findById(id) {
-  return MOCK_ANIMALS.find((a) => a.animalId === id) || null;
-}
+import React, { useState, useEffect } from "react";
+import { getPedigree } from "../api/masterApi"; 
 
 export default function PedigreeViewer() {
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState("A-631228");
+  const [treeData, setTreeData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const selectedAnimal = useMemo(
-    () => findById(selectedId),
-    [selectedId]
-  );
+  // Initial load (optional)
+  useEffect(() => {
+    // handleSearch("RPCAT0001");
+  }, []);
 
-  const filteredList = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return MOCK_ANIMALS;
-    return MOCK_ANIMALS.filter((a) => {
-      return (
-        a.name.toLowerCase().includes(term) ||
-        (a.tagNo && a.tagNo.toLowerCase().includes(term)) ||
-        a.animalId.toLowerCase().includes(term)
-      );
-    });
-  }, [search]);
+  const handleSearch = async (query) => {
+    if (!query) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // 🔥 FIX: masterApi returns the data directly (unwrapped).
+      // It throws an error if success === false.
+      const data = await getPedigree(query);
+      
+      // If we reach here, it means success is true
+      setTreeData(data);
+      
+    } catch (err) {
+      console.error("Pedigree Fetch Error:", err);
+      // 🔥 FIX: Use the actual error message from the backend
+      setError(err.message || "Animal not found");
+      setTreeData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Build ancestors (up to grandparents)
-  const sire = selectedAnimal ? findById(selectedAnimal.sireId) : null;
-  const dam = selectedAnimal ? findById(selectedAnimal.damId) : null;
-  const sireSire = sire ? findById(sire.sireId) : null;
-  const sireDam = sire ? findById(sire.damId) : null;
-  const damSire = dam ? findById(dam.sireId) : null;
-  const damDam = dam ? findById(dam.damId) : null;
+  const onSearchSubmit = (e) => {
+    e.preventDefault();
+    handleSearch(search);
+  };
+
+  // --- HELPERS TO EXTRACT NODES ---
+  const child = treeData;
+  const sire = child?.sire;
+  const dam = child?.dam;
+  
+  const sireSire = sire?.sire;
+  const sireDam = sire?.dam;
+  const damSire = dam?.sire;
+  const damDam = dam?.dam;
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
+    <div style={{ padding: "1.5rem 2rem", background: "#f9fafb", minHeight: "100vh" }}>
       {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Pedigree Viewer</h1>
-          <div style={{ fontSize: "0.9rem", color: "#6b7280" }}>
-            View 3-generation family tree for any cattle.
-          </div>
+      <header style={{ marginBottom: "2rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#111827" }}>🧬 Pedigree Viewer</h1>
+        <div style={{ fontSize: "0.95rem", color: "#6b7280" }}>
+          Trace lineage up to 3 generations (Parents & Grandparents).
         </div>
-        <button style={primaryButtonStyle}>Back to Profile</button>
       </header>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "260px minmax(0, 1fr)",
-          gap: "1.25rem",
-        }}
-      >
-        {/* Left: Search + list */}
-        <aside style={leftPanelStyle}>
-          <div style={{ marginBottom: "0.75rem" }}>
-            <label
-              style={{
-                fontSize: "0.8rem",
-                color: "#6b7280",
-                display: "block",
-                marginBottom: "0.2rem",
-              }}
-            >
-              Search cattle
-            </label>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Name, tag, or ID"
-              style={searchInputStyle}
-            />
-          </div>
-
-          <div style={listHeaderStyle}>
-            <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-              {filteredList.length} animals
-            </span>
-          </div>
-
-          <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {filteredList.map((animal) => {
-              const isActive = animal.animalId === selectedId;
-              return (
-                <button
-                  key={animal.animalId}
-                  type="button"
-                  onClick={() => setSelectedId(animal.animalId)}
-                  style={
-                    isActive ? listItemActiveStyle : listItemStyle
-                  }
-                >
-                  <div
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {animal.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: isActive ? "#e5e7eb" : "#6b7280",
-                    }}
-                  >
-                    {animal.tagNo ? `Tag ${animal.tagNo}` : "No tag"} •{" "}
-                    {animal.animalId}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: isActive ? "#e5e7eb" : "#6b7280",
-                    }}
-                  >
-                    {animal.breed} • {animal.sex}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        {/* Right: Tree */}
-        <main style={treePanelStyle}>
-          {!selectedAnimal ? (
-            <div style={emptyStateStyle}>
-              Select a cattle from the left list to view pedigree.
-            </div>
-          ) : (
-            <>
-              {/* Selected animal card */}
-              <section style={{ marginBottom: "1rem" }}>
-                <h2 style={cardTitleStyle}>
-                  Selected Animal
-                </h2>
-                <div style={selectedCardStyle}>
-                  <div
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: "999px",
-                      background: "#f3f4f6",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginRight: "0.75rem",
-                    }}
-                  >
-                    <span style={{ fontSize: "1.8rem" }}>🐄</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "1.05rem", fontWeight: 600 }}>
-                      {selectedAnimal.name}
-                    </div>
-                    <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-                      {selectedAnimal.breed} • {selectedAnimal.sex}
-                    </div>
-                    <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                      {selectedAnimal.tagNo
-                        ? `Tag ${selectedAnimal.tagNo}`
-                        : "No tag"}{" "}
-                      • {selectedAnimal.animalId}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Tree layout */}
-              <section>
-                <h2 style={cardTitleStyle}>3-Generation Tree</h2>
-                <p style={mutedTextStyle}>
-                  This is a static visual built from mock data. Later we will
-                  generate it dynamically using the CattleMaster and
-                  CalvingHistory data in Sheets.
-                </p>
-
-                <div style={treeGridStyle}>
-                  {/* Grandparents row */}
-                  <div style={treeRowStyle}>
-                    <TreeCard title="Sire's Sire" animal={sireSire} />
-                    <TreeCard title="Sire's Dam" animal={sireDam} />
-                    <TreeCard title="Dam's Sire" animal={damSire} />
-                    <TreeCard title="Dam's Dam" animal={damDam} />
-                  </div>
-
-                  {/* Parents row */}
-                  <div style={treeRowStyle}>
-                    <TreeCard title="Sire" animal={sire} highlight />
-                    <TreeCard title="Dam" animal={dam} highlight />
-                  </div>
-
-                  {/* Selected in tree */}
-                  <div style={treeRowCenter}>
-                    <TreeCard title="Selected" animal={selectedAnimal} strong />
-                  </div>
-                </div>
-              </section>
-            </>
-          )}
-        </main>
+      {/* Search Bar */}
+      <div style={{ marginBottom: "2rem", display: "flex", gap: "10px", maxWidth: "600px" }}>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Enter Tag Number (e.g., 631228) or ID (RPCAT...)"
+          style={searchInputStyle}
+          onKeyDown={(e) => e.key === 'Enter' && onSearchSubmit(e)}
+        />
+        <button onClick={onSearchSubmit} style={primaryButtonStyle} disabled={loading}>
+          {loading ? "Searching..." : "Search"}
+        </button>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div style={{ padding: "1rem", background: "#fee2e2", color: "#b91c1c", borderRadius: "8px", marginBottom: "1rem" }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && !treeData && (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#6b7280" }}>
+          Searching database...
+        </div>
+      )}
+
+      {/* Tree Visualization */}
+      {!loading && treeData && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2rem", alignItems: "center" }}>
+          
+          {/* LEVEL 3: GRANDPARENTS */}
+          <div style={treeRowStyle}>
+            <TreeCard title="Paternal Grand Sire" animal={sireSire} onClick={() => handleSearch(sireSire?.tag || sireSire?.id)} />
+            <TreeCard title="Paternal Grand Dam" animal={sireDam} isFemale onClick={() => handleSearch(sireDam?.tag || sireDam?.id)} />
+            <TreeCard title="Maternal Grand Sire" animal={damSire} onClick={() => handleSearch(damSire?.tag || damSire?.id)} />
+            <TreeCard title="Maternal Grand Dam" animal={damDam} isFemale onClick={() => handleSearch(damDam?.tag || damDam?.id)} />
+          </div>
+
+          {/* Connector Lines */}
+          <div style={{ width: "100%", height: "1px", background: "#e5e7eb", maxWidth: "800px" }}></div>
+
+          {/* LEVEL 2: PARENTS */}
+          <div style={{ ...treeRowStyle, maxWidth: "600px" }}>
+            <TreeCard title="Sire (Father)" animal={sire} highlight onClick={() => handleSearch(sire?.tag || sire?.id)} />
+            <TreeCard title="Dam (Mother)" animal={dam} highlight isFemale onClick={() => handleSearch(dam?.tag || dam?.id)} />
+          </div>
+
+          {/* Connector */}
+          <div style={{ width: "1px", height: "30px", background: "#9ca3af" }}></div>
+
+          {/* LEVEL 1: FOCUS ANIMAL */}
+          <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+            <TreeCard title="Focus Animal" animal={child} strong isFemale={child.gender === "Female" || child.gender === "Cow"} />
+          </div>
+
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !treeData && !error && (
+        <div style={emptyStateStyle}>
+          Enter a Cattle Tag Number above to view its family tree.
+        </div>
+      )}
     </div>
   );
 }
 
-function TreeCard({ title, animal, highlight, strong }) {
+// --- SUB-COMPONENT: CARD ---
+function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
   if (!animal) {
     return (
-      <div style={treeCardStyle}>
+      <div style={treeCardPlaceholderStyle}>
         <div style={treeTitleStyle}>{title}</div>
-        <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>Unknown</div>
+        <div style={{ fontSize: "0.85rem", color: "#9ca3af", fontStyle: "italic" }}>Unknown</div>
       </div>
     );
   }
 
+  // Border Color based on Gender (Blue for Male, Pink for Female)
+  const genderColor = isFemale ? "#ec4899" : "#3b82f6"; 
+  const borderColor = strong ? genderColor : (highlight ? "#9ca3af" : "#e5e7eb");
+  const bgColor = strong ? "#ffffff" : "#f9fafb";
+  const shadow = strong ? "0 10px 15px -3px rgba(0, 0, 0, 0.1)" : "none";
+
   return (
     <div
+      onClick={onClick}
       style={{
         ...treeCardStyle,
-        borderColor: highlight || strong ? "#60a5fa" : "#e5e7eb",
-        background: strong ? "#eff6ff" : "#f9fafb",
+        borderColor: borderColor,
+        background: bgColor,
+        boxShadow: shadow,
+        borderWidth: strong ? "2px" : "1px",
+        cursor: onClick ? "pointer" : "default"
       }}
     >
       <div style={treeTitleStyle}>{title}</div>
-      <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>
-        {animal.name}
+      
+      {/* Content */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        {/* Photo Thumbnail or Placeholder */}
+        <div style={{ 
+            width: "40px", height: "40px", borderRadius: "50%", 
+            background: "#f3f4f6", overflow: "hidden", flexShrink: 0,
+            display: "flex", justifyContent: "center", alignItems: "center",
+            border: `1px solid ${genderColor}`
+        }}>
+          {animal.photo ? (
+            <img src={animal.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <span style={{ fontSize: "1.2rem" }}>{isFemale ? "🐄" : "🐂"}</span>
+          )}
+        </div>
+
+        <div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1f2937" }}>
+            {animal.name}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#4b5563" }}>
+            {animal.tag ? `Tag: ${animal.tag}` : "No Tag"}
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+            {animal.breed}
+          </div>
+        </div>
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-        {animal.breed} • {animal.sex}
-      </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-        {animal.tagNo ? `Tag ${animal.tagNo}` : "No tag"}
-      </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-        {animal.animalId}
-      </div>
-      <button style={{ ...linkButtonStyle, marginTop: "0.3rem" }}>
-        Open profile
-      </button>
     </div>
   );
 }
 
 /* ---- STYLES ---- */
 
+const searchInputStyle = {
+  flex: 1,
+  padding: "0.75rem 1rem",
+  borderRadius: "8px",
+  border: "1px solid #d1d5db",
+  fontSize: "1rem",
+  outline: "none",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+};
+
 const primaryButtonStyle = {
-  padding: "0.4rem 0.9rem",
-  borderRadius: "999px",
+  padding: "0 1.5rem",
+  borderRadius: "8px",
   border: "none",
   background: "#2563eb",
   color: "#ffffff",
-  fontSize: "0.85rem",
+  fontSize: "1rem",
   fontWeight: 600,
   cursor: "pointer",
-};
-
-const leftPanelStyle = {
-  background: "#ffffff",
-  borderRadius: "0.75rem",
-  padding: "0.9rem",
-  boxShadow: "0 10px 25px rgba(15,23,42,0.03)",
-};
-
-const searchInputStyle = {
-  width: "100%",
-  padding: "0.45rem 0.55rem",
-  borderRadius: "0.5rem",
-  border: "1px solid #d1d5db",
-  fontSize: "0.85rem",
-};
-
-const listHeaderStyle = {
-  paddingBottom: "0.3rem",
-  borderBottom: "1px solid #e5e7eb",
-  marginBottom: "0.4rem",
-};
-
-const listItemStyle = {
-  width: "100%",
-  textAlign: "left",
-  padding: "0.45rem 0.5rem",
-  borderRadius: "0.45rem",
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
-  marginBottom: "0.15rem",
-};
-
-const listItemActiveStyle = {
-  ...listItemStyle,
-  background: "#2563eb",
-  color: "#ffffff",
-};
-
-const treePanelStyle = {
-  background: "#ffffff",
-  borderRadius: "0.75rem",
-  padding: "1rem 1.25rem",
-  boxShadow: "0 10px 25px rgba(15,23,42,0.03)",
+  transition: "background 0.2s"
 };
 
 const emptyStateStyle = {
-  padding: "2rem 1rem",
+  padding: "4rem 1rem",
   textAlign: "center",
-  fontSize: "0.9rem",
-  color: "#6b7280",
-};
-
-const selectedCardStyle = {
-  display: "flex",
-  alignItems: "center",
-  borderRadius: "0.75rem",
-  border: "1px solid #e5e7eb",
-  padding: "0.6rem 0.7rem",
-  background: "#f9fafb",
-};
-
-const cardTitleStyle = {
-  margin: 0,
-  marginBottom: "0.4rem",
   fontSize: "1rem",
-  fontWeight: 600,
-};
-
-const mutedTextStyle = {
-  fontSize: "0.8rem",
   color: "#6b7280",
-  marginBottom: "0.6rem",
-};
-
-const treeGridStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.9rem",
-  marginTop: "0.5rem",
+  background: "#ffffff",
+  borderRadius: "12px",
+  border: "1px dashed #e5e7eb",
+  maxWidth: "600px",
+  margin: "0 auto"
 };
 
 const treeRowStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: "0.6rem",
-};
-
-const treeRowCenter = {
   display: "flex",
   justifyContent: "center",
+  gap: "1.5rem",
+  flexWrap: "wrap",
+  width: "100%"
 };
 
 const treeCardStyle = {
-  borderRadius: "0.75rem",
-  border: "1px solid #e5e7eb",
-  padding: "0.5rem 0.6rem",
-  background: "#f9fafb",
-  minWidth: 0,
+  borderRadius: "12px",
+  borderStyle: "solid",
+  padding: "1rem",
+  minWidth: "220px",
+  maxWidth: "240px",
+  transition: "transform 0.2s, box-shadow 0.2s",
+};
+
+const treeCardPlaceholderStyle = {
+  ...treeCardStyle,
+  border: "1px dashed #e5e7eb",
+  background: "transparent",
+  opacity: 0.7
 };
 
 const treeTitleStyle = {
-  fontSize: "0.72rem",
+  fontSize: "0.7rem",
   textTransform: "uppercase",
   letterSpacing: "0.05em",
-  color: "#6b7280",
-  marginBottom: "0.15rem",
-};
-
-const linkButtonStyle = {
-  border: "none",
-  background: "none",
-  color: "#2563eb",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-  padding: 0,
+  color: "#9ca3af",
+  marginBottom: "0.5rem",
+  fontWeight: 600
 };
