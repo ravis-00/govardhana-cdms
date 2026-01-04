@@ -279,7 +279,7 @@ export default function Dashboard() {
 
         {/* 2. Pure Breed % */}
         <HeroCard 
-          title="PURE BREED %" 
+          title="PUREBRED RATE" 
           value={`${stats.pureBredRate}%`} 
           trend="Of Total Births (12M)"
           icon={Icons.ribbon} 
@@ -353,7 +353,7 @@ export default function Dashboard() {
           {/* Logic to show/hide observations based on targets */}
           {stats.pureBredRate < 75 && (
             <li>
-              <strong>Pure Breed % is low ({stats.pureBredRate}%)</strong> for a Breed development Gaushala (Target: 75-80%).
+              <strong>Purebred rate is low ({stats.pureBredRate}%)</strong> for a Breed development Gaushala (Target: 75-80%).
             </li>
           )}
           {stats.sponsorshipCoverage < 60 && (

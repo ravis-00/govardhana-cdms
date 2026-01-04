@@ -1,6 +1,8 @@
 // src/api/masterApi.js
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
+// --- HELPERS ---
+
 function cleanParams(params = {}) {
   const out = {};
   Object.entries(params).forEach(([k, v]) => {
@@ -21,7 +23,7 @@ function buildUrl(action, params = {}) {
   return url.toString();
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 45000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -39,34 +41,35 @@ async function handleResponse(res) {
   const json = await res.json().catch(() => {
     throw new Error("Invalid JSON response from server");
   });
-  if (json && json.success === false) {
-    throw new Error(json.error || "Unknown API error");
-  }
-  return json.data !== undefined ? json.data : (json.user ? json : json); 
+  
+  // 🔥 FIX: Return the WHOLE object (json), not just json.data
+  // This allows the frontend to check if (res.success)
+  return json; 
 }
 
 async function getRequest(action, params) {
   const url = buildUrl(action, params);
-  const res = await fetchWithTimeout(url, { method: "GET", cache: "no-cache" }, 30000);
+  const res = await fetchWithTimeout(url, { method: "GET", cache: "no-cache" });
   return handleResponse(res);
 }
 
 async function postRequest(action, body) {
   const url = buildUrl(action);
-  // Apps Script often prefers action in the payload for POST
   const payload = { action, ...body };
   
   const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload ?? {}),
-  }, 30000);
+  });
   return handleResponse(res);
 }
 
-// --- API FUNCTIONS ---
+// =========================================================================
+// API ENDPOINTS
+// =========================================================================
 
-// 1. CATTLE
+// 1. CATTLE MANAGEMENT
 export async function getCattle() { return getRequest("getCattle"); }
 export async function getActiveCattle() { return getRequest("getActiveCattle"); }
 export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
@@ -75,23 +78,24 @@ export async function updateCattle(payload) { return postRequest("updateCattle",
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
 export async function fetchBreeds() { return getRequest("getBreeds"); } 
 
-// 1.1 PEDIGREE (🔥 NEW ADDITION 🔥)
+// 1.1 PEDIGREE
+export async function getPedigreeList() { return getRequest("getPedigreeList"); }
 export async function getPedigree(searchQuery) { return getRequest("getPedigree", { searchQuery }); }
 
 // Exit & Deregister
 export async function getCattleExitLog(params = {}) { return getRequest("getCattleExitLog", params); }
 export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
 
-// 2. NEW BORN
+// 2. NEW BORN & BREEDING
 export async function getNewBorn() { return getRequest("getNewBorn"); }
 export async function addNewBorn(payload) { return postRequest("addNewBorn", payload); }
 export async function updateNewBorn(payload) { return postRequest("updateNewBorn", payload); }
 export async function getUnregisteredBirths() { return getRequest("getUnregisteredBirths"); }
 
-// 3. MILK
+// 3. MILK PRODUCTION & DISTRIBUTION
 export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
 export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }
-export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); }
+export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); } 
 
 export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
 export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
@@ -116,32 +120,26 @@ export async function getTreatments() { return getRequest("getTreatments"); }
 export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
 export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
 
-export async function getDeathRecords(fromDate = "2024-01-01", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
+export async function getDeathRecords(fromDate = "", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
 export async function getMedicines() { return getRequest("getMedicines"); }
 
-// 7. FINANCE (DATTU)
+// 7. FINANCE (DATTU YOJANA)
 export async function getDattuYojana() { return getRequest("getDattuYojana"); }
 export async function addDattuYojana(payload) { return postRequest("addDattuYojana", payload); }
 export async function updateDattuYojana(payload) { return postRequest("updateDattuYojana", payload); }
 
 // 8. AUTH & USERS
 export async function loginUser(email, password) { return postRequest("login", { email, password }); }
-export const login = loginUser; 
 export async function fetchUsers() { return getRequest("getUsers"); }
-export const getUsers = fetchUsers;
 export async function addUser(userData) { return postRequest("addUser", userData); }
 export async function updateUser(userData) { return postRequest("updateUser", userData); }
 
-// 9. REPORTS
+// 9. REPORTS 
 export async function getReportData(reportType, startDate, endDate) { 
   return getRequest("getReportData", { reportType, startDate, endDate }); 
 }
 
-// =========================================================================
 // 10. MASTER CONFIGURATION
-// =========================================================================
-
-// Helper to Capitalize: "breeds" -> "Breeds"
 const formatType = (type) => {
   if (!type) return "";
   return type.charAt(0).toUpperCase() + type.slice(1);
@@ -168,6 +166,8 @@ export async function deleteMaster(type, id) {
 }
 
 // --- ALIASES ---
+export const login = loginUser; 
+export const getUsers = fetchUsers;
 export const fetchCattle = getCattle;
 export const fetchActiveCattle = getActiveCattle;
 export const fetchDeathRecords = getDeathRecords;

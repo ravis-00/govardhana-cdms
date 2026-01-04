@@ -1,218 +1,285 @@
-import React, { useState, useEffect } from "react";
-import { getPedigree } from "../api/masterApi"; 
+import React, { useState, useEffect, useMemo } from "react";
+import { getPedigree, getPedigreeList } from "../api/masterApi"; 
 
 export default function PedigreeViewer() {
-  const [search, setSearch] = useState("");
+  // --- STATE ---
+  const [cattleList, setCattleList] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Tree
+  const [selectedId, setSelectedId] = useState(null);
   const [treeData, setTreeData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeError, setTreeError] = useState(null);
 
-  const handleSearch = async (query) => {
-    if (!query) return;
-    setLoading(true);
-    setError(null);
+  // --- EFFECTS ---
+
+  useEffect(() => {
+    loadList();
+  }, []);
+
+  async function loadList() {
+    setListLoading(true);
+    setListError(null);
     try {
-      const data = await getPedigree(query);
-      setTreeData(data);
+      const res = await getPedigreeList();
+      if (res.success) {
+        // Filter empty rows
+        const validData = res.data.filter(c => c.id);
+        setCattleList(validData);
+      } else {
+        setListError(res.error || "Failed to load list.");
+      }
     } catch (err) {
-      console.error("Pedigree Fetch Error:", err);
-      setError(err.message || "Animal not found");
-      setTreeData(null);
+      console.error("List Load Error:", err);
+      setListError("Network or Server Error.");
     } finally {
-      setLoading(false);
+      setListLoading(false);
+    }
+  }
+
+  // 🔥 NEW: Handle Refresh (Clears Search + Reloads)
+  const handleRefresh = () => {
+    setSearchTerm(""); // Clear the search bar
+    loadList();        // Reload the data
+  };
+
+  useEffect(() => {
+    if (!selectedId) return;
+    async function loadTree() {
+      setTreeLoading(true);
+      setTreeData(null);
+      setTreeError(null);
+      try {
+        const res = await getPedigree(selectedId);
+        if (res.success) {
+           setTreeData(res.data);
+        } else {
+           setTreeError(res.error || "Could not load pedigree.");
+        }
+      } catch (err) {
+        setTreeError(err.message || "Network error loading tree.");
+      } finally {
+        setTreeLoading(false);
+      }
+    }
+    loadTree();
+  }, [selectedId]);
+
+  // --- SEARCH LOGIC ---
+  const filteredList = useMemo(() => {
+    if (!searchTerm) return cattleList;
+    const lower = searchTerm.toLowerCase();
+    return cattleList.filter(c => 
+      (c.name && c.name.toLowerCase().includes(lower)) || 
+      (c.tag && String(c.tag).toLowerCase().includes(lower)) ||
+      (c.id && String(c.id).toLowerCase().includes(lower))
+    );
+  }, [cattleList, searchTerm]);
+
+  const handlePrint = () => {
+    if (treeData) {
+      const originalTitle = document.title;
+      document.title = `Pedigree_${treeData.name || "Unknown"}_${treeData.id}`;
+      window.print();
+      setTimeout(() => document.title = originalTitle, 1000);
     }
   };
 
-  const onSearchSubmit = (e) => {
-    e.preventDefault();
-    handleSearch(search);
-  };
-
-  // 🔥 UPDATED PRINT FUNCTION FOR CUSTOM FILENAME
-  const handlePrint = () => {
-    if (!treeData) return;
-
-    // 1. Save original title
-    const originalTitle = document.title;
-    
-    // 2. Set new title (This becomes the default PDF filename)
-    // Format: Pedigree_Name_Tag (e.g., Pedigree_Sashi_063537105677)
-    const cleanName = (treeData.name || "Cattle").replace(/\s+/g, "_");
-    const cleanTag = (treeData.tag || treeData.id).replace(/\s+/g, "");
-    document.title = `Pedigree_${cleanName}_${cleanTag}`;
-
-    // 3. Open Print Dialog
-    window.print();
-
-    // 4. Restore original title after a short delay (so browser catches the new one)
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 1000);
-  };
-
-  // --- HELPERS TO EXTRACT NODES ---
+  // Node Helpers
   const child = treeData;
   const sire = child?.sire;
   const dam = child?.dam;
-  
   const sireSire = sire?.sire;
   const sireDam = sire?.dam;
   const damSire = dam?.sire;
   const damDam = dam?.dam;
 
+  // --- RENDER ---
   return (
-    <div className="pedigree-container" style={{ padding: "1.5rem 2rem", background: "#f9fafb", minHeight: "100vh" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f3f4f6" }}>
       
-      {/* --- PRINT STYLES --- */}
+      {/* PRINT STYLES */}
       <style>{`
         @media print {
-          /* Hide everything by default */
-          body * {
-            visibility: hidden;
+          body * { visibility: hidden; }
+          .pedigree-printable, .pedigree-printable * { visibility: visible; }
+          .pedigree-printable {
+            position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+            background: white; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
           }
-          /* Hide Sidebar and Header explicitly */
-          aside, header, nav, .sidebar {
-            display: none !important;
-          }
-          
-          /* Show only the Pedigree Container and its children */
-          .pedigree-container, .pedigree-container * {
-            visibility: visible;
-          }
-          
-          .pedigree-container {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 20px !important;
-            background: white !important;
-          }
-
-          /* Hide Search Bar & Print Button during print */
-          .no-print {
-            display: none !important;
-          }
-          
-          /* Show specific print header */
-          .print-only-header {
-            display: block !important;
-          }
-
-          /* Force Background Colors (for borders/lines) */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          
-          /* Landscape hint */
-          @page {
-            size: landscape;
-            margin: 10mm;
-          }
+          aside, header, nav { display: none !important; }
+          .print-header { display: block !important; margin-bottom: 20px; text-align: center; width: 100%; border-bottom: 2px solid #333; }
+          .no-print { display: none !important; }
+          @page { size: landscape; margin: 5mm; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
 
-      {/* Header (Hidden on Print) */}
-      <header className="no-print" style={{ marginBottom: "2rem" }}>
-        <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#111827" }}>🧬 Pedigree Viewer</h1>
-        <div style={{ fontSize: "0.95rem", color: "#6b7280" }}>
-          Trace lineage up to 3 generations (Parents & Grandparents).
-        </div>
-      </header>
-
-      {/* Search Bar & Print Button (Hidden on Print) */}
-      <div className="no-print" style={{ marginBottom: "2rem", display: "flex", gap: "10px", maxWidth: "700px" }}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Enter Tag Number (e.g., 631228) or ID (RPCAT...)"
-          style={searchInputStyle}
-          onKeyDown={(e) => e.key === 'Enter' && onSearchSubmit(e)}
-        />
-        <button onClick={onSearchSubmit} style={primaryButtonStyle} disabled={loading}>
-          {loading ? "Searching..." : "Search"}
-        </button>
-        {treeData && (
-          <button onClick={handlePrint} style={secondaryButtonStyle}>
-            🖨️ Print / PDF
-          </button>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div style={{ padding: "1rem", background: "#fee2e2", color: "#b91c1c", borderRadius: "8px", marginBottom: "1rem" }}>
-          ⚠️ {error}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && !treeData && (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#6b7280" }}>
-          Searching database...
-        </div>
-      )}
-
-      {/* Tree Visualization */}
-      {!loading && treeData && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "2rem", alignItems: "center", width: "100%" }}>
+      {/* --- SIDEBAR --- */}
+      <aside className="no-print" style={{ width: "340px", background: "white", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", zIndex: 10 }}>
+        
+        {/* Header & Search */}
+        <div style={{ padding: "1.5rem", borderBottom: "1px solid #f3f4f6", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+             <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#111827" }}>🧬 Pedigree Viewer</h2>
+             
+             {/* REFRESH BUTTON (Uses handleRefresh now) */}
+             <button 
+               onClick={handleRefresh} 
+               style={{ border:"none", background:"transparent", cursor:"pointer", fontSize:"1.2rem" }} 
+               title="Refresh List"
+             >
+               🔄
+             </button>
+          </div>
           
-          {/* PRINT TITLE (Visible ONLY on print) */}
-          <div className="print-only-header" style={{ display: "none", textAlign: "center", marginBottom: "20px", borderBottom: "2px solid #333", paddingBottom: "10px", width: "100%" }}>
-            <h1 style={{ margin: 0, fontSize: "24px" }}>PEDIGREE CHART</h1>
-            <div style={{ fontSize: "16px", marginTop: "5px" }}>
-              <strong>{child.name}</strong> (Tag: {child.tag || child.id})
+          {/* SEARCH BOX WITH ICON */}
+          <div style={{ position: "relative", width: "100%" }}>
+            <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "1rem" }}>🔍</span>
+            <input 
+              type="text" 
+              placeholder="Search Name, Tag or ID..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ 
+                width: "100%", padding: "10px 10px 10px 36px", 
+                borderRadius: "8px", border: "1px solid #d1d5db", 
+                fontSize: "0.9rem", outline: "none" 
+              }}
+            />
+          </div>
+        </div>
+
+        {/* List Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+          {listLoading ? (
+            <div style={{ textAlign: "center", color: "#6b7280", marginTop: "20px" }}>Loading List...</div>
+          ) : listError ? (
+            <div style={{ textAlign: "center", color: "#ef4444", marginTop: "20px", padding: "0 10px" }}>
+              ⚠️ {listError}
+              <br/><button onClick={handleRefresh} style={{ marginTop: "10px", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", color: "#3b82f6" }}>Try Again</button>
             </div>
-          </div>
+          ) : filteredList.length === 0 ? (
+            <div style={{ textAlign: "center", color: "#9ca3af", marginTop: "20px" }}>No cattle found.</div>
+          ) : (
+            filteredList.map((cow) => (
+              <div 
+                key={cow.id} 
+                onClick={() => setSelectedId(cow.id)}
+                style={{
+                  padding: "12px", marginBottom: "8px", borderRadius: "8px", cursor: "pointer",
+                  border: selectedId === cow.id ? "1px solid #3b82f6" : "1px solid transparent",
+                  background: selectedId === cow.id ? "#eff6ff" : "transparent",
+                  transition: "background 0.2s"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontWeight: "600", color: "#374151" }}>
+                      {cow.name && cow.name !== "Unknown" ? cow.name : "Unknown"}
+                      <span style={{ fontSize: "0.8rem", color: "#9ca3af", marginLeft: "6px", fontWeight: "normal" }}>
+                        ({cow.id})
+                      </span>
+                    </span>
+                  </div>
 
-          {/* LEVEL 3: GRANDPARENTS */}
-          <div style={treeRowStyle}>
-            <TreeCard title="Paternal Grand Sire" animal={sireSire} onClick={() => handleSearch(sireSire?.tag || sireSire?.id)} />
-            <TreeCard title="Paternal Grand Dam" animal={sireDam} isFemale onClick={() => handleSearch(sireDam?.tag || sireDam?.id)} />
-            <TreeCard title="Maternal Grand Sire" animal={damSire} onClick={() => handleSearch(damSire?.tag || damSire?.id)} />
-            <TreeCard title="Maternal Grand Dam" animal={damDam} isFemale onClick={() => handleSearch(damDam?.tag || damDam?.id)} />
-          </div>
-
-          {/* Connector Lines */}
-          <div style={{ width: "100%", height: "2px", background: "#e5e7eb", maxWidth: "800px" }}></div>
-
-          {/* LEVEL 2: PARENTS */}
-          <div style={{ ...treeRowStyle, maxWidth: "600px" }}>
-            <TreeCard title="Sire (Father)" animal={sire} highlight onClick={() => handleSearch(sire?.tag || sire?.id)} />
-            <TreeCard title="Dam (Mother)" animal={dam} highlight isFemale onClick={() => handleSearch(dam?.tag || dam?.id)} />
-          </div>
-
-          {/* Connector */}
-          <div style={{ width: "2px", height: "30px", background: "#9ca3af" }}></div>
-
-          {/* LEVEL 1: FOCUS ANIMAL */}
-          <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
-            <TreeCard title="Focus Animal" animal={child} strong isFemale={child.gender === "Female" || child.gender === "Cow"} />
-          </div>
-
-          {/* FOOTER DATE */}
-          <div style={{ marginTop: "30px", fontSize: "0.8rem", color: "#9ca3af", textAlign: "center" }}>
-            Generated on: {new Date().toLocaleDateString()}
-          </div>
-
+                  <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap" }}>
+                    {cow.tag || "-"}
+                  </span>
+                </div>
+                
+                <div style={{ fontSize: "0.8rem", color: "#9ca3af", marginTop: "4px" }}>
+                  {cow.breed || "Unknown Breed"} • <span style={{ color: cow.status === "Active" ? "#10b981" : "#ef4444" }}>{cow.status || "Unknown"}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </aside>
 
-      {/* Empty State */}
-      {!loading && !treeData && !error && (
-        <div style={emptyStateStyle}>
-          Enter a Cattle Tag Number above to view its family tree.
-        </div>
-      )}
+      {/* --- RIGHT PANEL --- */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto", padding: "2rem" }}>
+        
+        {!treeData && !treeLoading && !treeError && (
+           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+             <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>👈</div>
+             <div style={{ fontSize: "1.2rem" }}>Select an animal from the list to view lineage.</div>
+           </div>
+        )}
+
+        {treeLoading && (
+           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>Generating Tree...</div>
+        )}
+
+        {treeError && (
+           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>⚠️ {treeError}</div>
+        )}
+
+        {treeData && (
+          <div className="pedigree-printable" style={{ width: "100%", maxWidth: "1000px", margin: "0 auto" }}>
+            
+            {/* Header */}
+            <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", width: "100%" }}>
+              <h1 style={{ fontSize: "1.8rem", margin: 0, color: "#111827" }}>
+                {treeData.name} 
+                <span style={{ color: "#6b7280", fontSize: "1.2rem", fontWeight: "normal", marginLeft: "10px" }}>
+                   ({treeData.id})
+                </span>
+              </h1>
+              <button onClick={handlePrint} style={secondaryButtonStyle}>🖨️ Print Chart</button>
+            </div>
+
+            <div className="print-header" style={{ display: "none" }}>
+              <h1>PEDIGREE CERTIFICATE</h1>
+              <p>Rashtrotthana Goshala • Native Breed Conservation</p>
+            </div>
+
+            {/* TREE DIAGRAM */}
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "2rem" }}>
+              
+              {/* LEVEL 3: GRANDPARENTS */}
+              <div style={treeRowStyle}>
+                <TreeCard title="Paternal Grand Sire" animal={sireSire} />
+                <TreeCard title="Paternal Grand Dam" animal={sireDam} isFemale />
+                <TreeCard title="Maternal Grand Sire" animal={damSire} />
+                <TreeCard title="Maternal Grand Dam" animal={damDam} isFemale />
+              </div>
+
+              {/* Connector Lines */}
+              <div style={{ width: "80%", height: "2px", background: "#d1d5db" }}></div>
+
+              {/* LEVEL 2: PARENTS */}
+              <div style={{ ...treeRowStyle, width: "60%" }}>
+                <TreeCard title="Sire (Father)" animal={sire} highlight />
+                <TreeCard title="Dam (Mother)" animal={dam} highlight isFemale />
+              </div>
+
+              <div style={{ width: "2px", height: "40px", background: "#9ca3af" }}></div>
+
+              {/* LEVEL 1: FOCUS ANIMAL */}
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <TreeCard title="Focus Animal" animal={child} strong isFemale={child.gender === "Female" || child.gender === "Cow"} />
+              </div>
+
+            </div>
+
+            <div style={{ marginTop: "40px", fontSize: "0.8rem", color: "#9ca3af", textAlign: "center", width: "100%" }}>
+               Generated on: {new Date().toLocaleDateString()}
+            </div>
+
+          </div>
+        )}
+      </main>
     </div>
   );
 }
 
-// --- SUB-COMPONENT: CARD ---
-function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
+// --- CARD COMPONENT (Unchanged) ---
+function TreeCard({ title, animal, highlight, strong, isFemale }) {
   if (!animal) {
     return (
       <div style={treeCardPlaceholderStyle}>
@@ -228,20 +295,16 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
   const shadow = strong ? "0 10px 15px -3px rgba(0, 0, 0, 0.1)" : "none";
 
   return (
-    <div
-      onClick={onClick}
-      style={{
+    <div style={{
         ...treeCardStyle,
         borderColor: borderColor,
         background: bgColor,
         boxShadow: shadow,
-        borderWidth: strong ? "2px" : "1px",
-        cursor: onClick ? "pointer" : "default"
+        borderWidth: strong ? "2px" : "1px"
       }}
     >
       <div style={treeTitleStyle}>{title}</div>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        {/* Photo Thumbnail or Placeholder */}
         <div style={{ 
             width: "40px", height: "40px", borderRadius: "50%", 
             background: "#f3f4f6", overflow: "hidden", flexShrink: 0,
@@ -255,97 +318,36 @@ function TreeCard({ title, animal, highlight, strong, isFemale, onClick }) {
           )}
         </div>
         <div>
-          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1f2937" }}>
-            {animal.name}
+          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#1f2937" }}>
+            {animal.name && animal.name !== "Unknown" ? animal.name : animal.tag || animal.id}
           </div>
           <div style={{ fontSize: "0.75rem", color: "#4b5563" }}>
-            {animal.tag ? `Tag: ${animal.tag}` : "No Tag"}
+            {animal.tag || "No Tag"}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
-            {animal.breed}
-          </div>
+          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>{animal.breed}</div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ---- STYLES ---- */
-const searchInputStyle = {
-  flex: 1,
-  padding: "0.75rem 1rem",
-  borderRadius: "8px",
-  border: "1px solid #d1d5db",
-  fontSize: "1rem",
-  outline: "none",
-  boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-};
-
-const primaryButtonStyle = {
-  padding: "0 1.5rem",
-  borderRadius: "8px",
-  border: "none",
-  background: "#2563eb",
-  color: "#ffffff",
-  fontSize: "1rem",
-  fontWeight: 600,
-  cursor: "pointer",
-  transition: "background 0.2s"
-};
-
+// --- STYLES ---
 const secondaryButtonStyle = {
-  padding: "0 1.5rem",
-  borderRadius: "8px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#374151",
-  fontSize: "1rem",
-  fontWeight: 600,
-  cursor: "pointer",
-  transition: "background 0.2s"
+  padding: "8px 16px", borderRadius: "8px", border: "1px solid #d1d5db",
+  background: "#ffffff", color: "#374151", fontSize: "0.9rem", fontWeight: 600,
+  cursor: "pointer", transition: "background 0.2s"
 };
 
-const emptyStateStyle = {
-  padding: "4rem 1rem",
-  textAlign: "center",
-  fontSize: "1rem",
-  color: "#6b7280",
-  background: "#ffffff",
-  borderRadius: "12px",
-  border: "1px dashed #e5e7eb",
-  maxWidth: "600px",
-  margin: "0 auto"
-};
-
-const treeRowStyle = {
-  display: "flex",
-  justifyContent: "center",
-  gap: "1.5rem",
-  flexWrap: "wrap",
-  width: "100%"
-};
+const treeRowStyle = { display: "flex", justifyContent: "center", gap: "2rem", width: "100%" };
 
 const treeCardStyle = {
-  borderRadius: "12px",
-  borderStyle: "solid",
-  padding: "1rem",
-  minWidth: "220px",
-  maxWidth: "240px",
-  transition: "transform 0.2s, box-shadow 0.2s",
+  borderRadius: "12px", borderStyle: "solid", padding: "1rem",
+  minWidth: "220px", maxWidth: "240px", transition: "all 0.2s"
 };
 
-const treeCardPlaceholderStyle = {
-  ...treeCardStyle,
-  border: "1px dashed #e5e7eb",
-  background: "transparent",
-  opacity: 0.7
-};
+const treeCardPlaceholderStyle = { ...treeCardStyle, border: "1px dashed #e5e7eb", background: "transparent", opacity: 0.6 };
 
 const treeTitleStyle = {
-  fontSize: "0.7rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "#9ca3af",
-  marginBottom: "0.5rem",
-  fontWeight: 600
+  fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em",
+  color: "#9ca3af", marginBottom: "0.5rem", fontWeight: 600
 };

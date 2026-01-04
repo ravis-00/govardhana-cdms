@@ -74,7 +74,7 @@ export default function Login() {
           <div className="feature-icon-wrapper"><CowIcon /></div>
           <h3 className="feature-title">Cattle Data Management</h3>
           <p className="feature-description">
-            Maintain a digital registry of your cattle, track genealogy, manage health records, vaccinations, and breeding history efficiently.
+            Maintain a digital registry of cattle, track genealogy, manage health records, vaccinations, and breeding history efficiently.
           </p>
         </div>
         <div className="feature-card">
