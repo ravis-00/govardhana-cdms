@@ -1,4 +1,3 @@
-// src/pages/CattleRegistration.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom"; 
 import { addCattle, getUnregisteredBirths } from "../api/masterApi"; 
@@ -12,6 +11,7 @@ export default function CattleRegistration() {
 
   const [loading, setLoading] = useState(false);
   const [birthRecords, setBirthRecords] = useState([]); 
+  const [manualBirthEntry, setManualBirthEntry] = useState(false); // 🔥 NEW: Toggle for old data
   
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -30,6 +30,7 @@ export default function CattleRegistration() {
   });
 
   useEffect(() => {
+    // If coming from Calving Log "Register" button
     if (location.state && location.state.birthData) {
       const b = location.state.birthData;
       setForm(prev => ({
@@ -50,16 +51,18 @@ export default function CattleRegistration() {
         ageMonths: calculateAge(b.dateOfBirth),
         category: "Calf"
       }));
+      setManualBirthEntry(false); // Forced link
     }
   }, [location.state]);
 
   useEffect(() => {
-    if (form.typeOfAdmission === "Born at Goshala" && !form.linkedBirthId) {
+    // Only fetch list if we are in "Born at Goshala" mode and NOT in manual mode
+    if (form.typeOfAdmission === "Born at Goshala" && !form.linkedBirthId && !manualBirthEntry) {
       getUnregisteredBirths().then(data => {
           if(Array.isArray(data)) setBirthRecords(data);
       }).catch(err => console.error("Failed to fetch births", err));
     }
-  }, [form.typeOfAdmission, form.linkedBirthId]);
+  }, [form.typeOfAdmission, form.linkedBirthId, manualBirthEntry]);
 
   function calculateAge(dateString) {
     if(!dateString) return "0";
@@ -165,7 +168,7 @@ export default function CattleRegistration() {
         damBreed: form.damBreed,
         sireBreed: form.sireBreed,
         birthWeight: form.birthWeight,
-        linkedBirthId: form.linkedBirthId 
+        linkedBirthId: manualBirthEntry ? "" : form.linkedBirthId // 🔥 Clear link if manual
       };
       const response = await addCattle(payload);
       if (response && response.success) {
@@ -183,85 +186,250 @@ export default function CattleRegistration() {
 
   const isLinked = !!form.linkedBirthId;
 
+  // 🔥 Logic: Fields are read-only ONLY if we are linked to a birth record AND not in manual mode
+  const isBornLocked = isLinked && !manualBirthEntry; 
+
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "720px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "1rem" }}>Cattle Registration </h1>
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem", background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-        <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} placeholder="Enter New Tag" required />
-        <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} />
-        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151", marginTop: "1rem" }}>Origin Details</h3>
-        <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} disabled={isLinked} />
-        {form.typeOfAdmission === "Born at Goshala" && (
-            <div style={{ background: "#eff6ff", padding: "1rem", borderRadius: "8px", border: "1px solid #bfdbfe" }}>
-                {isLinked ? (
-                    <div style={{marginBottom:"1rem", padding:"8px", background:"#dbeafe", color:"#1e40af", fontWeight:"bold", borderRadius:"4px"}}>✓ Linked to Birth Record: {form.linkedBirthId}</div>
-                ) : (
-                    <>
-                        <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem", fontWeight:"bold", color:"#1e40af"}}>Select Unregistered Calf:</label>
-                        <select onChange={handleBirthSelection} style={{width:"100%", padding:"0.6rem", border:"1px solid #2563eb", borderRadius:"6px"}}>
-                            <option value="">-- Select --</option>
+    <div style={{ maxWidth: "800px", margin: "0 auto", paddingBottom: "4rem" }}>
+      
+      {/* HEADER */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: "700", color: "#111827", margin: 0 }}>Register New Cattle</h1>
+        <p style={{ color: "#6b7280", margin: "4px 0 0 0" }}>Enter details to add a new animal to the herd.</p>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        
+        {/* --- SECTION 1: IDENTIFICATION --- */}
+        <div className="card">
+          <h3 className="section-title">Identification</h3>
+          <div className="responsive-grid">
+             <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} placeholder="Enter New Tag" required />
+             <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} placeholder="Optional" />
+          </div>
+        </div>
+
+        {/* --- SECTION 2: ORIGIN & SOURCE --- */}
+        <div className="card">
+          <h3 className="section-title">Origin Details</h3>
+          
+          <div style={{ marginBottom: "1rem" }}>
+             <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} disabled={isLinked && !manualBirthEntry} />
+          </div>
+
+          {/* Logic for Born at Goshala */}
+          {form.typeOfAdmission === "Born at Goshala" && (
+             <div style={{ background: "#eff6ff", padding: "1.2rem", borderRadius: "8px", border: "1px solid #bfdbfe", marginBottom: "1rem" }}>
+                
+                {/* 🔥 NEW: Manual Entry Toggle */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <label style={{ fontSize: "0.9rem", fontWeight: "bold", color: "#1e40af" }}>
+                        {manualBirthEntry ? "Manual Entry Mode (Old Data)" : "Link to Birth Record (New Borns)"}
+                    </label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <input 
+                            type="checkbox" 
+                            checked={manualBirthEntry} 
+                            onChange={(e) => {
+                                setManualBirthEntry(e.target.checked);
+                                if (e.target.checked) {
+                                    // Clear linked data if switching to manual
+                                    setForm(prev => ({ ...prev, linkedBirthId: "" }));
+                                }
+                            }} 
+                            id="manualEntry"
+                        />
+                        <label htmlFor="manualEntry" style={{ fontSize: "0.85rem", color: "#4b5563", cursor: "pointer" }}>Manual Entry (No Log)</label>
+                    </div>
+                </div>
+
+                {/* Dropdown (Only show if NOT manual and NOT linked yet) */}
+                {!manualBirthEntry && !isLinked && (
+                    <div style={{ marginBottom: "1rem" }}>
+                        <select onChange={handleBirthSelection} className="form-select" style={{borderColor: "#2563eb"}}>
+                            <option value="">-- Select Unregistered Calf --</option>
                             {birthRecords.map(rec => (<option key={rec.id} value={rec.id}>Born: {rec.dateOfBirth} | Mother: {rec.motherTag} | {rec.calfSex}</option>))}
                         </select>
-                    </>
+                        <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "4px" }}>
+                            * List empty? Ensure calf is entered in "Calving Log" first, or use Manual Entry.
+                        </div>
+                    </div>
                 )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop:"1rem" }}>
-                      <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={true} />
-                      <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={true} />
-                      <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={true} />
-                      <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={true} />
-                      <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={true} />
+
+                {/* Linked Badge */}
+                {isLinked && !manualBirthEntry && (
+                    <div style={{marginBottom:"1rem", padding:"8px", background:"#dbeafe", color:"#1e40af", fontWeight:"bold", borderRadius:"4px", textAlign:"center"}}>
+                        ✓ Linked to Birth Record: {form.linkedBirthId}
+                    </div>
+                )}
+                
+                <div className="responsive-grid" style={{ marginTop:"1rem" }}>
+                      <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={!manualBirthEntry} placeholder={manualBirthEntry ? "Enter Dam ID" : "Auto-filled"} />
+                      <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={!manualBirthEntry} placeholder={manualBirthEntry ? "Enter Sire ID" : "Auto-filled"} />
+                      <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={!manualBirthEntry} />
+                      <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={!manualBirthEntry} />
+                      <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={!manualBirthEntry} />
                 </div>
-            </div>
-        )}
-        {(form.typeOfAdmission === "Purchase" || form.typeOfAdmission === "Donation" || form.typeOfAdmission === "Rescue") && (
-            <div style={{ background: "#f9fafb", padding: "1rem", borderRadius: "8px", border: "1px dashed #ccc" }}>
-                <TextField label="Source Name (Vendor/Donor)" name="sourceName" value={form.sourceName} onChange={handleChange} />
-                <TextField label="Source Address" name="sourceAddress" value={form.sourceAddress} onChange={handleChange} />
-                <TextField label="Source Mobile" name="sourceMobile" value={form.sourceMobile} onChange={handleChange} />
-                {form.typeOfAdmission === "Purchase" && (<TextField label="Purchase Price (₹)" name="price" value={form.price} onChange={handleChange} />)}
-            </div>
-        )}
-        <TextField label="Name *" name="name" value={form.name} onChange={handleChange} placeholder="e.g. Gowri" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} options={["", "Female", "Male"]} disabled={isLinked} />
-          <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
+             </div>
+          )}
+
+          {/* Logic for Purchase/Donation */}
+          {(form.typeOfAdmission === "Purchase" || form.typeOfAdmission === "Donation" || form.typeOfAdmission === "Rescue") && (
+             <div style={{ background: "#f8fafc", padding: "1.2rem", borderRadius: "8px", border: "1px dashed #cbd5e1", marginBottom: "1rem" }}>
+                <div className="responsive-grid">
+                    <TextField label="Source Name (Vendor/Donor)" name="sourceName" value={form.sourceName} onChange={handleChange} />
+                    <TextField label="Source Mobile" name="sourceMobile" value={form.sourceMobile} onChange={handleChange} />
+                </div>
+                <div style={{ marginTop: "1rem" }}>
+                    <TextField label="Source Address" name="sourceAddress" value={form.sourceAddress} onChange={handleChange} />
+                </div>
+                {form.typeOfAdmission === "Purchase" && (
+                    <div style={{ marginTop: "1rem" }}>
+                        <TextField label="Purchase Price (₹)" name="price" value={form.price} onChange={handleChange} type="number" />
+                    </div>
+                )}
+             </div>
+          )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal", "Kankrej", "Deoni", "Malnad Gidda"]} />
-          <TextField label="Color" name="colour" value={form.colour} onChange={handleChange} />
+
+        {/* --- SECTION 3: DEMOGRAPHICS --- */}
+        <div className="card">
+           <h3 className="section-title">Demographics</h3>
+           <div style={{ marginBottom: "1rem" }}>
+              <TextField label="Name *" name="name" value={form.name} onChange={handleChange} placeholder="e.g. Gowri" />
+           </div>
+           <div className="responsive-grid">
+              <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} options={["", "Female", "Male"]} disabled={isBornLocked} />
+              <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
+              <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal", "Kankrej", "Deoni", "Malnad Gidda"]} />
+              <TextField label="Color" name="colour" value={form.colour} onChange={handleChange} />
+           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-           <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} readOnly={isLinked} />
-           <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} />
-           <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} readOnly={isLinked} />
+
+        {/* --- SECTION 4: PHYSICAL SPECS --- */}
+        <div className="card">
+           <h3 className="section-title">Physical Specs</h3>
+           <div className="responsive-grid">
+              <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} readOnly={isBornLocked} />
+              <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} type="number" />
+              <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} readOnly={isBornLocked} type="number" />
+           </div>
         </div>
-        <div style={{marginTop: "10px", background: "#f0f9ff", padding: "12px", borderRadius: "8px", border: "1px solid #bae6fd"}}>
-            <label style={{display:"block", fontSize:"0.9rem", fontWeight:600, color:"#0369a1", marginBottom:"5px"}}>Cattle Photo</label>
-            <div style={{display:"flex", gap:"10px"}}>
-                <input type="text" name="photo" value={form.photo || ""} onChange={handleChange} placeholder="Image URL..." readOnly style={{flex:1, padding:"8px", borderRadius:"5px", border:"1px solid #ccc", background:"#white", color: "#555"}} />
-                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} style={{display:"none"}} />
-                <button type="button" onClick={() => fileInputRef.current.click()} disabled={uploading} style={{background: uploading ? "#ccc" : "#0ea5e9", color: "#fff", border: "none", borderRadius: "5px", padding: "0 15px", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", whiteSpace:"nowrap"}}> {uploading ? "Uploading..." : "📷 Upload"} </button>
-            </div>
-            {form.photo && <div style={{marginTop: "8px"}}><img src={form.photo} alt="Preview" style={{height:"60px", borderRadius:"4px", border:"1px solid #ccc"}} /></div>}
+
+        {/* --- SECTION 5: PHOTO (Mobile Optimized) --- */}
+        <div className="card">
+           <h3 className="section-title">Cattle Photo</h3>
+           <div 
+             className="photo-upload-box" 
+             onClick={() => !uploading && fileInputRef.current.click()}
+           >
+              {uploading ? (
+                 <span style={{ color: "#2563eb", fontWeight: "bold" }}>Uploading Image...</span>
+              ) : form.photo ? (
+                 <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", justifyContent: "center" }}>
+                    <img src={form.photo} alt="Preview" style={{ maxHeight: "250px", maxWidth: "100%", borderRadius: "8px", objectFit: "contain" }} />
+                    <div style={{ position: "absolute", bottom: "10px", background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>
+                        Click to Change
+                    </div>
+                 </div>
+              ) : (
+                 <>
+                   <span style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📷</span>
+                   <span style={{ color: "#4b5563", fontWeight: "600" }}>Tap to take photo or upload</span>
+                   <span style={{ color: "#9ca3af", fontSize: "0.8rem", marginTop: "4px" }}>Supports JPG, PNG</span>
+                 </>
+              )}
+           </div>
+           <input 
+             type="file" 
+             accept="image/*" 
+             capture="environment" // Mobile: Use Back Camera
+             ref={fileInputRef} 
+             onChange={handleFileSelect} 
+             style={{display:"none"}} 
+           />
         </div>
-        <h3 style={{ borderBottom: "2px solid #f3f4f6", paddingBottom: "0.5rem", color: "#374151" }}>Status</h3>
-        <label style={{ fontSize: "0.85rem", color: "#4b5563" }}>Permanent Disability?</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-           <button type="button" onClick={() => handleDisability("N")} style={form.disabilityFlag === "N" ? activeBtn : inactiveBtn}>No</button>
-           <button type="button" onClick={() => handleDisability("Y")} style={form.disabilityFlag === "Y" ? activeBtn : inactiveBtn}>Yes</button>
+
+        {/* --- SECTION 6: STATUS & LOCATION --- */}
+        <div className="card">
+           <h3 className="section-title">Status & Location</h3>
+           
+           <div style={{ marginBottom: "1rem" }}>
+               <label className="form-label">Permanent Disability?</label>
+               <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDisability("N")} 
+                    className={`btn ${form.disabilityFlag === "N" ? "btn-primary" : "btn-secondary"}`}
+                    style={{ flex: 1 }}
+                  >
+                    No
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDisability("Y")} 
+                    className={`btn ${form.disabilityFlag === "Y" ? "btn-primary" : "btn-secondary"}`}
+                    style={{ flex: 1 }}
+                  >
+                    Yes
+                  </button>
+               </div>
+           </div>
+
+           <div className="responsive-grid">
+               <SelectField label="Shed Location" name="locationShed" value={form.locationShed} onChange={handleChange} options={["", "Punyakoti", "Samrakshana", "Kaveri", "Nandini", "Others"]} />
+               <TextField label="Remarks" name="remarks" value={form.remarks} onChange={handleChange} />
+           </div>
         </div>
-        <SelectField label="Shed Location" name="locationShed" value={form.locationShed} onChange={handleChange} options={["", "Punyakoti", "Samrakshana", "Kaveri", "Nandini", "Others"]} />
-        <TextField label="Remarks" name="remarks" value={form.remarks} onChange={handleChange} />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
-          <button type="button" onClick={handleCancel} disabled={loading} style={btnStyle}>Cancel</button>
-          <button type="submit" disabled={loading} style={{...btnStyle, background: "#2563eb", color: "#fff"}}>{loading ? "Saving..." : "Save Cattle"}</button>
+
+        {/* --- ACTIONS --- */}
+        <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", justifyContent: "flex-end" }}>
+           <button type="button" onClick={handleCancel} className="btn btn-secondary btn-full-mobile">Cancel</button>
+           <button type="submit" disabled={loading} className="btn btn-primary btn-full-mobile">
+              {loading ? "Saving..." : "Register Cattle"}
+           </button>
         </div>
+
       </form>
     </div>
   );
 }
-const btnStyle = { padding: "0.6rem 1.2rem", borderRadius: "20px", border: "1px solid #ddd", background: "white", cursor: "pointer" };
-const activeBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "2px solid #2563eb", background: "#eff6ff", color: "#2563eb", fontWeight: "bold" };
-const inactiveBtn = { flex: 1, padding: "0.5rem", borderRadius: "8px", border: "1px solid #ddd", background: "white", color: "#6b7280" };
-function TextField({ label, name, value, onChange, type="text", readOnly=false, placeholder, required }) { return ( <div> <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label> <input type={type} name={name} value={value} onChange={onChange} readOnly={readOnly} placeholder={placeholder} required={required} style={{ width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px", background: readOnly ? "#f3f4f6" : "white", color: readOnly ? "#6b7280" : "black" }} /> </div> ); }
-function SelectField({ label, name, value, onChange, options, disabled=false }) { return ( <div> <label style={{display:"block", fontSize:"0.85rem", marginBottom:"0.2rem"}}>{label}</label> <select name={name} value={value} onChange={onChange} disabled={disabled} style={{ width:"100%", padding:"0.6rem", border:"1px solid #ccc", borderRadius:"6px", background: disabled ? "#f3f4f6" : "white" }}> {options.map(o => <option key={o} value={o}>{o||"Select..."}</option>)} </select> </div> ); }
+
+// --- HELPER COMPONENTS ---
+
+function TextField({ label, name, value, onChange, type="text", readOnly=false, placeholder, required }) { 
+  return ( 
+    <div className="form-group"> 
+       <label className="form-label">{label}</label> 
+       <input 
+         className="form-input"
+         type={type} 
+         name={name} 
+         value={value} 
+         onChange={onChange} 
+         readOnly={readOnly} 
+         placeholder={placeholder} 
+         required={required} 
+         style={{ background: readOnly ? "#f3f4f6" : "white", color: readOnly ? "#6b7280" : "inherit" }}
+       /> 
+    </div> 
+  ); 
+}
+
+function SelectField({ label, name, value, onChange, options, disabled=false }) { 
+  return ( 
+    <div className="form-group"> 
+       <label className="form-label">{label}</label> 
+       <select 
+         className="form-select"
+         name={name} 
+         value={value} 
+         onChange={onChange} 
+         disabled={disabled} 
+         style={{ background: disabled ? "#f3f4f6" : "white" }}
+       > 
+         {options.map(o => <option key={o} value={o}>{o||"Select..."}</option>)} 
+       </select> 
+    </div> 
+  ); 
+}

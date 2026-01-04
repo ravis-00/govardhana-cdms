@@ -1,4 +1,3 @@
-// src/pages/MasterCattle.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { fetchCattle, updateCattle } from "../api/masterApi"; 
 import { Link } from "react-router-dom";
@@ -11,6 +10,13 @@ const UPLOAD_PRESET = "cattle_upload";
 // Configuration
 const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
+
+// --- HELPER: Get Robust ID ---
+// Checks for internalId, id, or internal_id to ensure we always find it
+function getRowId(row) {
+  if (!row) return "";
+  return row.internalId || row.id || row.internal_id || "";
+}
 
 // --- DATE HELPER FOR CERTIFICATES ---
 function formatDateDisplay(isoDate) {
@@ -53,7 +59,8 @@ export default function MasterCattle() {
     return rows.filter((row) => {
       const status = String(row.status || "").toLowerCase().trim();
       const matchStatus = statusFilter === "All" || status === statusFilter.toLowerCase();
-      const haystack = (`${row.tag||""} ${row.name||""} ${row.breed||""} ${row.shed||""} ${row.internalId||""}`).toLowerCase();
+      // Updated haystack to include robust ID
+      const haystack = (`${row.tag||""} ${row.name||""} ${row.breed||""} ${row.shed||""} ${getRowId(row)}`).toLowerCase();
       return matchStatus && haystack.includes(searchText.toLowerCase());
     });
   }, [rows, statusFilter, searchText]);
@@ -70,16 +77,16 @@ export default function MasterCattle() {
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
 
   /* =========================================
-     🔥 CERTIFICATE GENERATION LOGIC (FIXED)
-     ========================================= */
+      🔥 CERTIFICATE GENERATION LOGIC
+      ========================================= */
   const handleGenerateCert = (row) => {
     const type = String(row.admissionType || "").toLowerCase();
     
-    // 1. Birth Certificate (Handles "Born at Goshala" OR "Birth")
+    // 1. Birth Certificate
     if (type.includes("born") || type.includes("birth")) {
       printBirthCertificate(row);
     } 
-    // 2. Incoming Certificate (Purchase, Donation, Farmer)
+    // 2. Incoming Certificate
     else if (type.includes("purchase") || type.includes("donation") || type.includes("farmer")) {
       printIncomingCertificate(row);
     } 
@@ -197,7 +204,7 @@ export default function MasterCattle() {
   if (error) return <div style={{ padding: "2rem", color: "red" }}>{error}</div>;
 
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
       
       {/* HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
@@ -242,15 +249,16 @@ export default function MasterCattle() {
             ) : (
               displayedRows.map((row, idx) => {
                 const type = String(row.admissionType || "").toLowerCase();
-                
-                // 🔥 LOGIC: Show Cert UNLESS it's Rescue or Slaughter House
                 const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
+                // 🔥 GET ID SAFELY
+                const safeId = getRowId(row);
 
                 return (
                   <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={tdStyle}>
                       <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
-                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{row.internalId}</div>
+                      {/* 🔥 UPDATED: Show ID if available */}
+                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
                     </td>
                     <td style={tdStyle}>{row.name}</td>
                     <td style={tdStyle}>{row.breed}</td>
@@ -260,7 +268,6 @@ export default function MasterCattle() {
                       <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
                           <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
                           
-                          {/* 🔥 CERTIFICATE BUTTON */}
                           {showCert && (
                               <button 
                                   onClick={() => handleGenerateCert(row)} 
@@ -330,7 +337,13 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   };
 
   const handleSave = async () => {
-    const res = await updateCattle({ id: formData.internalId, ...formData });
+    // 🔥 FIX: Check internalId OR id for update
+    const idToUpdate = formData.internalId || formData.id || formData.internal_id;
+    if (!idToUpdate) {
+        alert("Error: Missing Internal ID for this record. Cannot update.");
+        return;
+    }
+    const res = await updateCattle({ id: idToUpdate, ...formData });
     if (res && res.success) {
       alert("Updated Successfully!");
       setIsEditing(false);
@@ -375,21 +388,25 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
 
   const isActive = String(selected.status || "").toLowerCase() === "active";
   const ageText = calculateSmartAge(selected.dob, selected.admissionDate, selected.admissionAge);
+  
+  // 🔥 FIX: Get robust ID for Display
+  const displayId = getRowId(selected);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem" }}>
         <div>
-            {isEditing ? (
-              <div style={{color:"#ea580c", fontWeight:"bold", fontSize:"1.1rem"}}>Editing: {selected.tag}</div>
-            ) : (
-              <>
-                <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{selected.tag} – {selected.name}</div>
-                <div style={{fontSize:"0.85rem", color:"#666", marginTop:"4px"}}>
-                  Internal ID: <strong>{selected.internalId}</strong> | UID: {selected.govtUid || "N/A"}
-                </div>
-              </>
-            )}
+             {isEditing ? (
+               <div style={{color:"#ea580c", fontWeight:"bold", fontSize:"1.1rem"}}>Editing: {selected.tag}</div>
+             ) : (
+               <>
+                 <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{selected.tag} – {selected.name}</div>
+                 <div style={{fontSize:"0.85rem", color:"#666", marginTop:"4px"}}>
+                   {/* 🔥 UPDATED: Shows ID if present, otherwise N/A */}
+                   Internal ID: <strong>{displayId || "N/A"}</strong> | UID: {selected.govtUid || "N/A"}
+                 </div>
+               </>
+             )}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           {canEdit && !isEditing && <button onClick={() => setIsEditing(true)} style={editBtnStyle}>✎ Edit</button>}

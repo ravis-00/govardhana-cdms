@@ -19,8 +19,8 @@ const Icons = {
   drop: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>,
   alert: <path d="M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/>,
   leaf: <path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66l.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-5.5 4-8 4z"/>,
-  rupee: <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z M11 7h2v2h-2zm0 4h2v6h-2z"/>, // Info/Coin style
-  ribbon: <path d="M20 12l-5.11-5.11a1 1 0 0 0-.71-.29H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8.49a1 1 0 0 0 .71-.29L20 12zM5 16V7.41l4.29 4.29L5 16z"/> // Badge
+  rupee: <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z M11 7h2v2h-2zm0 4h2v6h-2z"/>, 
+  ribbon: <path d="M20 12l-5.11-5.11a1 1 0 0 0-.71-.29H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8.49a1 1 0 0 0 .71-.29L20 12zM5 16V7.41l4.29 4.29L5 16z"/> 
 };
 
 // --- 2. HELPERS ---
@@ -251,21 +251,23 @@ export default function Dashboard() {
   if (error) return <div style={{ padding: "3rem", textAlign: "center", color: "#ef4444" }}>{error}</div>;
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1600px", margin: "0 auto", fontFamily: "'Segoe UI', sans-serif" }}>
+    // 🔥 UPDATED: Responsive Container
+    <div style={{ padding: "1.5rem", maxWidth: "1600px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
       
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.5rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: "700", color: "#111827", margin: 0 }}>Dashboard</h1>
           <p style={{ color: "#6b7280", margin: "4px 0 0 0", fontSize: "0.95rem" }}>Operations overview & key performance indicators.</p>
         </div>
-        <div style={{ background: "#fff", padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "0.9rem", color: "#374151", fontWeight: "500" }}>
+        <div style={{ background: "#fff", padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "0.9rem", color: "#374151", fontWeight: "500", whiteSpace: "nowrap" }}>
           Date: <strong>{new Date().toLocaleDateString('en-GB')}</strong>
         </div>
       </div>
 
-      {/* --- TIER 1: HERO METRICS (4 CARDS) --- */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
+      {/* --- TIER 1: HERO METRICS (Responsive Grid) --- */}
+      {/* Uses auto-fit to stack cards on mobile (1 col) and span up to 4 cols on desktop */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
         
         {/* 1. Active Cattle */}
         <HeroCard 
@@ -283,7 +285,6 @@ export default function Dashboard() {
           value={`${stats.pureBredRate}%`} 
           trend="Of Total Births (12M)"
           icon={Icons.ribbon} 
-          // Orange if low, Green if high
           color={stats.pureBredRate < 75 ? "#f59e0b" : "#10b981"} 
           bg={stats.pureBredRate < 75 ? "#fffbeb" : "#ecfdf5"}
           isRisk={stats.pureBredRate < 75}
@@ -312,33 +313,23 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* --- TIER 2: MINI METRICS (6 CARDS) --- */}
+      {/* --- TIER 2: MINI METRICS --- */}
       <h3 style={sectionTitleStyle}>Detailed Demographics & Operations</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "2.5rem" }}>
         
-        {/* 1. Female Pop */}
+        {/* Mini Cards (Auto-stacking) */}
         <MiniCard label="Female Population" value={stats.femaleCattle} />
-        
-        {/* 2. Male Pop */}
         <MiniCard label="Male Population" value={stats.maleCattle} />
-        
-        {/* 3. Newborn */}
         <MiniCard label="New Born (12M)" value={stats.newBorn12M} color="#0ea5e9" />
-        
-        {/* 4. Avg Milk Sold */}
         <MiniCard label="Avg Milk Sold / Day" value={`${formatNumber(stats.avgMilkSoldPerDay)} L`} color="#10b981" />
-        
-        {/* 5. Total Deaths */}
         <MiniCard label="Total Deaths (12M)" value={stats.deathsLastYear} color="#ef4444" />
-        
-        {/* 6. Avg Feeding */}
         <MiniCard label="Avg Feeding / Day" value={`${formatNumber(stats.avgFeedingPerDay)} Kg`} color="#d97706" />
       </div>
 
       {/* --- KEY OBSERVATIONS BOX --- */}
       <div style={{ 
-        background: "#fffbeb", // Light yellow/amber
-        borderLeft: "5px solid #f59e0b", // Amber accent
+        background: "#fffbeb", 
+        borderLeft: "5px solid #f59e0b", 
         padding: "1.5rem", 
         borderRadius: "8px", 
         marginBottom: "2.5rem", 
@@ -350,7 +341,6 @@ export default function Dashboard() {
         </div>
         
         <ul style={{ margin: 0, paddingLeft: "1.5rem", color: "#b45309", fontSize: "0.95rem", lineHeight: "1.6" }}>
-          {/* Logic to show/hide observations based on targets */}
           {stats.pureBredRate < 75 && (
             <li>
               <strong>Purebred rate is low ({stats.pureBredRate}%)</strong> for a Breed development Gaushala (Target: 75-80%).
@@ -367,8 +357,9 @@ export default function Dashboard() {
         </ul>
       </div>
 
-      {/* --- TIER 3: CHARTS --- */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))", gap: "1.5rem" }}>
+      {/* --- TIER 3: CHARTS (Responsive Grid) --- */}
+      {/* Min width 300px ensures charts don't get crushed on mobile */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
         
         {/* Breed Bar Chart */}
         <div style={chartCardStyle}>
@@ -441,7 +432,8 @@ function HeroCard({ title, value, trend, icon, color, bg }) {
       background: "#fff", padding: "1.5rem", borderRadius: "16px", 
       boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
       display: "flex", flexDirection: "column", justifyContent: "space-between",
-      borderTop: `4px solid ${color}`, height: "100%"
+      borderTop: `4px solid ${color}`, height: "100%",
+      boxSizing: "border-box" // Ensure padding doesn't affect width
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
         <div style={{ background: bg, color: color, padding: "10px", borderRadius: "12px" }}>
@@ -464,7 +456,8 @@ function MiniCard({ label, value, subtext, color = "#334155" }) {
     <div style={{ 
       background: "#fff", padding: "1rem 1.25rem", borderRadius: "10px", 
       border: "1px solid #e2e8f0", textAlign: "left",
-      display: "flex", flexDirection: "column", justifyContent: "center"
+      display: "flex", flexDirection: "column", justifyContent: "center",
+      boxSizing: "border-box"
     }}>
       <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
@@ -476,5 +469,5 @@ function MiniCard({ label, value, subtext, color = "#334155" }) {
 }
 
 const sectionTitleStyle = { fontSize: "0.85rem", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: "1rem", marginTop: "1rem" };
-const chartCardStyle = { background: "#fff", padding: "1.5rem", borderRadius: "16px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #f1f5f9" };
+const chartCardStyle = { background: "#fff", padding: "1.5rem", borderRadius: "16px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #f1f5f9", boxSizing: "border-box" };
 const chartTitleStyle = { margin: 0, fontSize: "1.1rem", fontWeight: "700", color: "#1e293b" };
