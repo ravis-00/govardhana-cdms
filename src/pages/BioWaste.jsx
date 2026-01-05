@@ -1,6 +1,5 @@
-// src/pages/BioWaste.jsx
 import React, { useEffect, useState, useRef } from "react";
-import { getBioWaste, addBioWaste, updateBioWaste } from "../api/masterApi";
+import { getBioWaste, addBioWaste, updateBioWaste, getSheds } from "../api/masterApi";
 
 // --- HELPERS ---
 function getCurrentYearMonth() {
@@ -23,27 +22,13 @@ function formatDisplayDate(val) {
   return `${day}-${mon}-${year}`;
 }
 
-// Master List of Sheds
-const SHED_OPTIONS = [
-  "Govardhanagiri",
-  "Govardhana",
-  "Kamadhenu Nilaya",
-  "Surabhi Nilaya",
-  "Kaveri Nilaya",
-  "Jayadeva Nilaya",
-  "Nandini-Old",
-  "Nandini-New",
-  "K K S",
-  "Quarantine"
-];
-
 function getEmptyForm() {
   return {
     date: new Date().toISOString().slice(0, 10),
-    sourceShed: [], // Changed to Array for Multi-Select
+    sourceShed: [], 
     wasteType: "Dung (Gomaya)",
     quantity: "",
-    unit: "Tractor Load", // Updated default for practicality
+    unit: "Tractor Load",
     destination: "", 
     receiver: "",
     sender: "",
@@ -55,6 +40,7 @@ export default function BioWaste() {
   const [month, setMonth] = useState(getCurrentYearMonth());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [shedOptions, setShedOptions] = useState([]); // 🔥 Dynamic Sheds
   
   // Modal States
   const [showModal, setShowModal] = useState(false);
@@ -65,7 +51,22 @@ export default function BioWaste() {
   // --- FETCH DATA ---
   useEffect(() => {
     loadData();
+    loadSheds();
   }, [month]);
+
+  async function loadSheds() {
+    try {
+      if(typeof getSheds === 'function') {
+        const res = await getSheds();
+        if(res && res.success && Array.isArray(res.data)) {
+           setShedOptions(res.data.map(s => typeof s === 'object' ? s.name : s));
+        } else {
+           // Fallback
+           setShedOptions(["Govardhanagiri", "Nandini-Old", "Nandini-New", "Quarantine"]);
+        }
+      }
+    } catch(e) { console.warn("Shed load failed", e); }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -74,12 +75,23 @@ export default function BioWaste() {
       const fromDate = `${y}-${m}-01`;
       const toDate = `${y}-${m}-31`; 
       
-      const data = await getBioWaste({ fromDate, toDate });
+      const res = await getBioWaste({ fromDate, toDate });
       
-      const sorted = (Array.isArray(data) ? data : []).sort((a,b) => {
-         const dA = a.date.split('-').reverse().join('-');
-         const dB = b.date.split('-').reverse().join('-');
-         return new Date(dB) - new Date(dA);
+      // 🔥 FIX: Handle API Wrapper
+      let rawData = [];
+      if (res && res.data && Array.isArray(res.data)) {
+          rawData = res.data;
+      } else if (Array.isArray(res)) {
+          rawData = res;
+      }
+      
+      const sorted = rawData.sort((a,b) => {
+         // Sort logic handling dd-mm-yyyy or yyyy-mm-dd
+         const dateA = a.date.includes('-') && a.date.split('-')[0].length === 2 
+             ? a.date.split('-').reverse().join('-') : a.date;
+         const dateB = b.date.includes('-') && b.date.split('-')[0].length === 2 
+             ? b.date.split('-').reverse().join('-') : b.date;
+         return new Date(dateB) - new Date(dateA);
       });
       
       setRows(sorted);
@@ -107,7 +119,7 @@ export default function BioWaste() {
        dateStr = `${y}-${m}-${d}`;
     }
 
-    // 2. Handle Multi-Select Sheds (Convert String "A, B" -> Array ["A", "B"])
+    // 2. Handle Multi-Select Sheds
     let shedArray = [];
     if (row.sourceShed) {
       shedArray = row.sourceShed.split(',').map(s => s.trim()).filter(Boolean);
@@ -127,7 +139,6 @@ export default function BioWaste() {
     setForm(prev => ({ ...prev, [name]: value }));
   }
 
-  // Special Handler for Multi-Select
   function handleShedChange(newShedArray) {
     setForm(prev => ({ ...prev, sourceShed: newShedArray }));
   }
@@ -136,7 +147,6 @@ export default function BioWaste() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Convert Array back to String for Backend
       const payload = {
         ...form,
         sourceShed: form.sourceShed.join(", ") 
@@ -156,98 +166,98 @@ export default function BioWaste() {
   }
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
+    <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
       
       {/* HEADER */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", gap: "1rem" }}>
         <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0, color: "#111827" }}>Bio Waste Management</h1>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" }}>Month</label>
-            <input 
-              type="month" 
-              value={month} 
-              onChange={e => setMonth(e.target.value)} 
-              style={headerInputStyle} 
-            />
-          </div>
-          <button onClick={openAddModal} style={addBtnStyle}>+ Add Entry</button>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+          <input 
+            type="month" 
+            value={month} 
+            onChange={e => setMonth(e.target.value)} 
+            className="form-input"
+            style={{ width: "auto", padding: "0.5rem" }} 
+          />
+          <button onClick={openAddModal} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>+ Add Entry</button>
         </div>
-      </header>
+      </div>
 
-      {/* TABLE */}
-      <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", overflow: "hidden" }}>
-        {loading ? (
-            <div style={emptyStyle}>Loading...</div>
-        ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-              <thead style={{ background: "#f1f5f9", textAlign: "left" }}>
-                <tr>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Source Shed(s)</th>
-                  <th style={thStyle}>Waste Type</th>
-                  <th style={thStyle}>Quantity</th>
-                  <th style={thStyle}>Destination</th>
-                  <th style={thStyle}>Sender &rarr; Receiver</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr><td colSpan="7" style={emptyStyle}>No records found for this month.</td></tr>
-                ) : (
-                  rows.map((row, i) => (
-                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
-                      <td style={tdStyle}><strong>{formatDisplayDate(row.date)}</strong></td>
-                      <td style={tdStyle}>{row.sourceShed}</td>
-                      <td style={tdStyle}>
-                        <span style={badgeStyle}>{row.wasteType}</span>
-                      </td>
-                      <td style={tdStyle}><strong>{row.quantity}</strong> {row.unit}</td>
-                      <td style={tdStyle}>{row.destination}</td>
-                      <td style={tdStyle}>
-                        <div style={{fontSize:"0.8rem", color:"#4b5563"}}>{row.sender || "-"}</div>
-                        <div style={{fontSize:"0.8rem", fontWeight:"bold"}}>&darr; {row.receiver || "-"}</div>
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
-                        <div style={{display:"flex", gap:"5px", justifyContent:"center"}}>
-                            <button onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️ View</button>
-                            <button onClick={() => openEditModal(row)} style={editBtnStyle}>✏️ Edit</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-        )}
+      {/* TABLE CARD */}
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE CONTAINER */}
+          {loading ? (
+             <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Loading...</div>
+          ) : (
+             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "900px" }}>
+               <thead style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+                 <tr>
+                   <th style={thStyle}>Date</th>
+                   <th style={thStyle}>Source Shed(s)</th>
+                   <th style={thStyle}>Waste Type</th>
+                   <th style={thStyle}>Quantity</th>
+                   <th style={thStyle}>Destination</th>
+                   <th style={thStyle}>Sender &rarr; Receiver</th>
+                   <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 {rows.length === 0 ? (
+                   <tr><td colSpan="7" style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>No records found for this month.</td></tr>
+                 ) : (
+                   rows.map((row, i) => (
+                     <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                       <td style={tdStyle}><strong>{formatDisplayDate(row.date)}</strong></td>
+                       <td style={tdStyle}>{row.sourceShed}</td>
+                       <td style={tdStyle}>
+                         <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "600" }}>{row.wasteType}</span>
+                       </td>
+                       <td style={tdStyle}><strong>{row.quantity}</strong> {row.unit}</td>
+                       <td style={tdStyle}>{row.destination}</td>
+                       <td style={tdStyle}>
+                         <div style={{fontSize:"0.8rem", color:"#4b5563"}}>{row.sender || "-"}</div>
+                         <div style={{fontSize:"0.8rem", fontWeight:"bold"}}>&darr; {row.receiver || "-"}</div>
+                       </td>
+                       <td style={{ ...tdStyle, textAlign: "center" }}>
+                         <div style={{display:"flex", gap:"5px", justifyContent:"center"}}>
+                             <button onClick={() => setSelectedEntry(row)} style={iconBtnStyle}>👁️</button>
+                             <button onClick={() => openEditModal(row)} style={iconBtnStyle}>✏️</button>
+                         </div>
+                       </td>
+                     </tr>
+                   ))
+                 )}
+               </tbody>
+             </table>
+          )}
+        </div>
       </div>
 
       {/* ADD/EDIT MODAL */}
       {showModal && (
         <div style={overlayStyle} onClick={() => setShowModal(false)}>
           <div style={modalStyle} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem", color:"#111827" }}>{isEditMode ? "Edit" : "Add"} Bio Waste</h2>
+            <h2 style={{ margin: "0 0 1.5rem 0", fontSize: "1.25rem", color:"#111827" }}>{isEditMode ? "Edit" : "Add"} Bio Waste</h2>
+            
             <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
-              
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="responsive-grid">
                 <Field label="Date">
-                   <input type="date" name="date" value={form.date} onChange={handleChange} style={inputStyle} required />
+                   <input type="date" name="date" value={form.date} onChange={handleChange} className="form-input" required />
                 </Field>
                 
-                {/* 🔥 CUSTOM MULTI-SELECT COMPONENT */}
                 <Field label="Source Shed(s)">
+                   {/* 🔥 Uses Dynamic Shed List */}
                    <ShedMultiSelect 
-                      options={SHED_OPTIONS} 
+                      options={shedOptions} 
                       selected={form.sourceShed} 
                       onChange={handleShedChange} 
                    />
                 </Field>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="responsive-grid">
                  <Field label="Waste Type">
-                    <select name="wasteType" value={form.wasteType} onChange={handleChange} style={inputStyle}>
+                    <select name="wasteType" value={form.wasteType} onChange={handleChange} className="form-select">
                        <option value="Dung (Gomaya)">Dung (Gomaya)</option>
                        <option value="Urine (Gomutra)">Urine (Gomutra)</option>
                        <option value="Slurry">Slurry</option>
@@ -259,13 +269,12 @@ export default function BioWaste() {
                  <div style={{display:"flex", gap:"0.5rem"}}>
                     <div style={{flex: 1}}>
                         <Field label="Quantity">
-                           <input type="number" step="0.01" name="quantity" value={form.quantity} onChange={handleChange} style={inputStyle} required />
+                           <input type="number" step="0.01" name="quantity" value={form.quantity} onChange={handleChange} className="form-input" required />
                         </Field>
                     </div>
                     <div style={{width: "110px"}}>
                         <Field label="Unit">
-                           <select name="unit" value={form.unit} onChange={handleChange} style={inputStyle}>
-                              {/* 🔥 Added practical units */}
+                           <select name="unit" value={form.unit} onChange={handleChange} className="form-select">
                               <option value="Tractor Load">Tractor</option>
                               <option value="Wheelbarrow">Barrow</option>
                               <option value="Kg">Kg</option>
@@ -278,25 +287,25 @@ export default function BioWaste() {
               </div>
 
               <Field label="Destination (Destination Unit)">
-                  <input type="text" name="destination" value={form.destination} onChange={handleChange} style={inputStyle} placeholder="e.g. Biogas Plant, Compost Pit" />
+                  <input type="text" name="destination" value={form.destination} onChange={handleChange} className="form-input" placeholder="e.g. Biogas Plant, Compost Pit" />
               </Field>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="responsive-grid">
                  <Field label="Sender (From Incharge)">
-                    <input type="text" name="sender" value={form.sender} onChange={handleChange} style={inputStyle} />
+                    <input type="text" name="sender" value={form.sender} onChange={handleChange} className="form-input" />
                  </Field>
                  <Field label="Receiver (To Incharge)">
-                    <input type="text" name="receiver" value={form.receiver} onChange={handleChange} style={inputStyle} />
+                    <input type="text" name="receiver" value={form.receiver} onChange={handleChange} className="form-input" />
                  </Field>
               </div>
 
               <Field label="Remarks">
-                 <input type="text" name="remarks" value={form.remarks} onChange={handleChange} style={inputStyle} />
+                  <input type="text" name="remarks" value={form.remarks} onChange={handleChange} className="form-input" />
               </Field>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
-                <button type="button" onClick={() => setShowModal(false)} style={btnCancelStyle}>Cancel</button>
-                <button type="submit" disabled={loading} style={btnSaveStyle}>{isEditMode ? "Update" : "Save"}</button>
+                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary btn-full-mobile">Cancel</button>
+                <button type="submit" disabled={loading} className="btn btn-primary btn-full-mobile">{isEditMode ? "Update" : "Save"}</button>
               </div>
             </form>
           </div>
@@ -306,24 +315,28 @@ export default function BioWaste() {
       {/* VIEW DETAILS MODAL */}
       {selectedEntry && (
         <div style={overlayStyle} onClick={() => setSelectedEntry(null)}>
-          <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #eee", paddingBottom:"10px", marginBottom:"15px"}}>
                 <h2 style={{ margin:0, fontSize:"1.25rem" }}>Details: {formatDisplayDate(selectedEntry.date)}</h2>
-                <button onClick={() => setSelectedEntry(null)} style={closeBtnStyle}>✕</button>
+                <button onClick={() => setSelectedEntry(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", color: "#6b7280", cursor: "pointer" }}>&times;</button>
              </div>
 
-             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize:"0.95rem" }}>
-                <DetailItem label="Source Shed(s)" value={selectedEntry.sourceShed} fullWidth />
+             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", fontSize:"0.95rem" }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                    <DetailItem label="Source Shed(s)" value={selectedEntry.sourceShed} />
+                </div>
                 <DetailItem label="Waste Type" value={selectedEntry.wasteType} />
                 <DetailItem label="Quantity" value={`${selectedEntry.quantity} ${selectedEntry.unit}`} isBold />
                 <DetailItem label="Destination" value={selectedEntry.destination} />
                 <DetailItem label="Sender" value={selectedEntry.sender} />
                 <DetailItem label="Receiver" value={selectedEntry.receiver} />
-                <DetailItem label="Remarks" value={selectedEntry.remarks} fullWidth />
+                <div style={{ gridColumn: "1 / -1" }}>
+                    <DetailItem label="Remarks" value={selectedEntry.remarks} />
+                </div>
              </div>
 
              <div style={{marginTop:"20px", display:"flex", justifyContent:"flex-end"}}>
-                <button onClick={() => { setSelectedEntry(null); openEditModal(selectedEntry); }} style={editBtnStyle}>Edit This Entry</button>
+                <button onClick={() => { setSelectedEntry(null); openEditModal(selectedEntry); }} className="btn btn-primary">Edit This Entry</button>
              </div>
           </div>
         </div>
@@ -362,8 +375,8 @@ function ShedMultiSelect({ options, selected, onChange }) {
       {/* The "Box" that looks like a select input */}
       <div 
         onClick={() => setIsOpen(!isOpen)} 
+        className="form-input"
         style={{
-          ...inputStyle,
           cursor: "pointer",
           background: "white",
           display: "flex",
@@ -430,32 +443,20 @@ function ShedMultiSelect({ options, selected, onChange }) {
 }
 
 // --- STYLES & COMPONENTS ---
-const headerInputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
-const addBtnStyle = { padding: "0.45rem 0.95rem", borderRadius: "999px", border: "none", background: "#16a34a", color: "#ffffff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer" };
-const thStyle = { padding: "0.6rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#475569" };
-const tdStyle = { padding: "0.55rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
-const emptyStyle = { padding: "2rem", textAlign: "center", color: "#6b7280" };
-const badgeStyle = { background: "#e0f2fe", color: "#0369a1", padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "600" };
-
-const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.9rem", cursor: "pointer" };
-const editBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
-
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50 };
-const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "550px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)", maxHeight:"90vh", overflowY:"auto" };
-const viewModalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "95%", maxWidth: "600px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
-const inputStyle = { width: "100%", padding: "0.6rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
-const btnCancelStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontWeight: "500" };
-const btnSaveStyle = { padding: "0.6rem 1.2rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" };
-const closeBtnStyle = { background:"none", border:"none", fontSize:"1.2rem", cursor:"pointer", color:"#666" };
+const thStyle = { padding: "1rem", textAlign: "left", fontWeight: "600", color: "#4b5563", fontSize: "0.8rem", textTransform: "uppercase" };
+const tdStyle = { padding: "0.8rem 1rem", color: "#1f2937", borderBottom: "1px solid #f3f4f6" };
+const iconBtnStyle = { background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "0 0.3rem" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50, padding: "1rem" };
+const modalStyle = { background: "white", padding: "2rem", borderRadius: "12px", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };
 
 function Field({ label, children }) { 
-    return <div><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.25rem", fontWeight:"500" }}>{label}</label>{children}</div>; 
+    return <div style={{ marginBottom: "0.5rem" }}><label style={{ display: "block", fontSize: "0.85rem", color: "#374151", marginBottom: "0.3rem", fontWeight:"600" }}>{label}</label>{children}</div>; 
 }
 
-function DetailItem({ label, value, isBold, fullWidth }) {
+function DetailItem({ label, value, isBold }) {
     return (
-        <div style={{ gridColumn: fullWidth ? "span 2" : "span 1", padding:"5px 0", borderBottom:"1px dashed #f0f0f0" }}>
-            <div style={{fontSize:"0.75rem", color:"#666", textTransform:"uppercase"}}>{label}</div>
+        <div style={{ padding:"5px 0", borderBottom:"1px dashed #f0f0f0" }}>
+            <div style={{fontSize:"0.75rem", color:"#6b7280", textTransform:"uppercase", fontWeight: "bold"}}>{label}</div>
             <div style={{fontWeight: isBold ? "700" : "500", color:"#111", fontSize: isBold ? "1.1rem" : "1rem"}}>{value || "-"}</div>
         </div>
     );

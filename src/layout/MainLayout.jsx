@@ -76,6 +76,7 @@ export default function MainLayout() {
         { name: "Rates", path: "/config/rates", icon: Icons.config, restricted: !isAdmin },
         { name: "Weight Stds", path: "/config/weight", icon: Icons.config, restricted: !isAdmin },
         { name: "Symptoms", path: "/config/symptoms", icon: Icons.config, restricted: !isAdmin },
+        { name: "Sheds", path: "/config/sheds", icon: Icons.config, restricted: !isAdmin },
       ]
     },
     {
@@ -88,6 +89,7 @@ export default function MainLayout() {
     }
   ];
 
+  
   return (
     <div className="app-shell">
       

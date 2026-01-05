@@ -1,4 +1,3 @@
-// src/pages/Feeding.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { getFeeding, addFeeding, updateFeeding } from "../api/masterApi"; 
 
@@ -44,10 +43,21 @@ export default function Feeding() {
   async function loadData() {
     setLoading(true);
     try {
-      const rawData = await getFeeding(); 
+      const res = await getFeeding(); 
+      
+      // 🔥 FIX: Handle API Wrapper Object
+      let rawData = [];
+      if (res && res.data && Array.isArray(res.data)) {
+          rawData = res.data;
+      } else if (Array.isArray(res)) {
+          rawData = res;
+      }
+
+      // Group by Date logic
       const grouped = {};
-      (rawData || []).forEach(item => {
+      rawData.forEach(item => {
           const dateKey = item.date ? item.date.split('T')[0] : "unknown";
+          
           if (!grouped[dateKey]) {
               grouped[dateKey] = { 
                   id: dateKey, date: dateKey, 
@@ -57,18 +67,24 @@ export default function Feeding() {
                   totalKg: 0, remarks: item.remarks || "" 
               };
           }
+          
           const shed = (item.shedName || "").toLowerCase().trim();
           const qty = Number(item.quantityKg || 0);
+          
           if (shed.includes("nandini") && !shed.includes("old")) grouped[dateKey].nandini += qty;
           else if (shed.includes("surabhi")) grouped[dateKey].surabhi += qty;
           else if (shed.includes("kaveri")) grouped[dateKey].kaveri += qty;
           else if (shed.includes("kamadhenu")) grouped[dateKey].kamadhenu += qty;
           else if (shed.includes("jayadeva")) grouped[dateKey].jayadeva += qty;
           else if (shed.includes("old")) grouped[dateKey].nandiniOld += qty;
+          
           grouped[dateKey].totalKg += qty;
+          
+          // Preserve last non-empty metadata
           if(!grouped[dateKey].feedType && item.feedType) grouped[dateKey].feedType = item.feedType;
           if(!grouped[dateKey].recordedBy && item.recordedBy) grouped[dateKey].recordedBy = item.recordedBy;
       });
+
       const processedRows = Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date));
       setRows(processedRows);
     } catch (err) {
@@ -132,100 +148,141 @@ export default function Feeding() {
   }
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0 }}>Feeding</h1>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem", color: "#6b7280" }}>Month</label>
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} style={headerInputStyle} />
-          </div>
-          <button type="button" onClick={openAddForm} style={addBtnStyle}>+ Add Entry</button>
+    <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+      
+      {/* HEADER */}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", gap: "1rem" }}>
+        <h1 style={{ fontSize: "1.6rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>Nutrition & Feeding</h1>
+        
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+          <input 
+            type="month" 
+            value={month} 
+            onChange={(e) => setMonth(e.target.value)} 
+            className="form-input"
+            style={{ width: "auto", padding: "0.5rem" }} 
+          />
+          <button type="button" onClick={openAddForm} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>+ Add Entry</button>
         </div>
-      </header>
-      <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead style={{ background: "#f1f5f9", textAlign: "left" }}>
-            <tr>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Nandini (kg)</th> <th style={thStyle}>Surabhi (kg)</th> <th style={thStyle}>Kaveri (kg)</th>
-              <th style={thStyle}>Kamadhenu (kg)</th> <th style={thStyle}>Jayadeva (kg)</th> <th style={thStyle}>Old Shed (kg)</th>
-              <th style={thStyle}>Total (kg)</th> <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? ( <tr><td colSpan={9} style={emptyStyle}>Loading...</td></tr> ) : 
-             filteredRows.length === 0 ? ( <tr><td colSpan={9} style={emptyStyle}>No entries for this month.</td></tr> ) : (
-              filteredRows.map((row, idx) => (
-                <tr key={row.id} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
+      </div>
+
+      {/* TABLE CARD */}
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE CONTAINER */}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "900px" }}>
+            <thead style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+              <tr>
+                <th style={thStyle}>Date</th>
+                <th style={thStyle}>Nandini (kg)</th> 
+                <th style={thStyle}>Surabhi (kg)</th> 
+                <th style={thStyle}>Kaveri (kg)</th>
+                <th style={thStyle}>Kamadhenu (kg)</th> 
+                <th style={thStyle}>Jayadeva (kg)</th> 
+                <th style={thStyle}>Old Shed (kg)</th>
+                <th style={thStyle}>Total (kg)</th> 
+                <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? ( <tr><td colSpan={9} style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Loading...</td></tr> ) : 
+               filteredRows.length === 0 ? ( <tr><td colSpan={9} style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>No entries found for {month}.</td></tr> ) : (
+               filteredRows.map((row, idx) => (
+                <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={tdStyle}><strong>{formatDisplayDate(row.date)}</strong></td>
-                  <td style={tdStyle}>{row.nandini}</td> <td style={tdStyle}>{row.surabhi}</td> <td style={tdStyle}>{row.kaveri}</td>
-                  <td style={tdStyle}>{row.kamadhenu}</td> <td style={tdStyle}>{row.jayadeva}</td> <td style={tdStyle}>{row.nandiniOld}</td>
-                  <td style={{...tdStyle, fontWeight:"bold"}}>{row.totalKg}</td>
+                  <td style={tdStyle}>{row.nandini}</td> 
+                  <td style={tdStyle}>{row.surabhi}</td> 
+                  <td style={tdStyle}>{row.kaveri}</td>
+                  <td style={tdStyle}>{row.kamadhenu}</td> 
+                  <td style={tdStyle}>{row.jayadeva}</td> 
+                  <td style={tdStyle}>{row.nandiniOld}</td>
+                  <td style={{...tdStyle, fontWeight:"bold", color:"#166534"}}>{row.totalKg}</td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <div style={{display:"flex", gap:"5px", justifyContent:"center"}}>
-                        <button type="button" onClick={() => setSelectedEntry(row)} style={viewBtnStyle}>👁️</button>
-                        <button type="button" onClick={() => openEditForm(row)} style={editBtnStyle}>✏️</button>
+                        <button type="button" onClick={() => setSelectedEntry(row)} style={iconBtnStyle}>👁️</button>
+                        <button type="button" onClick={() => openEditForm(row)} style={iconBtnStyle}>✏️</button>
                     </div>
                   </td>
                 </tr>
               ))
-            )}
-          </tbody>
-        </table>
+             )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {/* FORM MODAL */}
       {showForm && (
         <div style={overlayStyle} onClick={() => setShowForm(false)}>
-          <div style={formModalStyle} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem" }}>{isEditMode ? "Edit" : "Add"} Daily Feeding</h2>
-            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.85rem" }}>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
-                  <Field label="Date *"><input type="date" name="date" value={form.date} onChange={handleFormChange} style={inputStyle} required disabled={isEditMode} /></Field>
-                  <Field label="Feed Type"><input type="text" name="feedType" value={form.feedType} placeholder="e.g. TMR / Green" onChange={handleFormChange} style={inputStyle} /></Field>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ margin: "0 0 1.5rem 0", fontSize: "1.25rem" }}>{isEditMode ? "Edit" : "Add"} Feeding Entry</h2>
+            
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
+              <div className="responsive-grid">
+                  <Field label="Date *"><input type="date" name="date" value={form.date} onChange={handleFormChange} className="form-input" required disabled={isEditMode} /></Field>
+                  <Field label="Feed Type"><input type="text" name="feedType" value={form.feedType} placeholder="e.g. TMR / Green" onChange={handleFormChange} className="form-input" /></Field>
               </div>
-              <Field label="Recorded By"><input type="text" name="recordedBy" value={form.recordedBy} placeholder="Enter Name" onChange={handleFormChange} style={inputStyle} /></Field>
-              <h4 style={{margin:"0.5rem 0 0", color:"#2563eb", borderBottom:"1px solid #eee", paddingBottom:"5px"}}>Shed Quantities (Kg)</h4>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
-                  <NumberField label="Nandini" name="nandini" value={form.nandini} onChange={handleFormChange} />
-                  <NumberField label="Surabhi" name="surabhi" value={form.surabhi} onChange={handleFormChange} />
-                  <NumberField label="Kaveri" name="kaveri" value={form.kaveri} onChange={handleFormChange} />
-                  <NumberField label="Kamadhenu" name="kamadhenu" value={form.kamadhenu} onChange={handleFormChange} />
-                  <NumberField label="Jayadeva" name="jayadeva" value={form.jayadeva} onChange={handleFormChange} />
-                  <NumberField label="Nandini Old" name="nandiniOld" value={form.nandiniOld} onChange={handleFormChange} />
+              
+              <Field label="Recorded By"><input type="text" name="recordedBy" value={form.recordedBy} placeholder="Enter Name" onChange={handleFormChange} className="form-input" /></Field>
+              
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "1rem", marginTop: "0.5rem" }}>
+                <label style={{ fontSize: "0.85rem", fontWeight: "bold", color: "#2563eb", marginBottom: "0.8rem", display: "block" }}>SHED QUANTITIES (KG)</label>
+                {/* 🔥 RESPONSIVE GRID FOR INPUTS */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "1rem" }}>
+                    <NumberField label="Nandini" name="nandini" value={form.nandini} onChange={handleFormChange} />
+                    <NumberField label="Surabhi" name="surabhi" value={form.surabhi} onChange={handleFormChange} />
+                    <NumberField label="Kaveri" name="kaveri" value={form.kaveri} onChange={handleFormChange} />
+                    <NumberField label="Kamadhenu" name="kamadhenu" value={form.kamadhenu} onChange={handleFormChange} />
+                    <NumberField label="Jayadeva" name="jayadeva" value={form.jayadeva} onChange={handleFormChange} />
+                    <NumberField label="Nandini Old" name="nandiniOld" value={form.nandiniOld} onChange={handleFormChange} />
+                </div>
               </div>
-              <NumberField label="Total Feeding (Auto Calculated)" name="totalKg" value={form.totalKg} onChange={handleFormChange} />
-              <Field label="Remarks"><input type="text" name="remarks" value={form.remarks} onChange={handleFormChange} style={inputStyle} /></Field>
-              <div style={{display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"10px"}}>
-                  <button type="button" onClick={() => setShowForm(false)} style={cancelBtnStyle}>Cancel</button>
-                  <button type="submit" style={saveBtnStyle}>{isEditMode ? "Update" : "Save"}</button>
+
+              <div style={{ background: "#f0fdf4", padding: "1rem", borderRadius: "8px", marginTop: "0.5rem" }}>
+                 <NumberField label="Total Feeding (Auto Calculated)" name="totalKg" value={form.totalKg} onChange={handleFormChange} disabled />
+              </div>
+
+              <Field label="Remarks"><input type="text" name="remarks" value={form.remarks} onChange={handleFormChange} className="form-input" /></Field>
+              
+              <div style={{display:"flex", justifyContent:"flex-end", gap:"1rem", marginTop:"1rem"}}>
+                  <button type="button" onClick={() => setShowForm(false)} className="btn btn-secondary btn-full-mobile">Cancel</button>
+                  <button type="submit" className="btn btn-primary btn-full-mobile">{isEditMode ? "Update" : "Save"}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* VIEW MODAL */}
       {selectedEntry && (
         <div style={overlayStyle} onClick={() => setSelectedEntry(null)}>
-          <div style={viewModalStyle} onClick={(e) => e.stopPropagation()}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #eee", paddingBottom:"10px", marginBottom:"15px"}}>
-                <h2 style={{ margin:0 }}>Details: {formatDisplayDate(selectedEntry.date)}</h2>
-                <button onClick={() => setSelectedEntry(null)} style={closeBtnStyle}>✕</button>
+                <h2 style={{ margin:0, fontSize: "1.2rem" }}>Details: {formatDisplayDate(selectedEntry.date)}</h2>
+                <button onClick={() => setSelectedEntry(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", color: "#6b7280", cursor: "pointer" }}>&times;</button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize:"0.95rem" }}>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", fontSize:"0.9rem" }}>
                <DetailItem label="Feed Type" value={selectedEntry.feedType} />
                <DetailItem label="Recorded By" value={selectedEntry.recordedBy} />
+               
                <DetailItem label="Nandini Shed" value={selectedEntry.nandini} />
                <DetailItem label="Surabhi Shed" value={selectedEntry.surabhi} />
                <DetailItem label="Kaveri Shed" value={selectedEntry.kaveri} />
                <DetailItem label="Kamadhenu Shed" value={selectedEntry.kamadhenu} />
                <DetailItem label="Jayadeva Shed" value={selectedEntry.jayadeva} />
                <DetailItem label="Nandini Old Shed" value={selectedEntry.nandiniOld} />
-               <DetailItem label="Total Quantity" value={selectedEntry.totalKg} isBold={true} />
-               <DetailItem label="Remarks" value={selectedEntry.remarks} />
+               
+               <div style={{ gridColumn: "1 / -1", background: "#f9fafb", padding: "0.5rem", borderRadius: "6px" }}>
+                 <DetailItem label="Total Quantity" value={selectedEntry.totalKg} isBold={true} />
+               </div>
+               <div style={{ gridColumn: "1 / -1" }}>
+                 <DetailItem label="Remarks" value={selectedEntry.remarks} />
+               </div>
             </div>
-            <div style={{marginTop:"20px", display:"flex", justifyContent:"flex-end"}}>
-                <button onClick={() => { setSelectedEntry(null); openEditForm(selectedEntry); }} style={editBtnStyle}>Edit This Entry</button>
+            
+            <div style={{marginTop:"1.5rem", display:"flex", justifyContent:"flex-end", gap: "1rem"}}>
+                <button onClick={() => setSelectedEntry(null)} className="btn btn-secondary">Close</button>
             </div>
-            <button onClick={() => setSelectedEntry(null)} style={{...cancelBtnStyle, marginTop:"20px", float:"right"}}>Close</button>
           </div>
         </div>
       )}
@@ -233,20 +290,13 @@ export default function Feeding() {
   );
 }
 
-function Field({ label, children }) { return <div><label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.2rem", fontWeight:"500" }}>{label}</label>{children}</div>; }
-function NumberField({ label, name, value, onChange }) { return <Field label={label}><input type="number" step="0.01" name={name} value={value} onChange={onChange} style={inputStyle} /></Field>; }
-function DetailItem({ label, value, isBold }) { return <div style={{padding:"5px 0", borderBottom:"1px dashed #f0f0f0"}}><div style={{fontSize:"0.75rem", color:"#666", textTransform:"uppercase"}}>{label}</div><div style={{fontWeight: isBold ? "700" : "500", color:"#111", fontSize: isBold ? "1.1rem" : "1rem"}}>{value || "-"} {Number(value) ? "kg" : ""}</div></div>; }
-const headerInputStyle = { padding: "0.35rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.85rem" };
-const addBtnStyle = { padding: "0.45rem 0.95rem", borderRadius: "999px", border: "none", background: "#16a34a", color: "#ffffff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer" };
-const thStyle = { padding: "0.6rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", color: "#475569" };
-const tdStyle = { padding: "0.55rem 1rem", borderBottom: "1px solid #e5e7eb", color: "#111827" };
-const emptyStyle = { padding: "0.9rem 1rem", textAlign: "center", color: "#6b7280" };
-const viewBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#eff6ff", color: "#1d4ed8", fontSize: "0.9rem", cursor: "pointer" };
-const editBtnStyle = { border: "none", borderRadius: "6px", padding: "0.3rem 0.6rem", background: "#fff7ed", color: "#c2410c", fontSize: "0.9rem", cursor: "pointer" };
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
-const formModalStyle = { width: "95%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", background: "#ffffff", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" };
-const viewModalStyle = { width: "95%", maxWidth: "600px", background: "#ffffff", borderRadius: "12px", padding: "2rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" };
-const inputStyle = { width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.95rem" };
-const cancelBtnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight:"500" };
-const saveBtnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontWeight:"500" };
-const closeBtnStyle = { background:"none", border:"none", fontSize:"1.2rem", cursor:"pointer", color:"#666" };
+// --- STYLES & COMPONENTS ---
+function Field({ label, children }) { return <div style={{ marginBottom: "0.5rem" }}><label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.3rem", fontWeight:"600", color: "#374151" }}>{label}</label>{children}</div>; }
+function NumberField({ label, name, value, onChange, disabled }) { return <Field label={label}><input type="number" step="0.01" name={name} value={value} onChange={onChange} className="form-input" disabled={disabled} /></Field>; }
+function DetailItem({ label, value, isBold }) { return <div><div style={{fontSize:"0.75rem", color:"#6b7280", textTransform:"uppercase", fontWeight: "bold"}}>{label}</div><div style={{fontWeight: isBold ? "700" : "500", color:"#111", fontSize: isBold ? "1.1rem" : "1rem"}}>{value || "-"} {Number(value) ? "kg" : ""}</div></div>; }
+
+const thStyle = { padding: "1rem", textAlign: "left", fontWeight: "600", color: "#4b5563", fontSize: "0.8rem", textTransform: "uppercase" };
+const tdStyle = { padding: "0.8rem 1rem", color: "#1f2937", borderBottom: "1px solid #f3f4f6" };
+const iconBtnStyle = { background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "0 0.3rem" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50, padding: "1rem" };
+const modalStyle = { background: "white", padding: "1.5rem", borderRadius: "12px", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" };

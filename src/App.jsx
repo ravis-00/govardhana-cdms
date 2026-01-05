@@ -29,6 +29,7 @@ import Medicines from "./pages/config/Medicines";
 import Rates from "./pages/config/Rates";
 import Weight from "./pages/config/Weight";
 import Symptoms from "./pages/config/Symptoms";
+import ShedConfig from "./pages/config/ShedConfig";
 
 // 🔥 IMPORT PEDIGREE VIEWER
 import PedigreeViewer from "./pages/PedigreeViewer.jsx";
@@ -116,7 +117,8 @@ export default function App() {
           <Route path="/config/rates" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Rates /></ProtectedRoute>} />
           <Route path="/config/weight" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Weight /></ProtectedRoute>} />
           <Route path="/config/symptoms" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Symptoms /></ProtectedRoute>} />
-          
+          <Route path="config/sheds" element={<ShedConfig />} />
+
           {/* --- USER MANAGEMENT --- */}
           <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><UserManagement /></ProtectedRoute>} />
 

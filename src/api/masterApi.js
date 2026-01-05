@@ -1,7 +1,9 @@
 // src/api/masterApi.js
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
-// --- HELPERS ---
+// =========================================================================
+// HELPERS (Do not modify unless changing core logic)
+// =========================================================================
 
 function cleanParams(params = {}) {
   const out = {};
@@ -41,9 +43,6 @@ async function handleResponse(res) {
   const json = await res.json().catch(() => {
     throw new Error("Invalid JSON response from server");
   });
-  
-  // 🔥 FIX: Return the WHOLE object (json), not just json.data
-  // This allows the frontend to check if (res.success)
   return json; 
 }
 
@@ -139,7 +138,7 @@ export async function getReportData(reportType, startDate, endDate) {
   return getRequest("getReportData", { reportType, startDate, endDate }); 
 }
 
-// 10. MASTER CONFIGURATION
+// 10. MASTER CONFIGURATION (Generic)
 const formatType = (type) => {
   if (!type) return "";
   return type.charAt(0).toUpperCase() + type.slice(1);
@@ -165,7 +164,16 @@ export async function deleteMaster(type, id) {
   return postRequest(`delete${properType}Master`, { id }); 
 }
 
-// --- ALIASES ---
+// 11. SHED CONFIGURATION (Specific)
+export const getSheds = async () => { return getRequest("getSheds"); };
+export const addShed = async (data) => { return postRequest("addShed", data); };
+export const updateShed = async (data) => { return postRequest("updateShed", data); };
+export const deleteShed = async (data) => { return postRequest("deleteShed", data); };
+
+
+// =========================================================================
+// ALIASES (For backward compatibility)
+// =========================================================================
 export const login = loginUser; 
 export const getUsers = fetchUsers;
 export const fetchCattle = getCattle;
