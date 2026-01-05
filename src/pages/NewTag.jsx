@@ -1,6 +1,5 @@
-// src/pages/NewTag.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { getCattle, updateCattleTag } from "../api/masterApi"; // 🔥 Import API
+import { getCattle, updateCattleTag } from "../api/masterApi"; 
 
 function getToday() {
   const d = new Date();
@@ -30,9 +29,16 @@ export default function NewTag() {
   useEffect(() => {
     async function loadData() {
       try {
-        const data = await getCattle();
-        if (Array.isArray(data)) {
-          setCattleList(data);
+        const res = await getCattle();
+        
+        // 🔥 FIX: Check for res.data (The wrapper)
+        if (res && res.data && Array.isArray(res.data)) {
+          setCattleList(res.data);
+        } else if (Array.isArray(res)) {
+          // Fallback if backend sends raw array
+          setCattleList(res);
+        } else {
+          console.error("Invalid API format:", res);
         }
       } catch (e) {
         console.error("Failed to load cattle", e);
@@ -43,15 +49,16 @@ export default function NewTag() {
     loadData();
   }, []);
 
-  // --- 2. FILTER & SELECT (Updated: ACTIVE ONLY) ---
+  // --- 2. FILTER & SELECT ---
   const filteredCattle = useMemo(() => {
     return cattleList.filter((c) => {
-      // 1. STRICT FILTER: Hide Deactive/Sold/Dead cattle
-      if (c.status !== "Active") return false;
+      // 1. ROBUST FILTER: Check for "active" (case-insensitive & trimmed)
+      const status = String(c.status || "").toLowerCase().trim();
+      if (status !== "active") return false;
 
-      // 2. SEARCH FILTER: If active, check search terms
+      // 2. SEARCH FILTER
       const q = search.trim().toLowerCase();
-      if (!q) return true; // Show all Active if no search
+      if (!q) return true; 
 
       const tag = c.tagNo ? String(c.tagNo).toLowerCase() : "";
       const name = c.name ? c.name.toLowerCase() : "";
@@ -65,15 +72,10 @@ export default function NewTag() {
     [selectedAnimalId, cattleList]
   );
 
-  // --- 3. PARSE HISTORY STRING FOR TABLE ---
+  // --- 3. PARSE HISTORY ---
   const parsedHistory = useMemo(() => {
     if (!selectedAnimal || !selectedAnimal.tagHistory) return [];
-    
-    // Backend sends: "1001 (Changed 2025-01-01: Lost)\n1002 (Changed...)"
-    // We split by newline and parse
     return String(selectedAnimal.tagHistory).split("\n").map((entry, idx) => {
-      // Regex to extract: Tag (Changed Date: Reason)
-      // Simple parse for now: just show the full string or try to split
       return { id: idx, raw: entry };
     });
   }, [selectedAnimal]);
@@ -93,7 +95,7 @@ export default function NewTag() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  // --- 4. SUBMIT TO BACKEND ---
+  // --- 4. SUBMIT ---
   async function handleSubmit(e) {
     e.preventDefault();
     if (!selectedAnimal) return alert("Please select a cattle first.");
@@ -102,7 +104,7 @@ export default function NewTag() {
     setSaving(true);
     try {
         const payload = {
-            internalId: selectedAnimal.internalId, // The Key
+            internalId: selectedAnimal.internalId, 
             newTagNo: form.newTagNo,
             changeDate: form.changeDate,
             reason: form.reason,
@@ -113,7 +115,7 @@ export default function NewTag() {
         
         if (res.success) {
             alert("Tag Updated Successfully!");
-            window.location.reload(); // Reload to refresh list & history
+            window.location.reload(); 
         } else {
             alert("Failed: " + res.error);
         }
@@ -126,44 +128,101 @@ export default function NewTag() {
   }
 
   return (
-    <div style={{ padding: "1.5rem 2rem" }}>
+    <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+      
+      {/* --- RESPONSIVE STYLES --- */}
+      <style>{`
+        .tag-layout {
+          display: grid;
+          grid-template-columns: 320px 1fr;
+          gap: 1.5rem;
+          align-items: start;
+        }
+        .tag-list-panel {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+          padding: 1rem;
+          height: calc(100vh - 140px);
+          display: flex;
+          flex-direction: column;
+          border: 1px solid #e5e7eb;
+        }
+        .tag-form-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+        .scrollable-list {
+          flex: 1;
+          overflow-y: auto;
+          margin-top: 0.5rem;
+        }
+
+        /* TABLET & MOBILE (< 1024px) */
+        @media (max-width: 1024px) {
+          .tag-layout {
+            grid-template-columns: 1fr; /* Stack vertically */
+            gap: 1rem;
+          }
+          .tag-list-panel {
+            height: 350px; /* Fixed height for list on mobile/tablet */
+          }
+        }
+      `}</style>
+
       {/* HEADER */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.25rem" }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 700 }}>Tag Management</h1>
-          <p style={{ margin: "0.25rem 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
-            Assign a new ear tag to an existing active cattle and maintain full history.
-          </p>
-        </div>
+      <header style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>Tag Management</h1>
+        <p style={{ margin: "4px 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
+          Assign new ear tags and track history.
+        </p>
       </header>
 
       {/* LAYOUT */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)", gap: "1rem" }}>
+      <div className="tag-layout">
         
         {/* LEFT PANEL – SEARCH LIST */}
-        <section style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 10px 25px rgba(15,23,42,0.06)", padding: "0.75rem", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 180px)" }}>
-          <div style={{ padding: "0 0.25rem 0.5rem" }}>
-            <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.2rem", color: "#6b7280" }}>Search Cattle (Tag / Name / Breed)</label>
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g., 632643 or Vasundara"
-              style={{ width: "100%", padding: "0.45rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.9rem" }} />
+        <section className="tag-list-panel">
+          <div style={{ paddingBottom: "0.5rem", borderBottom: "1px solid #f3f4f6" }}>
+            <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.4rem", color: "#6b7280", fontWeight: "600" }}>Search Active Cattle</label>
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search Tag, Name or Breed..."
+              className="form-input"
+              style={{ fontSize: "0.9rem", padding: "0.6rem" }} 
+            />
           </div>
 
-          <div style={{ overflowY: "auto", marginTop: "0.25rem" }}>
-            {loading ? <div style={{padding:"1rem", textAlign:"center"}}>Loading...</div> : 
+          <div className="scrollable-list">
+            {loading ? <div style={{padding:"1rem", textAlign:"center", color:"#9ca3af"}}>Loading...</div> : 
              filteredCattle.length === 0 ? (
-              <div style={{ padding: "0.75rem", fontSize: "0.85rem", color: "#6b7280" }}>No cattle match your search.</div>
+              <div style={{ padding: "2rem", fontSize: "0.85rem", color: "#6b7280", textAlign:"center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                 <span style={{ fontSize: "2rem" }}>🔍</span>
+                 <div>No active cattle found.</div>
+                 <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Check "Master Data" to ensure Status is "Active".</div>
+              </div>
             ) : (
               filteredCattle.map((c) => {
                 const isActive = c.internalId === selectedAnimalId;
                 return (
                   <button key={c.internalId} type="button" onClick={() => handleSelectAnimal(c.internalId)}
                     style={{
-                      width: "100%", textAlign: "left", border: "none", background: isActive ? "#eff6ff" : "transparent",
-                      padding: "0.55rem 0.6rem", borderRadius: "0.6rem", cursor: "pointer", marginBottom:"2px"
+                      width: "100%", textAlign: "left", border: "1px solid transparent", 
+                      background: isActive ? "#eff6ff" : "transparent",
+                      borderColor: isActive ? "#bfdbfe" : "transparent",
+                      padding: "0.75rem", borderRadius: "8px", cursor: "pointer", marginBottom:"4px",
+                      transition: "all 0.2s"
                     }}
                   >
-                    <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827" }}>{c.tagNo || "No Tag"} • {c.name}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.1rem" }}>{c.breed} • {c.shed} • {c.status}</div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: 600, color: isActive ? "#1e40af" : "#111827" }}>
+                        {c.tagNo || "No Tag"} • {c.name}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: isActive ? "#60a5fa" : "#6b7280", marginTop: "2px" }}>
+                        {c.breed} • {c.shed}
+                    </div>
                   </button>
                 );
               })
@@ -172,69 +231,65 @@ export default function NewTag() {
         </section>
 
         {/* RIGHT PANEL – FORM & HISTORY */}
-        <section style={{ display: "grid", gridTemplateRows: "auto auto 1fr", gap: "0.75rem" }}>
+        <section className="tag-form-panel">
           
           {/* Selected Card */}
-          <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 10px 25px rgba(15,23,42,0.06)", padding: "0.75rem 0.9rem" }}>
+          <div className="card" style={{ padding: "1rem" }}>
             {selectedAnimal ? (
-              <div style={{ display: "flex", gap:"1rem" }}>
-                {/* Photo Preview */}
-                <div style={{width:"80px", height:"80px", background:"#eee", borderRadius:"8px", overflow:"hidden"}}>
-                    {selectedAnimal.photo ? <img src={selectedAnimal.photo} style={{width:"100%", height:"100%", objectFit:"cover"}} /> : <div style={{padding:"10px", fontSize:"0.6rem", textAlign:"center", color:"#999"}}>No Photo</div>}
+              <div style={{ display: "flex", gap:"1rem", alignItems:"center" }}>
+                <div style={{width:"60px", height:"60px", background:"#f3f4f6", borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"2px solid #e5e7eb", display:"flex", alignItems:"center", justifyContent:"center"}}>
+                    {selectedAnimal.photo ? <img src={selectedAnimal.photo} style={{width:"100%", height:"100%", objectFit:"cover"}} alt="" /> : <span style={{fontSize:"1.5rem"}}>🐄</span>}
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6b7280" }}>Selected Cattle</div>
-                  <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{selectedAnimal.name} – {selectedAnimal.tagNo}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: "0.15rem" }}>
-                    Breed: {selectedAnimal.breed} • Shed: {selectedAnimal.shed} • Status: {selectedAnimal.status}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#6b7280" }}>
-                  <div>Internal ID</div>
-                  <div style={{ fontWeight: 600, color:"#333" }}>{selectedAnimal.internalId}</div>
+                  <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280", fontWeight:"bold" }}>Selected Cattle</div>
+                  <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#111827" }}>{selectedAnimal.name} <span style={{fontWeight:400, color:"#6b7280"}}>({selectedAnimal.tagNo})</span></div>
+                  <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>ID: {selectedAnimal.internalId}</div>
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Select a cattle from the left list to assign a new tag.</div>
+              <div style={{ padding: "1rem", textAlign: "center", color: "#9ca3af", fontStyle: "italic" }}>
+                 👈 Select a cattle from the list to begin.
+              </div>
             )}
           </div>
 
           {/* New Tag Form */}
-          <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 10px 25px rgba(15,23,42,0.06)", padding: "0.9rem 1rem 1rem" }}>
-            <div style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>New Tag Details</div>
+          <div className="card">
+            <h3 className="section-title" style={{ marginTop: 0 }}>Update Tag Details</h3>
             
-            <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem 1rem", alignItems: "flex-start" }}>
-              <Field label="Current Tag Number">
-                <input type="text" value={selectedAnimal ? selectedAnimal.tagNo : ""} readOnly
-                  style={{ ...inputStyle, backgroundColor: "#f9fafb" }} placeholder="Select cattle..." />
+            <form onSubmit={handleSubmit}>
+              <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+                  <Field label="Current Tag Number">
+                    <input type="text" value={selectedAnimal ? selectedAnimal.tagNo : ""} readOnly className="form-input" style={{ backgroundColor: "#f9fafb", color: "#6b7280" }} placeholder="Auto-filled" />
+                  </Field>
+
+                  <Field label="New Tag Number *">
+                    <input type="text" name="newTagNo" value={form.newTagNo} onChange={handleFormChange} className="form-input" placeholder="Enter new tag" disabled={!selectedAnimal} />
+                  </Field>
+              </div>
+
+              <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+                  <Field label="Change Date *">
+                    <input type="date" name="changeDate" value={form.changeDate} onChange={handleFormChange} className="form-input" disabled={!selectedAnimal} />
+                  </Field>
+
+                  <Field label="Reason">
+                    <select name="reason" value={form.reason} onChange={handleFormChange} className="form-select" disabled={!selectedAnimal}>
+                      <option value="">Select reason</option>
+                      <option value="Lost tag">Lost tag</option>
+                      <option value="Damaged tag">Damaged tag</option>
+                      <option value="Govt re-tag">Govt re-tag</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </Field>
+              </div>
+
+              <Field label="Remarks">
+                <textarea name="remarks" value={form.remarks} onChange={handleFormChange} rows={2} className="form-input" placeholder="Optional details..." disabled={!selectedAnimal} />
               </Field>
 
-              <Field label="New Tag Number *">
-                <input type="text" name="newTagNo" value={form.newTagNo} onChange={handleFormChange}
-                  style={inputStyle} placeholder="Enter new ear tag number" />
-              </Field>
-
-              <Field label="Change Date *">
-                <input type="date" name="changeDate" value={form.changeDate} onChange={handleFormChange} style={inputStyle} />
-              </Field>
-
-              <Field label="Reason">
-                <select name="reason" value={form.reason} onChange={handleFormChange} style={inputStyle}>
-                  <option value="">Select reason</option>
-                  <option value="Lost tag">Lost tag</option>
-                  <option value="Damaged tag">Damaged tag</option>
-                  <option value="Govt re-tag">Govt re-tag</option>
-                  <option value="Other">Other</option>
-                </select>
-              </Field>
-
-              <Field label="Remarks" fullWidth>
-                <textarea name="remarks" value={form.remarks} onChange={handleFormChange} rows={2}
-                  style={{ ...inputStyle, resize: "vertical" }} placeholder="Any additional information..." />
-              </Field>
-
-              <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-                <button type="submit" disabled={saving || !selectedAnimal} style={{...primaryButton, opacity: saving?0.7:1}}>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button type="submit" disabled={saving || !selectedAnimal} className="btn btn-primary" style={{ minWidth: "140px" }}>
                   {saving ? "Saving..." : "Save New Tag"}
                 </button>
               </div>
@@ -242,29 +297,26 @@ export default function NewTag() {
           </div>
 
           {/* History Table */}
-          <div style={{ background: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 10px 25px rgba(15,23,42,0.06)", padding: "0.75rem 1rem", overflow: "hidden" }}>
-            <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>Tag History</div>
+          <div className="card" style={{ overflow: "hidden", padding: 0 }}>
+            <div style={{ padding: "1rem", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontWeight: 600, color: "#374151" }}>
+                Tag History Log
+            </div>
             
             {selectedAnimal && parsedHistory.length > 0 ? (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb" }}>
-                      <th style={thStyle}>History Log</th>
-                    </tr>
-                  </thead>
                   <tbody>
                     {parsedHistory.map((row) => (
-                      <tr key={row.id}>
-                        <td style={tdStyle}>{row.raw}</td>
+                      <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "0.8rem 1rem", color: "#4b5563" }}>{row.raw}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                {selectedAnimal ? "No tag history available." : "Select a cattle to view its tag history."}
+              <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
+                {selectedAnimal ? "No previous tag history." : "Select a cattle to view history."}
               </div>
             )}
           </div>
@@ -276,16 +328,11 @@ export default function NewTag() {
 }
 
 // ----- STYLES -----
-function Field({ label, children, fullWidth }) {
+function Field({ label, children }) {
   return (
-    <div style={{ gridColumn: fullWidth ? "1 / -1" : "auto" }}>
-      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.2rem", color: "#374151" }}>{label}</label>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+      <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#374151" }}>{label}</label>
       {children}
     </div>
   );
 }
-
-const inputStyle = { width: "100%", padding: "0.45rem 0.6rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.9rem" };
-const thStyle = { padding: "0.4rem 0.5rem", textAlign: "left", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: "0.75rem", color: "#6b7280" };
-const tdStyle = { padding: "0.6rem 0.5rem", borderBottom: "1px solid #e5e7eb", color: "#444" };
-const primaryButton = { padding: "0.45rem 0.9rem", borderRadius: "999px", border: "none", background: "#2563eb", color: "#ffffff", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" };

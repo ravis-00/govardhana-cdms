@@ -4,12 +4,8 @@
 .login-container {
   min-height: 100vh;
   width: 100%;
-  /* Slate Blue Gradient */
-  /* background: linear-gradient(135deg, #334155 0%, #0f172a 100%); */
-  /* background: linear-gradient(135deg, #14532d 0%, #022c22 100%); */
-  /* background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); */
-/* background: linear-gradient(135deg, #1e293b 0%, #020617 100%); */
-background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
+  /* Dark Gradient Background */
+  background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   font-family: 'Segoe UI', sans-serif;
   display: flex;
   flex-direction: column;
@@ -17,6 +13,7 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   justify-content: center;
   padding: 2rem 1rem;
   color: #ffffff;
+  box-sizing: border-box; /* Ensures padding doesn't overflow width */
 }
 
 /* --- HEADER SECTION --- */
@@ -24,20 +21,23 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   text-align: center;
   margin-bottom: 2.5rem;
   max-width: 700px;
+  width: 100%;
 }
 
 .main-logo {
-  height: 120px; /* Increased from 100px */
+  height: 120px;
   width: auto;
   object-fit: contain;
   margin-bottom: 1.5rem;
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  transition: height 0.3s ease; /* Smooth resize on mobile */
 }
 
 .app-title {
   font-size: 2rem;
   font-weight: 700;
   margin: 0;
+  line-height: 1.2;
 }
 
 .app-subtitle-highlight {
@@ -45,15 +45,16 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   font-weight: 600;
   color: #ea580c; /* Brand Orange */
   margin: 0.5rem 0 1rem 0;
+  line-height: 1.3;
 }
 
 .app-tagline {
-  font-size: 1.1rem; /* Slightly larger */
-  color: #38bdf8; /* Electric Blue (Sky-400) for high contrast on dark bg */
+  font-size: 1.1rem;
+  color: #38bdf8; /* Electric Blue */
   line-height: 1.6;
   font-weight: 500;
-  max-width: 600px; /* Limits width for better reading */
-  margin: 0 auto;   /* Centers the text block */
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 /* --- FEATURE CARDS --- */
@@ -64,41 +65,40 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   width: 100%;
   max-width: 900px;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* Allows wrapping on smaller desktops/tablets */
 }
 
 .feature-card {
-  background: rgba(255, 255, 255, 0.150); 
+  background: rgba(255, 255, 255, 0.1); 
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 1.5rem;
-  flex: 1 1 300px;
+  flex: 1 1 300px; /* Flex-grow, Flex-shrink, Basis */
   max-width: 400px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   display: flex;
-  flex-direction: column; /* Stacks items vertically */
-  text-align: center;     /* Optional: Centers the Title & Text too */
+  flex-direction: column;
+  align-items: center; /* Center content */
+  text-align: center;
+  transition: transform 0.2s ease;
 }
 
+.feature-card:hover {
+  transform: translateY(-5px); /* Subtle lift on desktop */
+}
 
 .feature-icon-wrapper {
   display: inline-flex;
   padding: 12px;
-  border-radius: 50%; /* Make it circular */
-  
-  /* 🔥 THE GLOW EFFECT 🔥 */
-  background: rgba(234, 88, 12, 0.15); /* Low opacity orange background */
-  box-shadow: 0 0 15px rgba(234, 88, 12, 0.3); /* Soft orange glow */
-  border: 1px solid rgba(234, 88, 12, 0.2); /* Subtle border definition */
-  
-  color: #fb923c; /* Brighter orange icon color */
+  border-radius: 50%;
+  background: rgba(234, 88, 12, 0.15);
+  box-shadow: 0 0 15px rgba(234, 88, 12, 0.3);
+  border: 1px solid rgba(234, 88, 12, 0.2);
+  color: #fb923c;
   margin-bottom: 1rem;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-
-
 
 .feature-title {
   font-size: 1.1rem;
@@ -122,7 +122,8 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   width: 100%;
   max-width: 420px;
   color: #374151;
-  border-top: 4px solid #ea580c; /* Adds a nice brand accent bar at the top */
+  border-top: 4px solid #ea580c;
+  box-sizing: border-box;
 }
 
 .form-title {
@@ -167,8 +168,10 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   border: 1px solid #d1d5db;
   font-size: 0.95rem;
   outline: none;
-  box-sizing: border-box; /* Crucial for width */
+  box-sizing: border-box; 
   transition: border-color 0.2s;
+  background: #fff;
+  color: #1f2937;
 }
 
 .login-input:focus {
@@ -186,7 +189,7 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   display: flex;
 }
 
-/* --- OPTIONS (Remember / Forgot) --- */
+/* --- OPTIONS --- */
 .options-row {
   display: flex;
   justify-content: space-between;
@@ -227,8 +230,7 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   margin-bottom: 1rem;
 }
 
-/* --- 🔥 ORANGE ACTION BUTTON 🔥 --- */
-/* This specific class is used for Login and Modal OK button */
+/* --- ACTION BUTTON --- */
 .action-btn {
   width: 100%;
   padding: 12px 20px;
@@ -246,15 +248,8 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   box-shadow: 0 4px 6px rgba(234, 88, 12, 0.3);
 }
 
-.action-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.action-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+.action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+.action-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
 .login-footer {
   margin-top: 2rem;
@@ -263,68 +258,99 @@ background: linear-gradient(100deg, #43302b 0%, #0f172a 100%);
   color: #9ca3af;
 }
 
-/* --- 🔥 CUSTOM MODAL (Popup) 🔥 --- */
+/* --- MODAL --- */
 .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6); /* Dimmed background */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  backdrop-filter: blur(3px);
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 2000; backdrop-filter: blur(3px);
+  padding: 1rem;
 }
 
 .modal-box {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 350px;
-  text-align: center;
+  background: white; padding: 2rem; borderRadius: 12px;
+  width: 100%; max-width: 350px; text-align: center;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  animation: popIn 0.3s ease-out;
-  color: #374151;
+  animation: popIn 0.3s ease-out; color: #374151;
 }
 
-.modal-title {
-  margin-top: 0;
-  color: #111827;
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.modal-text {
-  color: #4b5563;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
-}
+.modal-title { margin-top: 0; color: #111827; font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+.modal-text { color: #4b5563; margin-bottom: 1.5rem; line-height: 1.5; }
 
 @keyframes popIn {
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
 
-/* RESPONSIVE */
-@media (max-width: 768px) {
-  .feature-cards-container {
-    flex-direction: column;
-    align-items: center;
-  }
+/* =========================================
+   🔥 RESPONSIVE BREAKPOINTS 🔥
+   ========================================= */
+
+/* Tablet & Smaller Laptops (Max 1024px) */
+@media (max-width: 1024px) {
   .feature-card {
-    width: 100%;
+    flex: 1 1 45%; /* Two cards per row if space allows */
   }
 }
 
-.authorized-note {
-  margin-top: 1.5rem;
-  font-size: 0.75rem;
-  color: #9ca3af;
-  text-align: center;
-  border-top: 1px solid #e5e7eb;
-  padding-top: 1rem;
+/* Tablets & Large Phones (Max 768px) */
+@media (max-width: 768px) {
+  .login-container {
+    justify-content: flex-start; /* Start from top on mobile to avoid cut-off */
+    padding: 3rem 1.5rem;
+  }
+
+  .login-header {
+    margin-bottom: 2rem;
+  }
+
+  .main-logo {
+    height: 100px; /* Slightly smaller logo */
+  }
+
+  .app-title { font-size: 1.8rem; }
+  .app-subtitle-highlight { font-size: 1.4rem; }
+
+  /* Stack Feature Cards Vertically */
+  .feature-cards-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .feature-card {
+    width: 100%;
+    max-width: 420px; /* Align with form width */
+    flex: none;
+  }
+}
+
+/* Mobile Phones (Max 480px) */
+@media (max-width: 480px) {
+  .login-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .main-logo {
+    height: 80px; /* Smaller logo for phones */
+    margin-bottom: 1rem;
+  }
+
+  .app-title { font-size: 1.5rem; }
+  .app-subtitle-highlight { font-size: 1.2rem; margin-bottom: 0.5rem; }
+  .app-tagline { font-size: 0.95rem; }
+
+  /* Form Adjustments */
+  .form-container {
+    padding: 1.5rem 1.25rem; /* Reduce padding inside form */
+  }
+
+  .form-title {
+    font-size: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .feature-card {
+    padding: 1.25rem;
+  }
 }

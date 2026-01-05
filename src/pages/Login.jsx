@@ -27,7 +27,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // State for Custom Modal
   const [showModal, setShowModal] = useState(false);
 
   async function handleSubmit(e) {
@@ -49,12 +48,6 @@ export default function Login() {
     }
   }
 
-  // Handle "Forgot Password" Click
-  const handleForgotClick = (e) => {
-    e.preventDefault();
-    setShowModal(true); // Open the custom popup
-  };
-
   return (
     <div className="login-container">
       
@@ -64,7 +57,7 @@ export default function Login() {
         <h1 className="app-title">Rashtrotthana Parishat</h1>
         <h2 className="app-subtitle-highlight">Madhava Srushti</h2>
         <p className="app-tagline">
-          Govardhana - Cattel Data Management System: A comprehensive platform for the holistic management, preservation, and development of indigenous cattle breeds.
+          Govardhana - Cattle Data Management System: A comprehensive platform for the holistic management, preservation, and development of indigenous cattle breeds.
         </p>
       </header>
 
@@ -115,12 +108,14 @@ export default function Login() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               </div>
               <input
-                type={showPassword ? "text" : "password"}
+                type="text" // Change to 'password' if you want dots
+                name="passwordField" // Add name to prevent browser confusion
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="login-input"
                 placeholder="••••••••"
                 required
+                style={{ WebkitTextSecurity: showPassword ? "none" : "disc" }} // Cleaner way to toggle visibility
               />
               <div className="icon-right" onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? (
@@ -142,14 +137,13 @@ export default function Login() {
               />
               <span className="remember-text">Remember me</span>
             </label>
-            <button type="button" className="forgot-link" onClick={handleForgotClick}>
+            <button type="button" className="forgot-link" onClick={() => setShowModal(true)}>
               Forgot password?
             </button>
           </div>
 
           {error && <div className="error-msg">{error}</div>}
 
-          {/* 🔥 FIXED ACTION BUTTON 🔥 */}
           <button type="submit" disabled={loading} className="action-btn">
             {loading ? "Authenticating..." : "Sign In"}
           </button>
@@ -160,18 +154,13 @@ export default function Login() {
         © 2025 Rashtrotthana Parishat. All rights reserved.
       </footer>
 
-      {/* --- CUSTOM POPUP MODAL --- */}
+      {/* --- MODAL --- */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title">Reset Password</h3>
-            <p className="modal-text">
-              Contact system administrator to Reset password.
-            </p>
-            {/* Same orange button style reused here */}
-            <button className="action-btn" style={{ width: "auto", minWidth: "100px", margin: "0 auto" }} onClick={() => setShowModal(false)}>
-              OK
-            </button>
+            <p className="modal-text">Contact system administrator to Reset password.</p>
+            <button className="action-btn" style={{ width: "auto", minWidth: "100px", margin: "0 auto" }} onClick={() => setShowModal(false)}>OK</button>
           </div>
         </div>
       )}
