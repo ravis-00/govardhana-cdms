@@ -1,25 +1,40 @@
 /* =========================================
-   1. GLOBAL RESET & VARS
+   1. GLOBAL RESET & VARS (RASHTROTTHANA THEME)
    ========================================= */
 :root {
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --secondary-color: #f97316;
-  --bg-color: #f3f4f6;
-  --card-bg: #ffffff;
-  --text-main: #111827;
-  --text-muted: #6b7280;
-  --border-color: #e5e7eb;
-  --sidebar-width: 250px;
-  --header-height: 56px;
+  /* BRAND COLORS */
+  --primary-color: #ea580c;       /* Burnt Orange (Matches Login Button) */
+  --primary-hover: #c2410c;       /* Darker Orange for Hover */
+  
+  --sidebar-bg: #0f172a;          /* Deep Navy/Black (Matches Login BG) */
+  --sidebar-text: #cbd5e1;        /* Light Gray Text for Dark BG */
+  --sidebar-active-bg: #ea580c;   /* Orange highlight for active menu */
+  --sidebar-active-text: #ffffff;
+  
+  /* LAYOUT COLORS */
+  --bg-color: #f3f4f6;            /* Light Gray Page Background */
+  --card-bg: #ffffff;             /* White Cards */
+  --text-main: #1e293b;           /* Dark Slate Text */
+  --text-muted: #64748b;          /* Muted Slate Text */
+  --border-color: #e2e8f0;        /* Light Border */
+  
+  /* DIMENSIONS */
+  --sidebar-width: 260px;
+  --header-height: 60px;
+  
+  /* SHADOWS */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-color);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-shell {
@@ -29,32 +44,33 @@ html, body, #root {
 }
 
 /* =========================================
-   2. TOPBAR (Header)
+   2. TOPBAR (Clean White Header)
    ========================================= */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 50; /* High z-index to stay above content */
+  z-index: 50; 
   height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1rem;
-  background-color: var(--secondary-color);
-  color: #ffffff;
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
+  padding: 0 1.5rem;
+  background-color: #ffffff; /* Clean White */
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .topbar-menu-btn {
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: var(--text-main);
   font-size: 1.5rem;
   cursor: pointer;
   padding: 8px;
-  border-radius: 4px;
+  border-radius: 6px;
+  transition: background 0.2s;
 }
-.topbar-menu-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.topbar-menu-btn:hover { background: #f1f5f9; }
 
 .topbar-center {
   flex: 1;
@@ -65,78 +81,100 @@ html, body, #root {
 }
 
 .logo-placeholder {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--primary-color); /* Orange Logo Box */
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.1rem;
 }
 
-.topbar-title { font-size: 1rem; font-weight: 600; white-space: nowrap; }
-.topbar-subtitle { font-size: 0.75rem; color: rgba(255, 255, 255, 0.9); display: none; }
+.topbar-title { 
+  font-size: 1.1rem; 
+  font-weight: 700; 
+  color: var(--text-main);
+  letter-spacing: -0.02em; 
+}
 
-/* Show subtitle only on tablet+ */
-@media (min-width: 640px) {
+.topbar-subtitle { font-size: 0.8rem; color: var(--text-muted); display: none; margin-left: 8px; border-left: 1px solid #ccc; padding-left: 8px; }
+
+@media (min-width: 768px) {
   .topbar-subtitle { display: block; }
 }
 
-.topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+.topbar-right { display: flex; align-items: center; gap: 1rem; }
 
 .topbar-home-btn {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid #fed7aa;
-  background: #ffffff;
-  color: #c2410c;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  color: var(--text-main);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
 }
+.topbar-home-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #fff7ed; }
 
 /* =========================================
-   3. RESPONSIVE LAYOUT BODY
+   3. SIDEBAR (Dark Theme - Matches Login)
    ========================================= */
 .layout-body {
   display: flex;
-  flex: 1; /* Fill remaining height */
+  flex: 1; 
   position: relative;
-  overflow: hidden; /* Prevents double scrollbars */
+  overflow: hidden; 
 }
 
-/* --- SIDEBAR --- */
 .sidebar {
   width: var(--sidebar-width);
-  background: #ffffff;
-  border-right: 1px solid var(--border-color);
+  background: var(--sidebar-bg); /* DARK BACKGROUND */
+  border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
   transition: transform 0.3s ease, width 0.3s ease;
   z-index: 40;
 }
 
-.sidebar nav { padding: 1rem; overflow-y: auto; }
+.sidebar nav { padding: 1.5rem 1rem; overflow-y: auto; }
+
 .sidebar a {
-  display: block;
-  padding: 10px 12px;
-  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  color: var(--sidebar-text);
   text-decoration: none;
-  border-radius: 6px;
-  margin-bottom: 4px;
+  border-radius: 8px;
+  margin-bottom: 6px;
   font-weight: 500;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
-.sidebar a:hover, .sidebar a.active {
-  background-color: #eff6ff;
-  color: var(--primary-color);
+
+.sidebar a:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* Active Menu Item - Orange */
+.sidebar a.active {
+  background-color: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+  font-weight: 600;
+  box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.4); /* Orange Glow */
 }
 
 /* --- MAIN CONTENT --- */
 .main-content {
   flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto; /* Scroll ONLY the content, not the sidebar */
+  padding: 2rem;
+  overflow-y: auto; 
   height: calc(100vh - var(--header-height));
   background-color: var(--bg-color);
 }
@@ -145,7 +183,6 @@ html, body, #root {
    4. MOBILE RESPONSIVENESS LOGIC
    ========================================= */
 
-/* Desktop Behavior (Width > 768px) */
 @media (min-width: 769px) {
   .sidebar.sidebar-hidden {
     width: 0;
@@ -155,7 +192,6 @@ html, body, #root {
   }
 }
 
-/* Mobile/Tablet Behavior (Width <= 768px) */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -163,49 +199,39 @@ html, body, #root {
     bottom: 0;
     left: 0;
     width: var(--sidebar-width);
-    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-    transform: translateX(0); /* Open state */
+    box-shadow: 4px 0 12px rgba(0,0,0,0.2);
+    transform: translateX(0); 
   }
 
-  .sidebar.sidebar-hidden {
-    transform: translateX(-100%); /* Slide out to left */
-    display: flex; /* Keep it flex, just moved off screen */
-    width: var(--sidebar-width); /* Maintain width */
-  }
+  .sidebar.sidebar-hidden { transform: translateX(-100%); display: flex; width: var(--sidebar-width); }
 
-  /* Backdrop for mobile when menu is open */
   .mobile-backdrop {
     position: fixed;
     top: var(--header-height);
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6); /* Darker backdrop */
     z-index: 30;
+    backdrop-filter: blur(2px);
   }
   
-  .main-content {
-    padding: 1rem; /* Smaller padding on mobile */
-  }
+  .main-content { padding: 1rem; }
 }
 
 /* =========================================
-   5. NEW UTILITY CLASSES (THE DESIGN SYSTEM)
+   5. DESIGN SYSTEM (Orange & Dark Theme)
    ========================================= */
 
-/* --- FORM GRID --- 
-   Auto-stacks on mobile, 2 columns on Desktop */
+/* --- GRIDS --- */
 .responsive-grid {
   display: grid;
-  grid-template-columns: 1fr; /* Default Mobile */
+  grid-template-columns: 1fr; 
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
-
 @media (min-width: 768px) {
-  .responsive-grid {
-    grid-template-columns: repeat(2, 1fr); /* Tablet/Desktop */
-  }
+  .responsive-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* --- CARDS --- */
@@ -213,51 +239,54 @@ html, body, #root {
   background: var(--card-bg);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
   margin-bottom: 1.5rem;
 }
 
 /* --- TYPOGRAPHY --- */
+h1 { font-size: 1.75rem; letter-spacing: -0.025em; color: #0f172a; }
+h2 { font-size: 1.4rem; letter-spacing: -0.025em; }
+
 .section-title {
-  font-size: 1.1rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: var(--text-main);
-  border-bottom: 2px solid #e5e7eb;
+  color: var(--primary-color); /* Orange Headers */
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #fed7aa; /* Light Orange Border */
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
   margin-top: 0.5rem;
 }
 
-/* --- INPUTS & LABELS --- */
-.form-group {
-  margin-bottom: 0.5rem;
-}
+/* --- INPUTS --- */
+.form-group { margin-bottom: 1rem; }
 
 .form-label {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  color: #475569;
+  margin-bottom: 0.4rem;
 }
 
-.form-input, .form-select {
+.form-input, .form-select, textarea {
   width: 100%;
-  padding: 0.6rem 0.75rem; /* Larger touch target */
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  padding: 0.6rem 0.8rem; 
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   font-size: 0.95rem;
   background-color: #fff;
-  box-sizing: border-box; /* Crucial for responsiveness */
-  min-height: 44px; /* Accessibility Requirement */
-  transition: border-color 0.2s;
+  box-sizing: border-box; 
+  min-height: 42px; 
+  transition: all 0.2s;
 }
 
-.form-input:focus, .form-select:focus {
+.form-input:focus, .form-select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.1); /* Soft Orange Focus Ring */
 }
 
 /* --- BUTTONS --- */
@@ -265,41 +294,67 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.6rem 1.2rem;
+  padding: 0.6rem 1.4rem;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   border: none;
   cursor: pointer;
-  min-height: 44px; /* Touch friendly */
-  transition: opacity 0.2s;
-}
-
-.btn:active { transform: scale(0.98); }
-.btn-primary { background-color: var(--primary-color); color: white; }
-.btn-secondary { background-color: #fff; border: 1px solid #d1d5db; color: var(--text-main); }
-.btn-danger { background-color: #ef4444; color: white; }
-
-.btn-full-mobile {
-  width: auto;
-}
-@media (max-width: 640px) {
-  .btn-full-mobile { width: 100%; }
-}
-
-/* --- PHOTO UPLOAD BOX --- */
-.photo-upload-box {
-  border: 2px dashed #cbd5e1;
-  border-radius: 8px;
-  padding: 2rem;
-  text-align: center;
-  background: #f8fafc;
-  cursor: pointer;
+  min-height: 40px; 
   transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 150px;
+  white-space: nowrap;
 }
-.photo-upload-box:hover { border-color: var(--primary-color); background: #eff6ff; }
+
+.btn:active { transform: translateY(1px); }
+
+/* Primary Button - ORANGE */
+.btn-primary { 
+  background-color: var(--primary-color); 
+  color: white; 
+  box-shadow: 0 2px 4px rgba(234, 88, 12, 0.3);
+}
+.btn-primary:hover { 
+  background-color: var(--primary-hover); 
+  box-shadow: 0 4px 6px rgba(234, 88, 12, 0.4);
+}
+
+/* Secondary Button - White/Gray */
+.btn-secondary { 
+  background-color: #fff; 
+  border: 1px solid #cbd5e1; 
+  color: #334155; 
+}
+.btn-secondary:hover { background-color: #f8fafc; border-color: #94a3b8; color: #0f172a; }
+
+.btn-danger { 
+  background-color: #fee2e2; 
+  color: #b91c1c; 
+  border: 1px solid #fecaca;
+}
+.btn-danger:hover { background-color: #fecaca; }
+
+.btn-full-mobile { width: auto; }
+@media (max-width: 640px) {
+  .btn-full-mobile { width: 100%; margin-bottom: 0.5rem; }
+}
+
+/* --- TABLES --- */
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+th { 
+  text-align: left; 
+  padding: 12px 16px; 
+  font-size: 0.75rem; 
+  text-transform: uppercase; 
+  color: #64748b; 
+  font-weight: 700; 
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-color);
+}
+td { 
+  padding: 14px 16px; 
+  border-bottom: 1px solid var(--border-color); 
+  font-size: 0.9rem;
+  color: #334155;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background-color: #fff7ed; /* Subtle orange tint on hover */ }

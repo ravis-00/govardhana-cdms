@@ -1,4 +1,3 @@
-// src/pages/DeathRecords.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { getDeathRecords } from "../api/masterApi.js"; 
 
@@ -89,8 +88,17 @@ export default function DeathRecords() {
       setLoading(true);
       setError("");
       try {
-        const data = await getDeathRecords(fromDate || "2024-01-01");
-        const normalized = Array.isArray(data) ? data.map(normalizeRecord) : [];
+        const res = await getDeathRecords(fromDate || "2024-01-01");
+        
+        // 🔥 FIX: Handle API Wrapper Object
+        let rawData = [];
+        if (res && res.data && Array.isArray(res.data)) {
+            rawData = res.data;
+        } else if (Array.isArray(res)) {
+            rawData = res;
+        }
+
+        const normalized = rawData.map(normalizeRecord);
         if (alive) setRows(normalized);
       } catch (e) {
         if (alive) setError(e?.message || "Failed to load records");
@@ -205,13 +213,13 @@ export default function DeathRecords() {
 
   // --- RENDER ---
   return (
-    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto" }}>
-      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+    <div style={{ padding: "1.5rem 2rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+      <header style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.5rem", gap: "1rem" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#1f2937" }}>Cattle Death Records</h1>
           <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "0.25rem" }}>Showing: {filteredRows.length} record(s)</div>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
           <div><label style={labelStyle}>From</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>To</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={inputStyle} /></div>
         </div>
@@ -219,31 +227,31 @@ export default function DeathRecords() {
 
       {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>{error}</div>}
 
-      <div style={{ background: "#ffffff", borderRadius: "0.5rem", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", border: "1px solid #e5e7eb" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead style={{ background: "#f9fafb", textAlign: "left" }}>
-            <tr>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Tag No</th>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Breed</th>
-              <th style={thStyle}>Cause</th>
-              <th style={thStyle}>Doctor</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center" }}>Loading...</td></tr> :
-             filteredRows.length === 0 ? <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center" }}>No records found.</td></tr> :
-             filteredRows.map((row, idx) => (
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE TABLE */}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "900px" }}>
+            <thead style={{ background: "#f9fafb", textAlign: "left", borderBottom: "2px solid #e5e7eb" }}>
+              <tr>
+                <th style={thStyle}>Date</th>
+                <th style={thStyle}>Tag No</th>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Breed</th>
+                <th style={thStyle}>Cause</th>
+                <th style={thStyle}>Doctor</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? <tr><td colSpan={7} style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Loading...</td></tr> :
+               filteredRows.length === 0 ? <tr><td colSpan={7} style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>No records found.</td></tr> :
+               filteredRows.map((row, idx) => (
                 <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
-                  {/* 🔥 UPDATED DATE FORMAT DISPLAY 🔥 */}
                   <td style={tdStyle}>{formatDateDisplay(row.dateOfDeAdmission)}</td>
                   
                   <td style={tdStyle}><strong>{row.cattleId}</strong></td>
                   <td style={tdStyle}>{row.name}</td>
                   <td style={tdStyle}>{row.breed}</td>
-                  <td style={tdStyle}>{row.causeOfDeath.split("-")[0]}</td>
+                  <td style={tdStyle}>{row.causeOfDeath ? row.causeOfDeath.split("-")[0] : "-"}</td>
                   <td style={tdStyle}>{row.doctor}</td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
@@ -252,9 +260,10 @@ export default function DeathRecords() {
                     </div>
                   </td>
                 </tr>
-             ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal View */}
@@ -269,9 +278,9 @@ export default function DeathRecords() {
               <button onClick={() => setSelected(null)} style={closeBtnStyle}>✕</button>
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+            {/* 🔥 RESPONSIVE MODAL GRID */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", alignContent: "start" }}>
-                   {/* 🔥 UPDATED DATE FORMAT IN MODAL 🔥 */}
                    <DetailItem label="Date of Death" value={formatDateDisplay(selected.dateOfDeAdmission)} />
                    
                    <DetailItem label="Time of Death" value={selected.time} />
@@ -280,7 +289,7 @@ export default function DeathRecords() {
                    <DetailItem label="Shed" value={selected.shed} />
                    <DetailItem label="Date of Birth" value={formatDateDisplay(selected.dob)} />
                    
-                   <div style={{ gridColumn: "span 2", borderTop:"1px solid #eee", paddingTop:"10px", marginTop:"5px", fontWeight:"bold", color:"#444" }}>Certificate Details</div>
+                   <div style={{ gridColumn: "1 / -1", borderTop:"1px solid #eee", paddingTop:"10px", marginTop:"5px", fontWeight:"bold", color:"#444" }}>Certificate Details</div>
                    <DetailItem label="Teeth" value={selected.teeth} />
                    <DetailItem label="Age" value={selected.age} />
                    <DetailItem label="Pregnancy" value={selected.pregnancy} />
@@ -310,13 +319,13 @@ export default function DeathRecords() {
 }
 
 // --- STYLES ---
-const labelStyle = { display: "block", fontSize: "0.75rem", color: "#4b5563", fontWeight: "500" };
+const labelStyle = { display: "block", fontSize: "0.75rem", color: "#4b5563", fontWeight: "500", marginBottom: "0.2rem" };
 const inputStyle = { padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #d1d5db" };
 const thStyle = { padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, color: "#6b7280" };
 const tdStyle = { padding: "0.75rem 1rem", color: "#1f2937" };
 const viewBtnStyle = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fff", cursor: "pointer" };
 const certBtnStyle = { border: "1px solid #fecaca", borderRadius: "6px", padding: "0.3rem 0.7rem", background: "#fef2f2", color: "#991b1b", fontWeight: "600", cursor: "pointer" };
-const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const viewModalStyle = { width: "700px", maxWidth: "95%", background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" };
+const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "1rem" };
+const viewModalStyle = { width: "700px", maxWidth: "100%", background: "white", borderRadius: "12px", padding: "1.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box" };
 const closeBtnStyle = { border: "none", background: "#eee", borderRadius: "50%", width: "32px", height: "32px", cursor: "pointer", fontSize:"1.1rem" };
-function DetailItem({ label, value, fullWidth }) { return <div style={{ gridColumn: fullWidth ? "span 2" : "span 1" }}><div style={{fontSize:"0.75rem", color:"#999", textTransform:"uppercase"}}>{label}</div><div style={{fontWeight:"500"}}>{value}</div></div>; }
+function DetailItem({ label, value, fullWidth }) { return <div style={{ gridColumn: fullWidth ? "span 2" : "span 1" }}><div style={{fontSize:"0.75rem", color:"#999", textTransform:"uppercase"}}>{label}</div><div style={{fontWeight:"500"}}>{value || "-"}</div></div>; }

@@ -13,7 +13,8 @@ const Icons = {
   health: <path d="M19 3H5c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 11h-4v4h-4v-4H6v-4h4v4h4v4z"/>,
   admin: <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>,
   config: <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>,
-  pedigree: <path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z"/>
+  pedigree: <path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z"/>,
+  logout: <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
 };
 
 export default function MainLayout() {
@@ -89,7 +90,6 @@ export default function MainLayout() {
     }
   ];
 
-  
   return (
     <div className="app-shell">
       
@@ -101,63 +101,51 @@ export default function MainLayout() {
             ☰
           </button>
           
-          {/* Mobile-only Branding in Header */}
           <div className="topbar-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
              GOVARDHANA
           </div>
         </div>
 
-        {/* Right: User & Actions */}
+        {/* Right: Just a placeholder or notification bell in future */}
         <div className="topbar-right">
-          <div style={{ textAlign: 'right', display: 'none', flexDirection: 'column', lineHeight: '1.2' }} className="user-info-desktop">
-             <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.name}</span>
-             <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>{user?.role}</span>
-          </div>
-
-          <button 
-            onClick={handleLogout} 
-            className="topbar-home-btn"
-            style={{ borderColor: 'transparent', background: 'rgba(255,255,255,0.2)', color: '#fff' }}
-          >
-            Logout
-          </button>
+           {/* Logout is now in Sidebar */}
         </div>
       </header>
 
       {/* --- LAYOUT BODY --- */}
       <div className="layout-body">
         
-        {/* --- MOBILE BACKDROP (Click to close menu) --- */}
+        {/* --- MOBILE BACKDROP --- */}
         {isMobileOpen && <div className="mobile-backdrop" onClick={closeMobileMenu}></div>}
 
         {/* --- SIDEBAR --- */}
         <aside className={`sidebar ${isMobileOpen ? '' : 'sidebar-hidden'}`}>
           {/* BRANDING HEADER */}
-          <div style={{ padding: "1.5rem 1rem", borderBottom: "1px solid #e5e7eb", textAlign: "center", background: "#fff" }}>
+          <div style={{ padding: "1.5rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "center" }}>
             <img 
               src={rashtrotthanaLogo} 
               alt="Rashtrotthana" 
-              style={{ height: "60px", width: "auto", marginBottom: "0.8rem", objectFit: "contain" }} 
+              style={{ height: "60px", width: "auto", marginBottom: "0.8rem", objectFit: "contain", background:"white", padding:"5px", borderRadius:"8px" }} 
             />
             <h1 style={{ color: "#ea580c", fontSize: "1.1rem", fontWeight: "800", margin: 0, letterSpacing: "0.5px" }}>
               GOVARDHANA
             </h1>
-            <p style={{ color: "#9ca3af", fontSize: "0.65rem", margin: "4px 0 0 0", textTransform: "uppercase", letterSpacing: "1px" }}>
+            <p style={{ color: "#94a3b8", fontSize: "0.65rem", margin: "4px 0 0 0", textTransform: "uppercase", letterSpacing: "1px" }}>
               Cattle Data Management
             </p>
           </div>
 
           {/* NAVIGATION */}
-          <nav>
+          <nav style={{ flex: 1 }}>
             {menuGroups.map((group, gIdx) => (
               <div key={gIdx} style={{ marginBottom: "1rem" }}>
                 {group.title && (
                   <div style={{ 
                     padding: "0 12px", 
                     marginBottom: "0.5rem", 
-                    fontSize: "0.7rem", 
+                    fontSize: "0.65rem", 
                     fontWeight: "700", 
-                    color: "#9ca3af", 
+                    color: "#64748b", 
                     letterSpacing: "0.05em",
                     textTransform: "uppercase"
                   }}>
@@ -172,10 +160,10 @@ export default function MainLayout() {
                     <NavLink
                       key={iIdx}
                       to={item.path}
-                      onClick={closeMobileMenu} // Close menu on click (Mobile UX)
+                      onClick={closeMobileMenu}
                       className={({ isActive }) => isActive ? "active" : ""}
                     >
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style={{ marginRight: "12px", opacity: 0.8 }}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style={{ marginRight: "12px", opacity: 0.9 }}>
                         {item.icon}
                       </svg>
                       {item.name}
@@ -186,9 +174,44 @@ export default function MainLayout() {
             ))}
           </nav>
           
+          {/* USER & LOGOUT SECTION (PINNED BOTTOM) */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", padding: "1rem", background: "rgba(0,0,0,0.2)" }}>
+             <div style={{ display: "flex", alignItems: "center", marginBottom: "1rem", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#334155", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "0.9rem" }}>
+                   {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div style={{ overflow: "hidden" }}>
+                   <div style={{ color: "#fff", fontSize: "0.85rem", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name}</div>
+                   <div style={{ color: "#94a3b8", fontSize: "0.7rem" }}>{user?.role}</div>
+                </div>
+             </div>
+             
+             <button 
+                onClick={handleLogout}
+                style={{ 
+                   width: "100%", 
+                   display: "flex", 
+                   alignItems: "center", 
+                   justifyContent: "center", 
+                   gap: "8px", 
+                   padding: "10px", 
+                   background: "#dc2626", // Red for Logout
+                   color: "white", 
+                   border: "none", 
+                   borderRadius: "6px", 
+                   cursor: "pointer",
+                   fontSize: "0.85rem",
+                   fontWeight: "600"
+                }}
+             >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">{Icons.logout}</svg>
+                Logout
+             </button>
+          </div>
+
           {/* FOOTER */}
-          <div style={{ padding: "1rem", borderTop: "1px solid #e5e7eb", fontSize: "0.7rem", color: "#9ca3af", textAlign: "center", marginTop: 'auto' }}>
-             © 2025 Rashtrotthana Parishat
+          <div style={{ padding: "0.8rem", fontSize: "0.65rem", color: "#64748b", textAlign: "center", background: "#020617" }}>
+              © 2025 Rashtrotthana Parishat
           </div>
         </aside>
 
