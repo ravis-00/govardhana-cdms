@@ -12,7 +12,6 @@ const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
 
 // --- HELPER: Get Robust ID ---
-// Checks for internalId, id, or internal_id to ensure we always find it
 function getRowId(row) {
   if (!row) return "";
   return row.internalId || row.id || row.internal_id || "";
@@ -59,7 +58,6 @@ export default function MasterCattle() {
     return rows.filter((row) => {
       const status = String(row.status || "").toLowerCase().trim();
       const matchStatus = statusFilter === "All" || status === statusFilter.toLowerCase();
-      // Updated haystack to include robust ID
       const haystack = (`${row.tag||""} ${row.name||""} ${row.breed||""} ${row.shed||""} ${getRowId(row)}`).toLowerCase();
       return matchStatus && haystack.includes(searchText.toLowerCase());
     });
@@ -77,20 +75,17 @@ export default function MasterCattle() {
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
 
   /* =========================================
-      🔥 CERTIFICATE GENERATION LOGIC
-      ========================================= */
+     🔥 CERTIFICATE GENERATION LOGIC
+     ========================================= */
   const handleGenerateCert = (row) => {
     const type = String(row.admissionType || "").toLowerCase();
     
-    // 1. Birth Certificate
     if (type.includes("born") || type.includes("birth")) {
       printBirthCertificate(row);
     } 
-    // 2. Incoming Certificate
     else if (type.includes("purchase") || type.includes("donation") || type.includes("farmer")) {
       printIncomingCertificate(row);
     } 
-    // Fallback
     else {
       alert("No certificate template available for Admission Type: " + row.admissionType);
     }
@@ -232,59 +227,67 @@ export default function MasterCattle() {
 
       {/* TABLE */}
       <div style={cardStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-            <tr>
-              <th style={thStyle}>Tag No / ID</th>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Breed</th>
-              <th style={thStyle}>Gender</th>
-              <th style={thStyle}>Status</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayedRows.length === 0 ? (
-               <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
-            ) : (
-              displayedRows.map((row, idx) => {
-                const type = String(row.admissionType || "").toLowerCase();
-                const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
-                // 🔥 GET ID SAFELY
-                const safeId = getRowId(row);
+        <div style={{ overflowX: "auto" }}> {/* Horizontal Scroll Support */}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+            <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+              <tr>
+                <th style={thStyle}>Tag No / ID</th>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Breed</th>
+                <th style={thStyle}>Gender</th>
+                <th style={thStyle}>Status</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedRows.length === 0 ? (
+                 <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
+              ) : (
+                displayedRows.map((row, idx) => {
+                  const type = String(row.admissionType || "").toLowerCase();
+                  const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
+                  const safeId = getRowId(row);
 
-                return (
-                  <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={tdStyle}>
-                      <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
-                      {/* 🔥 UPDATED: Show ID if available */}
-                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
-                    </td>
-                    <td style={tdStyle}>{row.name}</td>
-                    <td style={tdStyle}>{row.breed}</td>
-                    <td style={tdStyle}>{row.gender}</td>
-                    <td style={tdStyle}><StatusPill status={row.status} /></td>
-                    <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
-                          <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
-                          
-                          {showCert && (
-                              <button 
-                                  onClick={() => handleGenerateCert(row)} 
-                                  style={certBtnStyle}
-                                  title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
-                              >
-                                  📜 Cert
-                              </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                  // 🔥 CHANGED: Highlight Born in Gaushala (Light Green Background)
+                  const isBornHere = type.includes("birth") || type.includes("born");
+                  const rowStyle = {
+                      borderBottom: "1px solid #f1f5f9",
+                      background: isBornHere ? "#ecfdf5" : "white" // Light Green vs White
+                  };
+
+                  return (
+                    <tr key={idx} style={rowStyle}>
+                      <td style={tdStyle}>
+                        <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
+                        <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
+                      </td>
+                      <td style={tdStyle}>{row.name}</td>
+                      <td style={tdStyle}>{row.breed}</td>
+                      <td style={tdStyle}>{row.gender}</td>
+                      <td style={tdStyle}><StatusPill status={row.status} /></td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+                            <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                            
+                            {showCert && (
+                                <button 
+                                    onClick={() => handleGenerateCert(row)} 
+                                    style={certBtnStyle}
+                                    title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
+                                >
+                                    📜 Cert
+                                </button>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        
         {filteredRows.length > 0 && (
           <div style={paginationStyle}>
              <button onClick={handlePrev} disabled={currentPage === 1} style={pageBtnStyle}>Prev</button>
@@ -337,7 +340,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
   };
 
   const handleSave = async () => {
-    // 🔥 FIX: Check internalId OR id for update
     const idToUpdate = formData.internalId || formData.id || formData.internal_id;
     if (!idToUpdate) {
         alert("Error: Missing Internal ID for this record. Cannot update.");
@@ -388,8 +390,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
 
   const isActive = String(selected.status || "").toLowerCase() === "active";
   const ageText = calculateSmartAge(selected.dob, selected.admissionDate, selected.admissionAge);
-  
-  // 🔥 FIX: Get robust ID for Display
   const displayId = getRowId(selected);
 
   return (
@@ -402,7 +402,6 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
                <>
                  <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>{selected.tag} – {selected.name}</div>
                  <div style={{fontSize:"0.85rem", color:"#666", marginTop:"4px"}}>
-                   {/* 🔥 UPDATED: Shows ID if present, otherwise N/A */}
                    Internal ID: <strong>{displayId || "N/A"}</strong> | UID: {selected.govtUid || "N/A"}
                  </div>
                </>
