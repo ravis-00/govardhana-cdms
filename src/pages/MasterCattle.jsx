@@ -226,73 +226,95 @@ export default function MasterCattle() {
       </div>
 
       {/* TABLE */}
-      <div style={cardStyle}>
-        <div style={{ overflowX: "auto" }}> {/* Horizontal Scroll Support */}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-            <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-              <tr>
-                <th style={thStyle}>Tag No / ID</th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Breed</th>
-                <th style={thStyle}>Gender</th>
-                <th style={thStyle}>Status</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedRows.length === 0 ? (
-                 <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
-              ) : (
-                displayedRows.map((row, idx) => {
-                  const type = String(row.admissionType || "").toLowerCase();
-                  const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
-                  const safeId = getRowId(row);
+      <div
+  style={{
+    ...cardStyle,
+    display: "flex",
+    flexDirection: "column",
+    height: "calc(100vh - 220px)",
+  }}
+>
+        <div
+  style={{
+    flex: 1,
+    overflowY: "auto",
+    overflowX: "auto",
+  }}
+>
+  <table
+    style={{
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "0.9rem",
+    }}
+  >
+          <thead
+  style={{
+    background: "#f8fafc",
+    borderBottom: "2px solid #e2e8f0",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  }}
+>
+            <tr>
+              <th style={thStyle}>Tag No / ID</th>
+              <th style={thStyle}>Name</th>
+              <th style={thStyle}>Breed</th>
+              <th style={thStyle}>Gender</th>
+              <th style={thStyle}>Status</th>
+              <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayedRows.length === 0 ? (
+               <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
+            ) : (
+              displayedRows.map((row, idx) => {
+                const type = String(row.admissionType || "").toLowerCase();
+                const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
+                // 🔥 GET ID SAFELY
+                const safeId = getRowId(row);
 
-                  // 🔥 CHANGED: Highlight Born in Gaushala (Light Green Background)
-                  const isBornHere = type.includes("birth") || type.includes("born");
-                  const rowStyle = {
-                      borderBottom: "1px solid #f1f5f9",
-                      background: isBornHere ? "#ecfdf5" : "white" // Light Green vs White
-                  };
-
-                  return (
-                    <tr key={idx} style={rowStyle}>
-                      <td style={tdStyle}>
-                        <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
-                        <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
-                      </td>
-                      <td style={tdStyle}>{row.name}</td>
-                      <td style={tdStyle}>{row.breed}</td>
-                      <td style={tdStyle}>{row.gender}</td>
-                      <td style={tdStyle}><StatusPill status={row.status} /></td>
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
-                        <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
-                            <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
-                            
-                            {showCert && (
-                                <button 
-                                    onClick={() => handleGenerateCert(row)} 
-                                    style={certBtnStyle}
-                                    title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
-                                >
-                                    📜 Cert
-                                </button>
-                            )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                return (
+                  <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={tdStyle}>
+                      <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
+                      {/* 🔥 UPDATED: Show ID if available */}
+                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
+                    </td>
+                    <td style={tdStyle}>{row.name}</td>
+                    <td style={tdStyle}>{row.breed}</td>
+                    <td style={tdStyle}>{row.gender}</td>
+                    <td style={tdStyle}><StatusPill status={row.status} /></td>
+                    <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+                          <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
+                          
+                          {showCert && (
+                              <button 
+                                  onClick={() => handleGenerateCert(row)} 
+                                  style={certBtnStyle}
+                                  title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
+                              >
+                                  📜 Cert
+                              </button>
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
         </div>
-        
+
         {filteredRows.length > 0 && (
           <div style={paginationStyle}>
              <button onClick={handlePrev} disabled={currentPage === 1} style={pageBtnStyle}>Prev</button>
-             <span style={pageNumberStyle}>Page {currentPage} of {totalPages}</span>
-             <button onClick={handleNext} disabled={currentPage === totalPages} style={pageBtnStyle}>Next</button>
+             <span style={pageNumberStyle}>Page {currentPage} of {totalPages || 1}</span>
+             <button onClick={handleNext} disabled={currentPage === totalPages || totalPages === 0} style={pageBtnStyle}>Next</button>
           </div>
         )}
       </div>

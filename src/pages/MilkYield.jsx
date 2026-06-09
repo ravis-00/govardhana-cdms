@@ -167,14 +167,41 @@ export default function MilkYield() {
         <TabButton label="🚚 Distribution" active={activeTab === "distribution"} onClick={() => setActiveTab("distribution")} />
       </div>
 
-      {/* TABLE AREA (Scrollable Container) */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
+      
+      {/* TABLE AREA (Only data scrolls) */}
+<div
+  className="card"
+  style={{
+    padding: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: "calc(100vh - 260px)",
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      overflowY: "auto",
+      overflowX: "auto",
+    }}
+  >
           {loading ? (
             <div style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>Loading data...</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "800px" }}>
-              <thead style={{ background: "#f9fafb", color: "#374151", textTransform: "uppercase", fontSize: "0.75rem", borderBottom: "2px solid #e5e7eb" }}>
+              <thead
+  style={{
+    background: "#f9fafb",
+    color: "#374151",
+    textTransform: "uppercase",
+    fontSize: "0.75rem",
+    borderBottom: "2px solid #e5e7eb",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  }}
+>
                 <tr>
                   <th style={thStyle}>Date</th>
                   {activeTab === "production" ? (

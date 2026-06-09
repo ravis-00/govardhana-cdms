@@ -266,10 +266,36 @@ export default function DattuYojana() {
       </div>
 
       {/* TABLE */}
-      <div style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" }}>
-        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE */}
+      {/* TABLE - only data scrolls */}
+<div
+  style={{
+    background: "white",
+    borderRadius: "12px",
+    overflow: "hidden",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    border: "1px solid #e5e7eb",
+    display: "flex",
+    flexDirection: "column",
+    height: "calc(100vh - 220px)",
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      overflowY: "auto",
+      overflowX: "auto",
+    }}
+  > {/* 🔥 SCROLLABLE */}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "900px" }}>
-            <thead style={{ background: "#f9fafb", textAlign: "left" }}>
+            <thead
+  style={{
+    background: "#f9fafb",
+    textAlign: "left",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  }}
+>
               <tr>
                 <th style={thStyle}>Donor</th>
                 <th style={thStyle}>Mobile</th>

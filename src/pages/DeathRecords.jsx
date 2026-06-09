@@ -227,10 +227,34 @@ export default function DeathRecords() {
 
       {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "0.75rem 1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>{error}</div>}
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE TABLE */}
+      {/* TABLE CARD - only data scrolls */}
+<div
+  className="card"
+  style={{
+    padding: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: "calc(100vh - 220px)",
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      overflowY: "auto",
+      overflowX: "auto",
+    }}
+  > {/* 🔥 SCROLLABLE TABLE */}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "900px" }}>
-            <thead style={{ background: "#f9fafb", textAlign: "left", borderBottom: "2px solid #e5e7eb" }}>
+           <thead
+  style={{
+    background: "#f9fafb",
+    borderBottom: "2px solid #e5e7eb",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  }}
+>
               <tr>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Tag No</th>

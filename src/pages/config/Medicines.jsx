@@ -92,10 +92,34 @@ export default function Medicines() {
       </div>
 
       {/* TABLE CARD */}
-      <div style={cardStyle}>
-        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE */}
+      {/* TABLE CARD - only data scrolls */}
+<div
+  className="card"
+  style={{
+    padding: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: "calc(100vh - 220px)",
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      overflowY: "auto",
+      overflowX: "auto",
+    }}
+  > {/* 🔥 SCROLLABLE */}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "600px" }}>
-            <thead style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+            <thead
+  style={{
+    background: "#f9fafb",
+    borderBottom: "2px solid #e5e7eb",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  }}
+>
               <tr>
                 <th style={thStyle}>Medicine Name</th>
                 <th style={thStyle}>Type</th>

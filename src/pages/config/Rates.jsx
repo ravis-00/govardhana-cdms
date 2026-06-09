@@ -91,49 +91,98 @@ export default function Rates() {
         <button onClick={openAdd} style={addBtnStyle}>+ Add Rate</button>
       </div>
 
-      {/* TABLE CARD */}
-      <div style={cardStyle}>
-        <div style={{ overflowX: "auto" }}> {/* 🔥 SCROLLABLE */}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "600px" }}>
-            <thead style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
-              <tr>
-                <th style={thStyle}>Item Name</th>
-                <th style={thStyle}>Rate (₹)</th>
-                <th style={thStyle}>Per Unit</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>Loading...</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>No rates found.</td></tr>
-              ) : (
-                rows.map((row, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={tdStyle}><strong>{row.item_name}</strong></td>
-                    <td style={tdStyle}>
-                      <span style={{ 
-                        background: "#ecfdf5", color: "#047857", 
-                        padding: "2px 8px", borderRadius: "4px", fontSize: "0.9rem", fontWeight: "bold" 
-                      }}>
-                        ₹ {row.rate}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>{row.unit}</td>
-                    <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                        <button onClick={() => openEdit(row)} style={editBtnStyle}>Edit</button>
-                        <button onClick={() => handleDelete(row.id)} style={deleteBtnStyle}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* TABLE CARD - only data scrolls */}
+<div
+  style={{
+    ...cardStyle,
+    display: "flex",
+    flexDirection: "column",
+    height: "360px",
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      overflowY: "auto",
+      overflowX: "auto",
+    }}
+  >
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse",
+        fontSize: "0.9rem",
+        minWidth: "600px",
+      }}
+    >
+      <thead
+        style={{
+          background: "#f9fafb",
+          borderBottom: "2px solid #e5e7eb",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+        <tr>
+          <th style={thStyle}>Item Name</th>
+          <th style={thStyle}>Rate (₹)</th>
+          <th style={thStyle}>Per Unit</th>
+          <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {loading ? (
+          <tr>
+            <td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
+              Loading...
+            </td>
+          </tr>
+        ) : rows.length === 0 ? (
+          <tr>
+            <td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#9ca3af" }}>
+              No rates found.
+            </td>
+          </tr>
+        ) : (
+          rows.map((row, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <td style={tdStyle}>
+                <strong>{row.item_name}</strong>
+              </td>
+              <td style={tdStyle}>
+                <span
+                  style={{
+                    background: "#ecfdf5",
+                    color: "#047857",
+                    padding: "2px 8px",
+                    borderRadius: "4px",
+                    fontSize: "0.9rem",
+                    fontWeight: "bold",
+                  }}
+                >
+                  ₹ {row.rate}
+                </span>
+              </td>
+              <td style={tdStyle}>{row.unit}</td>
+              <td style={{ ...tdStyle, textAlign: "center" }}>
+                <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                  <button onClick={() => openEdit(row)} style={editBtnStyle}>
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(row.id)} style={deleteBtnStyle}>
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
 
       {/* MODAL */}
       {showModal && (
