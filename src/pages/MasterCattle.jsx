@@ -30,8 +30,9 @@ export default function MasterCattle() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Active"); 
-  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Active");
+const [breedFilter, setBreedFilter] = useState("All");
+const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -54,14 +55,35 @@ export default function MasterCattle() {
   useEffect(() => { loadData(); }, []);
 
   const filteredRows = useMemo(() => {
-    if (!rows || rows.length === 0) return [];
-    return rows.filter((row) => {
-      const status = String(row.status || "").toLowerCase().trim();
-      const matchStatus = statusFilter === "All" || status === statusFilter.toLowerCase();
-      const haystack = (`${row.tag||""} ${row.name||""} ${row.breed||""} ${row.shed||""} ${getRowId(row)}`).toLowerCase();
-      return matchStatus && haystack.includes(searchText.toLowerCase());
-    });
-  }, [rows, statusFilter, searchText]);
+  if (!rows || rows.length === 0) return [];
+
+  return rows.filter((row) => {
+    const status = String(row.status || "").toLowerCase().trim();
+    const matchStatus =
+      statusFilter === "All" || status === statusFilter.toLowerCase();
+
+    const matchBreed =
+      breedFilter === "All" || String(row.breed || "") === breedFilter;
+
+    const haystack = `
+      ${row.tag || ""}
+      ${row.name || ""}
+      ${row.breed || ""}
+      ${row.color || ""}
+      ${row.gender || ""}
+      ${row.category || ""}
+      ${row.shed || ""}
+      ${row.govtUid || ""}
+      ${getRowId(row)}
+    `.toLowerCase();
+
+    return (
+      matchStatus &&
+      matchBreed &&
+      haystack.includes(searchText.toLowerCase())
+    );
+  });
+}, [rows, statusFilter, breedFilter, searchText]);
 
   const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
   const displayedRows = useMemo(() => {
@@ -69,10 +91,46 @@ export default function MasterCattle() {
     return filteredRows.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredRows, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [statusFilter, searchText]);
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, searchText]);
   const handleNext = () => { if (currentPage < totalPages) setCurrentPage(p => p + 1); };
   const handlePrev = () => { if (currentPage > 1) setCurrentPage(p => p - 1); };
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
+
+  const summary = useMemo(() => {
+  const activeRows = rows.filter(
+    r => String(r.status || "").toLowerCase().trim() === "active"
+  );
+
+  const active = activeRows.length;
+
+  const female = activeRows.filter(
+    r => String(r.gender || "").toLowerCase().startsWith("f")
+  ).length;
+
+  const male = activeRows.filter(
+    r => String(r.gender || "").toLowerCase().startsWith("m")
+  ).length;
+
+  const breeds = new Set(
+    activeRows.map(r => r.breed).filter(Boolean)
+  ).size;
+
+  return {
+    total: rows.length,
+    active,
+    female,
+    male,
+    breeds,
+  };
+}, [rows]);
+
+const breedOptions = useMemo(() => {
+  const breeds = rows
+    .map(r => r.breed)
+    .filter(Boolean);
+
+  return ["All", ...Array.from(new Set(breeds)).sort()];
+}, [rows]);
 
   /* =========================================
      🔥 CERTIFICATE GENERATION LOGIC
@@ -202,28 +260,68 @@ export default function MasterCattle() {
     <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
       
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-           <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>Master Cattle Data</h1>
-           <div style={{ fontSize: "0.9rem", color: "#6b7280", marginTop: "4px" }}>
-             Total Records: <strong>{filteredRows.length}</strong>
-           </div>
-        </div>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-           {isAdmin && (
-             <Link to="/cattle/register" style={primaryBtnStyle}>
-               <span>+</span> Add New
-             </Link>
-           )}
-           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-             <label style={{ fontSize: "0.8rem", fontWeight: "600", color: "#6b7280" }}>Status:</label>
-             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={inputStyle}>
-               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-             </select>
-           </div>
-           <input type="text" placeholder="Search Tag / ID..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ ...inputStyle, minWidth: "220px" }} />
-        </div>
+<div style={{ marginBottom: "1.25rem" }}>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      flexWrap: "wrap",
+      gap: "1rem",
+      marginBottom: "1rem",
+    }}
+  >
+    <div>
+      <h1 style={{ fontSize: "1.8rem", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+        🐄 Master Cattle Data
+      </h1>
+      <div style={{ fontSize: "0.9rem", color: "#64748b", marginTop: "4px" }}>
+        Showing <strong>{filteredRows.length}</strong> of <strong>{rows.length}</strong> records
       </div>
+    </div>
+
+    {isAdmin && (
+      <Link to="/cattle/register" style={primaryBtnStyle}>
+        <span>+</span> Add New
+      </Link>
+    )}
+  </div>
+
+  {/* SUMMARY CHIPS */}
+  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+    <SummaryChip label="Total" value={summary.total} color="#2563eb" />
+<SummaryChip label="Active" value={summary.active} color="#16a34a" />
+<SummaryChip label="Active Female" value={summary.female} color="#ec4899" />
+<SummaryChip label="Active Male" value={summary.male} color="#3b82f6" />
+<SummaryChip label="Active Breeds" value={summary.breeds} color="#f97316" />
+  </div>
+
+  {/* FILTERS */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "180px 220px 1fr",
+      gap: "0.75rem",
+      alignItems: "center",
+    }}
+  >
+    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={filterInputStyle}>
+      {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+    </select>
+
+    <select value={breedFilter} onChange={e => setBreedFilter(e.target.value)} style={filterInputStyle}>
+      {breedOptions.map(b => <option key={b} value={b}>{b === "All" ? "All Breeds" : b}</option>)}
+    </select>
+
+    <input
+      type="text"
+      placeholder="Search Tag, Name, Breed, Colour, UID..."
+      value={searchText}
+      onChange={e => setSearchText(e.target.value)}
+      style={filterInputStyle}
+    />
+  </div>
+</div>
 
       {/* TABLE */}
       <div
@@ -258,13 +356,13 @@ export default function MasterCattle() {
   }}
 >
             <tr>
-              <th style={thStyle}>Tag No / ID</th>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Breed</th>
-              <th style={thStyle}>Gender</th>
-              <th style={thStyle}>Status</th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
-            </tr>
+  <th style={{ ...thStyle, width: "70px" }}>Photo</th>
+  <th style={thStyle}>Cattle</th>
+  <th style={thStyle}>Breed</th>
+  <th style={thStyle}>Gender</th>
+  <th style={thStyle}>Status</th>
+  <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
+</tr>
           </thead>
           <tbody>
             {displayedRows.length === 0 ? (
@@ -279,14 +377,27 @@ export default function MasterCattle() {
                 return (
                   <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={tdStyle}>
-                      <div style={{fontWeight:"bold", color:"#1f2937"}}>{row.tag}</div>
-                      {/* 🔥 UPDATED: Show ID if available */}
-                      <div style={{fontSize:"0.75rem", color:"#6b7280", marginTop:"2px"}}>{safeId}</div>
-                    </td>
-                    <td style={tdStyle}>{row.name}</td>
-                    <td style={tdStyle}>{row.breed}</td>
-                    <td style={tdStyle}>{row.gender}</td>
-                    <td style={tdStyle}><StatusPill status={row.status} /></td>
+  <CattleThumb url={row.photo} />
+</td>
+
+<td style={tdStyle}>
+  <div style={{ fontWeight: "800", color: "#0f172a" }}>{row.tag || "-"}</div>
+  <div style={{ fontSize: "0.9rem", color: "#334155", marginTop: "2px" }}>
+    {row.name || "-"}
+  </div>
+  <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "2px" }}>
+    {safeId}
+  </div>
+</td>
+
+<td style={tdStyle}>
+  <div style={{ fontWeight: 600 }}>{row.breed || "-"}</div>
+  <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{row.color || ""}</div>
+</td>
+
+<td style={tdStyle}>{row.gender || "-"}</td>
+
+<td style={tdStyle}><StatusPill status={row.status} /></td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
                       <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
                           <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
@@ -331,6 +442,68 @@ export default function MasterCattle() {
   );
 }
 
+function SummaryChip({ label, value, color }) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderLeft: `4px solid ${color}`,
+        borderRadius: "10px",
+        padding: "0.65rem 0.9rem",
+        minWidth: "105px",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      }}
+    >
+      <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "1.15rem", color: "#0f172a", fontWeight: 800 }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function CattleThumb({ url }) {
+  if (!url || String(url).includes("drive.google.com")) {
+    return (
+      <div
+        style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "10px",
+          background: "#f1f5f9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "1.4rem",
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        🐄
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt="Cattle"
+      style={{
+        width: "48px",
+        height: "48px",
+        objectFit: "cover",
+        borderRadius: "10px",
+        border: "1px solid #e2e8f0",
+        background: "#f8fafc",
+      }}
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
 /* ------------------------------------------------
    PHOTO COMPONENT
    ------------------------------------------------ */
@@ -627,14 +800,53 @@ const EditInput = ({ label, name, value, onChange, type="text", options=[], plac
 
 const DetailItem = ({ label, value }) => { if(!value) return null; return <div><div style={labelItemStyle}>{label}</div><div style={{fontWeight:500, fontSize:"0.9rem"}}>{value}</div></div>; };
 const SectionTitle = ({ children }) => <div style={sectionTitleStyle}>{children}</div>;
-const StatusPill = ({ status }) => <span style={{background:"#dcfce7", padding:"4px 8px", borderRadius:"12px", fontSize:"0.75rem", color:"#166534", fontWeight:"bold"}}>{status}</span>;
+const StatusPill = ({ status }) => {
+  const s = String(status || "").toLowerCase();
+
+  let style = {
+    background: "#e2e8f0",
+    color: "#334155",
+  };
+
+  if (s === "active") style = { background: "#dcfce7", color: "#166534" };
+  else if (s.includes("dead")) style = { background: "#fee2e2", color: "#991b1b" };
+  else if (s.includes("sold")) style = { background: "#ffedd5", color: "#9a3412" };
+  else if (s.includes("deactive")) style = { background: "#f1f5f9", color: "#475569" };
+
+  return (
+    <span
+      style={{
+        ...style,
+        padding: "4px 10px",
+        borderRadius: "999px",
+        fontSize: "0.75rem",
+        fontWeight: 800,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
+      }}
+    >
+      {s === "active" ? "● " : ""}
+      {status || "-"}
+    </span>
+  );
+};
 const formatDate = (v) => (!v || v==="-") ? "-" : new Date(v).toLocaleDateString('en-GB');
 
 const cardStyle = { background: "#fff", borderRadius: "10px", padding: "0", boxShadow: "0 2px 5px rgba(0,0,0,0.1)", overflow:"hidden", border:"1px solid #e5e7eb" };
 const thStyle = { padding: "1rem", textAlign: "left", fontSize: "0.8rem", color: "#64748b", textTransform: "uppercase", background:"#f8fafc", borderBottom:"1px solid #e2e8f0" };
 const tdStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #f1f5f9", fontSize:"0.9rem", verticalAlign: "middle" };
 const inputStyle = { padding: "0.5rem", border: "1px solid #ccc", borderRadius: "5px", width: "100%", boxSizing:"border-box" };
-
+const filterInputStyle = {
+  padding: "0.6rem 0.75rem",
+  border: "1px solid #cbd5e1",
+  borderRadius: "8px",
+  width: "100%",
+  boxSizing: "border-box",
+  background: "#fff",
+  fontSize: "0.9rem",
+  color: "#334155",
+};
 const primaryBtnStyle = { 
   background: "#2563eb", 
   color: "#fff", 

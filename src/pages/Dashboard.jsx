@@ -3,7 +3,7 @@ import {
   getCattle, getMilkYield, getMilkDistribution, getNewBorn, getDattuYojana, getFeeding, getCattleExitLog,
 } from "../api/masterApi";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList, PieChart, Pie, Legend, CartesianGrid
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, CartesianGrid
 } from "recharts";
 
 // --- 1. ICONS (SVG) ---
@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -60,9 +61,31 @@ export default function Dashboard() {
         setLoading(true);
         setError("");
 
-        const [cattleRes, milkRes, distRes, newBornRes, dattuRes, feedingRes, exitRes] = await Promise.all([
-          getCattle(), getMilkYield(), getMilkDistribution(), getNewBorn(), getDattuYojana(), getFeeding(), getCattleExitLog(),
-        ]);
+        const results = await Promise.allSettled([
+  getCattle(),
+  getMilkYield(),
+  getMilkDistribution(),
+  getNewBorn(),
+  getDattuYojana(),
+  getFeeding(),
+  getCattleExitLog(),
+]);
+
+const getResult = (index) => {
+  if (results[index].status === "fulfilled") {
+    return results[index].value;
+  }
+  console.warn("Dashboard API failed:", index, results[index].reason);
+  return [];
+};
+
+const cattleRes = getResult(0);
+const milkRes = getResult(1);
+const distRes = getResult(2);
+const newBornRes = getResult(3);
+const dattuRes = getResult(4);
+const feedingRes = getResult(5);
+const exitRes = getResult(6);
 
         const cattle = toArray(cattleRes);
         const milkYield = toArray(milkRes);
@@ -189,6 +212,7 @@ export default function Dashboard() {
           { name: "Bulls", count: catCounts["Bulls"], color: "#f59e0b" }
         ];
         setCategoryData(catChart.filter(c => c.count > 0));
+        setLastRefreshTime(new Date());
 
       } catch (err) {
         console.error("Dashboard Load Error:", err);
@@ -207,67 +231,115 @@ export default function Dashboard() {
     <div style={{ padding: "1.5rem", maxWidth: "1600px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
       
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: "800", color: "#1e293b", margin: 0, letterSpacing: "-0.5px" }}>Dashboard</h1>
-          <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "0.95rem" }}>Operations overview & key performance indicators.</p>
-        </div>
-        <div style={{ background: "#fff", padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "0.9rem", color: "#475569", fontWeight: "600", whiteSpace: "nowrap", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
-          Date: <span style={{ color: "#1e293b" }}>{new Date().toLocaleDateString('en-GB')}</span>
-        </div>
-      </div>
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "2rem",
+    flexWrap: "wrap",
+    gap: "1rem",
+  }}
+>
+  <div>
+    <h1 style={{ fontSize: "1.8rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+      Dashboard
+    </h1>
+    <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "0.95rem" }}>
+      Operations overview & key performance indicators.
+    </p>
+  </div>
+
+  <div
+    style={{
+      background: "#fff",
+      padding: "0.55rem 1rem",
+      borderRadius: "10px",
+      border: "1px solid #e2e8f0",
+      whiteSpace: "nowrap",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+      lineHeight: 1.4,
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        fontSize: "0.8rem",
+        color: "#64748b",
+        fontWeight: "600",
+      }}
+    >
+      🕒 Updated:
+    </div>
+
+    <div style={{ color: "#1e293b", fontWeight: "600", fontSize: "0.85rem" }}>
+      {lastRefreshTime
+        ? `${lastRefreshTime.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })} | ${lastRefreshTime.toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`
+        : "Loading..."}
+    </div>
+  </div>
+</div>
 
       {/* --- HERO METRICS (UPDATED: Compact Grid 4-up) --- */}
       {/* Reduced minmax from 260px to 220px to allow 4 cards in one row on desktop */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "2.5rem" }}>
         
-        {/* 1. Active Cattle (Light Blue) */}
-        <HeroCard 
-          title="ACTIVE CATTLE" 
-          value={stats.activeCattle} 
-          trend="Total Head Count"
-          icon={Icons.cow} 
-          bg="linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)" // Light Blue Gradient
-          iconColor="#3b82f6" // Medium Blue Icon
-          textColor="#1e3a8a" // Dark Blue Text
-          trendColor="#60a5fa" // Lighter Blue Trend Color
-        />
+        {/* 1. Active Cattle */}
+<HeroCard 
+  title="ACTIVE CATTLE" 
+  value={stats.activeCattle} 
+  trend="● Total Head Count"
+  icon="🐄"
+  bg="linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)"
+  iconColor="#3b82f6"
+  textColor="#1e3a8a"
+  trendColor="#60a5fa"
+/>
 
-        {/* 2. Purebred Rate (Light Orange or Light Green) */}
-        <HeroCard 
-          title="PUREBRED RATE" 
-          value={`${stats.pureBredRate}%`} 
-          trend="Of Total Births (12M)"
-          icon={Icons.ribbon} 
-          bg={stats.pureBredRate < 75 ? "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)" : "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)"}
-          iconColor={stats.pureBredRate < 75 ? "#f59e0b" : "#10b981"}
-          textColor={stats.pureBredRate < 75 ? "#9a3412" : "#065f46"}
-          trendColor={stats.pureBredRate < 75 ? "#fbbf24" : "#34d399"}
-        />
+        {/* 2. Purebred Rate */}
+<HeroCard 
+  title="PUREBRED RATE" 
+  value={`${stats.pureBredRate}%`} 
+  trend={stats.pureBredRate < 75 ? "▼ Below Target" : "▲ On Target"}
+  icon="🏅"
+  bg={stats.pureBredRate < 75 ? "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)" : "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)"}
+  iconColor={stats.pureBredRate < 75 ? "#f59e0b" : "#10b981"}
+  textColor={stats.pureBredRate < 75 ? "#9a3412" : "#065f46"}
+  trendColor={stats.pureBredRate < 75 ? "#fbbf24" : "#34d399"}
+/>
 
-        {/* 3. Calf Mortality (Light Red or Light Green) */}
-        <HeroCard 
-          title="CALF MORTALITY (12M)" 
-          value={`${stats.calfMortality12M} (${stats.calfMortalityRate}%)`} 
-          trend="Annual Rate"
-          icon={Icons.alert} 
-          bg={stats.calfMortalityRate > 5 ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)"}
-          iconColor={stats.calfMortalityRate > 5 ? "#ef4444" : "#10b981"}
-          textColor={stats.calfMortalityRate > 5 ? "#991b1b" : "#065f46"}
-          trendColor={stats.calfMortalityRate > 5 ? "#f87171" : "#34d399"}
-        />
+       {/* 3. Calf Mortality */}
+<HeroCard 
+  title="CALF MORTALITY (12M)" 
+  value={`${stats.calfMortality12M} (${stats.calfMortalityRate}%)`} 
+  trend={stats.calfMortalityRate > 5 ? "▲ Needs Attention" : "● Within Limit"}
+  icon="⚠️"
+  bg={stats.calfMortalityRate > 5 ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)"}
+  iconColor={stats.calfMortalityRate > 5 ? "#ef4444" : "#10b981"}
+  textColor={stats.calfMortalityRate > 5 ? "#991b1b" : "#065f46"}
+  trendColor={stats.calfMortalityRate > 5 ? "#f87171" : "#34d399"}
+/>
 
-        {/* 4. Active Sponsors (Light Purple) */}
-        <HeroCard 
-          title="ACTIVE SPONSORS" 
-          value={stats.activeDattuYojana} 
-          trend={`${stats.sponsorshipCoverage}% Coverage`}
-          icon={Icons.rupee} 
-          bg="linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)" // Light Purple Gradient
-          iconColor="#8b5cf6"
-          textColor="#6b21a8"
-          trendColor="#a78bfa"
-        />
+        {/* 4. Active Sponsors */}
+<HeroCard 
+  title="ACTIVE SPONSORS" 
+  value={stats.activeDattuYojana} 
+  trend={stats.sponsorshipCoverage < 60 ? "▼ Low Coverage" : "▲ Good Coverage"}
+  icon="🤝"
+  bg="linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)"
+  iconColor="#8b5cf6"
+  textColor="#6b21a8"
+  trendColor="#a78bfa"
+/>
       </div>
 
       {/* --- MINI METRICS (Clean Look) --- */}
@@ -282,70 +354,169 @@ export default function Dashboard() {
       </div>
 
       {/* --- KEY OBSERVATIONS --- */}
-      <div style={{ 
-        background: "#fffbeb", 
-        border: "1px solid #fcd34d", 
-        padding: "1.5rem", 
-        borderRadius: "12px", 
-        marginBottom: "2.5rem", 
-        display: "flex", 
-        gap: "15px"
-      }}>
-        <div style={{ fontSize: "1.5rem" }}>📌</div>
-        <div>
-           <h3 style={{ margin: "0 0 8px 0", fontSize: "1rem", fontWeight: "700", color: "#92400e", textTransform: "uppercase" }}>Key Observations</h3>
-           <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#b45309", fontSize: "0.95rem", lineHeight: "1.6" }}>
-             {stats.pureBredRate < 75 && <li><strong>Purebred rate is low ({stats.pureBredRate}%)</strong>. Target: 75-80%.</li>}
-             {stats.sponsorshipCoverage < 60 && <li><strong>Sponsorship coverage is low ({stats.sponsorshipCoverage}%)</strong>. Target: 50-60%.</li>}
-             {stats.pureBredRate >= 75 && stats.sponsorshipCoverage >= 60 && <li>All Key Performance Indicators are within target ranges. Excellent work!</li>}
-           </ul>
-        </div>
-      </div>
+<div
+  style={{
+    background: "#fff7ed",
+    border: "1px solid #fb923c",
+    padding: "1.25rem 1.5rem",
+    borderRadius: "14px",
+    marginBottom: "2.5rem",
+    boxShadow: "0 4px 12px rgba(234, 88, 12, 0.08)",
+  }}
+>
+  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "0.75rem" }}>
+    <div style={{ fontSize: "1.4rem" }}>⚠️</div>
+    <h3
+      style={{
+        margin: 0,
+        fontSize: "1rem",
+        fontWeight: "800",
+        color: "#9a3412",
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+      }}
+    >
+      Attention Required
+    </h3>
+  </div>
 
-      {/* --- CHARTS --- */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "1.5rem" }}>
-        {/* Breed Chart */}
-        <div style={chartCardStyle}>
-          <h3 style={chartTitleStyle}>Breed Distribution</h3>
-          <div style={{ height: "300px", width: "100%" }}>
-            <ResponsiveContainer>
-              <BarChart data={breedData} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} angle={-25} textAnchor="end" height={60} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }} />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40}>
-                  <LabelList dataKey="count" position="top" style={{ fill: '#475569', fontSize: '0.75rem', fontWeight: 'bold' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  <ul style={{ margin: 0, paddingLeft: "1.5rem", color: "#7c2d12", fontSize: "0.95rem", lineHeight: "1.7" }}>
+    {stats.pureBredRate < 75 && (
+      <li>
+        <strong>Purebred rate is below target:</strong> Current {stats.pureBredRate}%, Target 75–80%.
+      </li>
+    )}
 
-        {/* Categories Chart */}
-        <div style={chartCardStyle}>
-          <h3 style={chartTitleStyle}>Herd Composition</h3>
-          <div style={{ height: "300px", width: "100%", position: "relative" }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="count" nameKey="name">
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }} />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.85rem', fontWeight: '600' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center Text */}
-            <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -60%)", textAlign: "center", pointerEvents: "none" }}>
-              <div style={{ fontSize: "2rem", fontWeight: "800", color: "#1e293b", lineHeight: 1 }}>{stats.activeCattle}</div>
-              <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total Head</div>
+    {stats.sponsorshipCoverage < 60 && (
+      <li>
+        <strong>Sponsorship coverage needs improvement:</strong> Current {stats.sponsorshipCoverage}%, Target 50–60%.
+      </li>
+    )}
+
+    {stats.calfMortalityRate > 5 && (
+      <li>
+        <strong>Calf mortality is above acceptable level:</strong> Current {stats.calfMortalityRate}%, Target below 5%.
+      </li>
+    )}
+
+    {stats.pureBredRate >= 75 && stats.sponsorshipCoverage >= 60 && stats.calfMortalityRate <= 5 && (
+      <li>All key performance indicators are within target range.</li>
+    )}
+  </ul>
+</div>
+
+     {/* --- CHARTS & HERD COMPOSITION --- */}
+<div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1.5rem" }}>
+  {/* Breed Chart - Horizontal */}
+  <div style={chartCardStyle}>
+    <h3 style={chartTitleStyle}>Breed Distribution</h3>
+
+    <div style={{ height: "360px", width: "100%" }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={breedData.slice(0, 12)}
+          layout="vertical"
+          margin={{ top: 10, right: 30, left: 60, bottom: 10 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+          <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={90}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
+          />
+          <Tooltip
+            cursor={{ fill: "#f8fafc" }}
+            contentStyle={{
+              borderRadius: "8px",
+              border: "none",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            }}
+          />
+          <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={18}>
+            <LabelList
+              dataKey="count"
+              position="right"
+              style={{ fill: "#475569", fontSize: "0.75rem", fontWeight: "bold" }}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+
+  {/* Herd Composition Cards */}
+  <div style={chartCardStyle}>
+    <h3 style={chartTitleStyle}>Herd Composition</h3>
+
+    <div style={{ display: "grid", gap: "1rem" }}>
+      {categoryData.map((item) => {
+        const percent = stats.activeCattle > 0 ? ((item.count / stats.activeCattle) * 100).toFixed(1) : 0;
+
+        const iconMap = {
+          Cows: "🐄",
+          Heifers: "🐮",
+          Calves: "🍼",
+          Bulls: "🐂",
+        };
+
+        return (
+          <div
+            key={item.name}
+            style={{
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              padding: "1rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderLeft: `5px solid ${item.color}`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+              <div style={{ fontSize: "1.6rem" }}>{iconMap[item.name] || "🐄"}</div>
+              <div>
+                <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                  {item.name}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: "2px" }}>
+                  {percent}% of active herd
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1e293b" }}>
+              {item.count}
             </div>
           </div>
-        </div>
+        );
+      })}
+    </div>
+
+    <div
+      style={{
+        marginTop: "1.25rem",
+        padding: "1rem",
+        borderRadius: "12px",
+        background: "#eff6ff",
+        border: "1px solid #bfdbfe",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 800, textTransform: "uppercase" }}>
+        Total Active Herd
+      </div>
+      <div style={{ fontSize: "2rem", fontWeight: 900, color: "#1e3a8a" }}>
+        {stats.activeCattle}
       </div>
     </div>
+  </div>
+</div>
+</div>
   );
 }
 
@@ -364,14 +535,53 @@ function HeroCard({ title, value, trend, icon, bg, iconColor, textColor, trendCo
     onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.8rem", position: "relative", zIndex: 2 }}>
-        <div style={{ background: "rgba(255,255,255,0.5)", padding: "8px", borderRadius: "12px", backdropFilter: "blur(4px)" }}>
-          <svg viewBox="0 0 24 24" fill={iconColor} width="22" height="22">{icon}</svg>
-        </div>
+        <div
+  style={{
+    background: "rgba(255,255,255,0.7)",
+    padding: "10px",
+    borderRadius: "14px",
+    backdropFilter: "blur(4px)",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+    fontSize: "28px",
+    lineHeight: 1,
+    width: "36px",
+    height: "36px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  }}
+>
+  {typeof icon === "string" ? (
+    <span>{icon}</span>
+  ) : (
+    <svg viewBox="0 0 24 24" fill={iconColor} width="28" height="28">
+      {icon}
+    </svg>
+  )}
+</div>
       </div>
       <div style={{ position: "relative", zIndex: 2 }}>
         <div style={{ fontSize: "0.8rem", opacity: 0.8, fontWeight: "700", marginBottom: "4px", letterSpacing: "0.5px", textTransform:"uppercase" }}>{title}</div>
-        <div style={{ fontSize: "2rem", fontWeight: "800", letterSpacing: "-1px", lineHeight: 1.1 }}>{value}</div>
-        <div style={{ marginTop: "6px", fontSize: "0.8rem", color: trendColor, fontWeight: "600" }}>{trend}</div>
+        <div style={{ fontSize: "2.6rem", fontWeight: "900", letterSpacing: "-1.5px", lineHeight: 1 }}>
+  {value}
+</div>
+        <div
+  style={{
+    marginTop: "10px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "0.8rem",
+    color: trendColor,
+    fontWeight: "700",
+    background: "rgba(255,255,255,0.55)",
+    padding: "4px 8px",
+    borderRadius: "999px",
+    width: "fit-content",
+  }}
+>
+  {trend}
+</div>
       </div>
     </div>
   );

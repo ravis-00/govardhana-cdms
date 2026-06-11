@@ -23,7 +23,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   
@@ -108,14 +108,14 @@ export default function Login() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               </div>
               <input
-                type="text" // Change to 'password' if you want dots
+                type={showPassword ? "text" : "password"} // Change to 'password' if you want dots
                 name="passwordField" // Add name to prevent browser confusion
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="login-input"
                 placeholder="••••••••"
                 required
-                style={{ WebkitTextSecurity: showPassword ? "none" : "disc" }} // Cleaner way to toggle visibility
+                // Cleaner way to toggle visibility
               />
               <div className="icon-right" onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? (
@@ -128,17 +128,9 @@ export default function Login() {
           </div>
 
           <div className="options-row">
-            <label className="checkbox-label">
-              <input 
-                type="checkbox" 
-                checked={rememberMe} 
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ accentColor: "#ea580c" }} 
-              />
-              <span className="remember-text">Remember me</span>
-            </label>
+            
             <button type="button" className="forgot-link" onClick={() => setShowModal(true)}>
-              Forgot password?
+              Need password help?
             </button>
           </div>
 
@@ -151,7 +143,7 @@ export default function Login() {
       </main>
 
       <footer className="login-footer">
-        © 2025 Rashtrotthana Parishat. All rights reserved.
+        © 2026 Rashtrotthana Parishat. Govardhana CDMS v1.0
       </footer>
 
       {/* --- MODAL --- */}

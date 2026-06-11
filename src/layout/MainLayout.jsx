@@ -136,7 +136,7 @@ export default function MainLayout() {
           </div>
 
           {/* NAVIGATION */}
-          <nav style={{ flex: 1 }}>
+          <nav>
             {menuGroups.map((group, gIdx) => (
               <div key={gIdx} style={{ marginBottom: "1rem" }}>
                 {group.title && (
@@ -211,7 +211,7 @@ export default function MainLayout() {
 
           {/* FOOTER */}
           <div style={{ padding: "0.8rem", fontSize: "0.65rem", color: "#64748b", textAlign: "center", background: "#020617" }}>
-              © 2025 Rashtrotthana Parishat
+              © 2026 Rashtrotthana Parishat
           </div>
         </aside>
 
