@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { fetchCattle, updateCattle } from "../api/masterApi"; 
+import { fetchCattle, updateCattle, getCattleExitLog } from "../api/masterApi"; 
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,6 +17,67 @@ function getRowId(row) {
   return row.internalId || row.id || row.internal_id || "";
 }
 
+function getExitLogForCattle(row, exitLogs = []) {
+  if (!row) return null;
+
+  const cattleId = String(getRowId(row) || "").toLowerCase().trim();
+  const tag = String(row.tag || "").toLowerCase().trim();
+
+  return exitLogs.find((log) => {
+    const logInternalId = String(
+      log.internal_id ||
+      log.internalId ||
+      log.rowInternalId ||
+      log.id ||
+      ""
+    ).toLowerCase().trim();
+
+    const logTagNumber = String(
+      log.tag_number ||
+      log.tagNumber ||
+      log.tag ||
+      log.tagNo ||
+      log.cattleId ||
+      ""
+    ).toLowerCase().trim();
+
+    return (
+      (cattleId && logInternalId && cattleId === logInternalId) ||
+      (tag && logTagNumber && tag === logTagNumber)
+    );
+  }) || null;
+}
+
+function getExitTypeForCattle(row, exitLogs = []) {
+  const match = getExitLogForCattle(row, exitLogs);
+
+  return String(
+    match?.exit_type ||
+    match?.exitType ||
+    match?.reason ||
+    match?.type ||
+    ""
+  ).toLowerCase().trim();
+}
+
+function getDeactiveCertificateLabel(exitType) {
+  if (!exitType) return null;
+
+  if (exitType.includes("death"))
+    return "📜 Death Certificate";
+
+  if (exitType.includes("sold") || exitType.includes("sale"))
+    return "📜 Sale Certificate";
+
+  if (exitType.includes("transfer"))
+    return "📜 Transfer Certificate";
+
+  if (exitType.includes("farmer"))
+    return "📜 Farmer Handover Certificate";
+
+  return null;
+}
+
 // --- DATE HELPER FOR CERTIFICATES ---
 function formatDateDisplay(isoDate) {
   if (!isoDate) return "";
@@ -30,20 +91,36 @@ export default function MasterCattle() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exitLogs, setExitLogs] = useState([]);
   const [statusFilter, setStatusFilter] = useState("Active");
 const [breedFilter, setBreedFilter] = useState("All");
 const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-
+  const [genderFilter, setGenderFilter] = useState("All");
+const [actionMenuId, setActionMenuId] = useState(null);
   const loadData = async () => {
     try {
       setLoading(true);
       setError("");
       const res = await fetchCattle();
-      if (Array.isArray(res)) setRows(res);
-      else if (res && res.data) setRows(res.data);
-      else setRows([]);
+if (Array.isArray(res)) setRows(res);
+else if (res && res.data) setRows(res.data);
+else setRows([]);
+
+const exitRes = await getCattleExitLog();
+console.log("EXIT LOG RESPONSE:", exitRes);
+
+const exitData = Array.isArray(exitRes)
+  ? exitRes
+  : Array.isArray(exitRes?.data)
+    ? exitRes.data
+    : [];
+
+console.log("EXIT LOG DATA COUNT:", exitData.length);
+console.log("FIRST EXIT LOG ROW:", exitData[0]);
+
+setExitLogs(exitData);
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to load data");
@@ -65,6 +142,12 @@ const [searchText, setSearchText] = useState("");
     const matchBreed =
       breedFilter === "All" || String(row.breed || "") === breedFilter;
 
+      const matchGender =
+  genderFilter === "All" ||
+  String(row.gender || "")
+    .toLowerCase()
+    .startsWith(genderFilter.toLowerCase());
+
     const haystack = `
       ${row.tag || ""}
       ${row.name || ""}
@@ -80,20 +163,39 @@ const [searchText, setSearchText] = useState("");
     return (
       matchStatus &&
       matchBreed &&
+      matchGender &&
       haystack.includes(searchText.toLowerCase())
     );
   });
-}, [rows, statusFilter, breedFilter, searchText]);
+}, [rows, statusFilter, breedFilter, genderFilter, searchText]);
 
   const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
-  const displayedRows = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredRows.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredRows, currentPage]);
+  const sortedRows = useMemo(() => {
+  return [...filteredRows].sort((a, b) => {
+    const idA = Number(String(getRowId(a)).replace(/\D/g, "")) || 0;
+    const idB = Number(String(getRowId(b)).replace(/\D/g, "")) || 0;
+    return idB - idA;
+  });
+}, [filteredRows]);
 
-  useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, searchText]);
+const displayedRows = useMemo(() => {
+  const start = (currentPage - 1) * ITEMS_PER_PAGE;
+  return sortedRows.slice(start, start + ITEMS_PER_PAGE);
+}, [sortedRows, currentPage]);
+
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, genderFilter, searchText]);
+  useEffect(() => {
+  setActionMenuId(null);
+}, [currentPage, statusFilter, breedFilter, genderFilter, searchText]);
   const handleNext = () => { if (currentPage < totalPages) setCurrentPage(p => p + 1); };
   const handlePrev = () => { if (currentPage > 1) setCurrentPage(p => p - 1); };
+  const handleClearFilters = () => {
+  setStatusFilter("All");
+  setBreedFilter("All");
+  setGenderFilter("All");
+  setSearchText("");
+  setCurrentPage(1);
+};
   const isAdmin = user?.role === "Admin" || user?.role === "Super Admin";
 
   const summary = useMemo(() => {
@@ -136,19 +238,26 @@ const breedOptions = useMemo(() => {
      🔥 CERTIFICATE GENERATION LOGIC
      ========================================= */
   const handleGenerateCert = (row) => {
-    const type = String(row.admissionType || "").toLowerCase();
-    
-    if (type.includes("born") || type.includes("birth")) {
-      printBirthCertificate(row);
-    } 
-    else if (type.includes("purchase") || type.includes("donation") || type.includes("farmer")) {
-      printIncomingCertificate(row);
-    } 
-    else {
-      alert("No certificate template available for Admission Type: " + row.admissionType);
-    }
-  };
+  const type = String(row.admissionType || "").toLowerCase();
 
+  if (type.includes("birth") || type.includes("born")) {
+    printBirthCertificate(row);
+  } else {
+    printIncomingCertificate(row);
+  }
+};
+
+const handleGenerateDeactiveCert = (row, exitType) => {
+  if (exitType.includes("sold") || exitType.includes("sale")) {
+    printDeactiveCertificate(row, "CATTLE SALE CERTIFICATE");
+  } else if (exitType.includes("death")) {
+    printDeactiveCertificate(row, "CATTLE DEATH CERTIFICATE");
+  } else if (exitType.includes("transfer")) {
+    printDeactiveCertificate(row, "CATTLE TRANSFER CERTIFICATE");
+  } else if (exitType.includes("farmer")) {
+    printDeactiveCertificate(row, "FARMER HANDOVER CERTIFICATE");
+  }
+};
   // --- 1. BIRTH CERTIFICATE TEMPLATE ---
   const printBirthCertificate = (row) => {
     const html = `
@@ -253,6 +362,108 @@ const breedOptions = useMemo(() => {
     if (win) { win.document.write(html); win.document.close(); }
   };
 
+  const printDeactiveCertificate = (row, certificateTitle) => {
+  const exitLog = getExitLogForCattle(row, exitLogs);
+  const exitType = getExitTypeForCattle(row, exitLogs);
+
+  const isDeath = exitType.includes("death");
+  const isSale = exitType.includes("sold") || exitType.includes("sale");
+  const isTransfer = exitType.includes("transfer");
+  const isFarmer = exitType.includes("farmer");
+
+  const exitDate = formatDateDisplay(exitLog?.exit_date || exitLog?.date || "");
+  const partyName = exitLog?.party_name || exitLog?.partyName || "";
+  const partyContact = exitLog?.party_contact || exitLog?.partyContact || "";
+  const partyAddress = exitLog?.party_address || exitLog?.partyAddress || "";
+  const amount = exitLog?.amount || "";
+  const refNo = exitLog?.ref_no || exitLog?.refNo || "";
+  const gatePass = exitLog?.gate_pass || exitLog?.gatePass || "";
+  const receiptNo = exitLog?.receipt_no || exitLog?.receiptNo || "";
+  const causeDetails = exitLog?.cause_details || exitLog?.causeDetails || "";
+  const remarks = exitLog?.remarks || "";
+  const teethDetails = exitLog?.teeth_details || exitLog?.teethDetails || "";
+  const teethAge = exitLog?.teeth_age || exitLog?.teethAge || "";
+  const pregnancyStatus = exitLog?.preganancy_status || exitLog?.pregnancy_status || "";
+  const marketValue = exitLog?.market_value || exitLog?.marketValue || "";
+
+  const transactionRows = isDeath
+    ? `
+      <tr><td><span class="label">DATE OF DEATH:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">CAUSE:</span> <span class="value">${causeDetails || "-"}</span></td></tr>
+      <tr><td><span class="label">TEETH DETAILS:</span> <span class="value">${teethDetails || "-"}</span></td><td><span class="label">AGE BY TEETH:</span> <span class="value">${teethAge || "-"}</span></td></tr>
+      <tr><td><span class="label">PREGNANCY STATUS:</span> <span class="value">${pregnancyStatus || "-"}</span></td><td><span class="label">REMARKS:</span> <span class="value">${remarks || "-"}</span></td></tr>
+    `
+    : isSale
+    ? `
+      <tr><td><span class="label">SALE DATE:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">SOLD TO:</span> <span class="value">${partyName || "-"}</span></td></tr>
+      <tr><td><span class="label">CONTACT:</span> <span class="value">${partyContact || "-"}</span></td><td><span class="label">AMOUNT:</span> <span class="value">${amount || "-"}</span></td></tr>
+      <tr><td><span class="label">ADDRESS:</span> <span class="value">${partyAddress || "-"}</span></td><td><span class="label">RECEIPT NO:</span> <span class="value">${receiptNo || "-"}</span></td></tr>
+      <tr><td><span class="label">REF NO:</span> <span class="value">${refNo || "-"}</span></td><td><span class="label">GATE PASS:</span> <span class="value">${gatePass || "-"}</span></td></tr>
+    `
+    : isTransfer || isFarmer
+    ? `
+      <tr><td><span class="label">HANDOVER DATE:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">HANDED OVER TO:</span> <span class="value">${partyName || "-"}</span></td></tr>
+      <tr><td><span class="label">CONTACT:</span> <span class="value">${partyContact || "-"}</span></td><td><span class="label">MARKET VALUE:</span> <span class="value">${marketValue || "-"}</span></td></tr>
+      <tr><td><span class="label">ADDRESS:</span> <span class="value">${partyAddress || "-"}</span></td><td><span class="label">GATE PASS:</span> <span class="value">${gatePass || "-"}</span></td></tr>
+      <tr><td><span class="label">TEETH DETAILS:</span> <span class="value">${teethDetails || "-"}</span></td><td><span class="label">AGE BY TEETH:</span> <span class="value">${teethAge || "-"}</span></td></tr>
+      <tr><td><span class="label">PREGNANCY STATUS:</span> <span class="value">${pregnancyStatus || "-"}</span></td><td><span class="label">REMARKS:</span> <span class="value">${remarks || "-"}</span></td></tr>
+    `
+    : "";
+
+  const html = `
+    <html>
+    <head>
+      <title>${certificateTitle} - ${row.tag}</title>
+      <style>
+        body { font-family: "Times New Roman", serif; padding: 20px; text-align: center; }
+        .container { border: 3px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; }
+        .header h1 { font-size: 22px; font-weight: 800; margin: 0; text-decoration: underline; }
+        .header h2 { font-size: 16px; font-weight: 700; margin: 5px 0; }
+        .cert-title { border: 2px solid #000; padding: 6px; font-size: 18px; font-weight: 800; width: 100%; margin-top: 10px; background: #eee; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 2px solid #000; }
+        td { border: 1px solid #000; padding: 10px; text-align: left; width: 50%; font-size: 14px; vertical-align: middle; }
+        .label { font-weight: 800; text-transform: uppercase; margin-right: 5px; }
+        .value { font-weight: 500; text-transform: uppercase; }
+        .footer { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 30px; }
+        .sign-line { width: 180px; border-bottom: 1px solid #000; margin-bottom: 8px; }
+        .sign-label { font-weight: 700; font-size: 13px; text-transform: uppercase; }
+        @media print { @page { size: A4; margin: 10mm; } body { padding: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <h2>SS GHATI DODDABALLAPURA</h2>
+          <div class="cert-title">${certificateTitle}</div>
+        </div>
+
+        <div style="width:100%; height:260px; border:2px solid #000; margin:15px 0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+          ${row.photo ? `<img src="${row.photo}" style="height:100%; object-fit:contain;" />` : `<div style="color:#999; font-style:italic;">[ Photo Not Provided ]</div>`}
+        </div>
+
+        <table>
+          <tr><td><span class="label">TAG NO:</span> <span class="value">${row.tag || "-"}</span></td><td><span class="label">NAME:</span> <span class="value">${row.name || "-"}</span></td></tr>
+          <tr><td><span class="label">BREED:</span> <span class="value">${row.breed || "-"}</span></td><td><span class="label">GENDER:</span> <span class="value">${row.gender || "-"}</span></td></tr>
+          <tr><td><span class="label">COLOUR:</span> <span class="value">${row.color || "-"}</span></td><td><span class="label">CATEGORY:</span> <span class="value">${row.category || "-"}</span></td></tr>
+          ${transactionRows}
+        </table>
+
+        <div class="footer">
+          <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">SUPERVISOR SIGNATURE</div></div>
+          <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">PROJECT MANAGER SIGNATURE</div></div>
+        </div>
+      </div>
+      <script>setTimeout(() => window.print(), 500);</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+};
   if (loading) return <div style={{ padding: "2rem" }}>Loading Master Data...</div>;
   if (error) return <div style={{ padding: "2rem", color: "red" }}>{error}</div>;
 
@@ -289,18 +500,42 @@ const breedOptions = useMemo(() => {
 
   {/* SUMMARY CHIPS */}
   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-    <SummaryChip label="Total" value={summary.total} color="#2563eb" />
-<SummaryChip label="Active" value={summary.active} color="#16a34a" />
-<SummaryChip label="Active Female" value={summary.female} color="#ec4899" />
-<SummaryChip label="Active Male" value={summary.male} color="#3b82f6" />
-<SummaryChip label="Active Breeds" value={summary.breeds} color="#f97316" />
+    <SummaryChip label="Total" value={summary.total} color="#2563eb" onClick={() => {
+  setStatusFilter("All");
+  setGenderFilter("All");
+  setBreedFilter("All");
+}} />
+
+<SummaryChip label="Active" value={summary.active} color="#16a34a" onClick={() => {
+  setStatusFilter("Active");
+  setGenderFilter("All");
+  setBreedFilter("All");
+}} />
+
+<SummaryChip label="Active Female" value={summary.female} color="#ec4899" onClick={() => {
+  setStatusFilter("Active");
+  setGenderFilter("Female");
+  setBreedFilter("All");
+}} />
+
+<SummaryChip label="Active Male" value={summary.male} color="#3b82f6" onClick={() => {
+  setStatusFilter("Active");
+  setGenderFilter("Male");
+  setBreedFilter("All");
+}} />
+
+<SummaryChip label="Active Breeds" value={summary.breeds} color="#f97316" onClick={() => {
+  setStatusFilter("Active");
+  setGenderFilter("All");
+  setBreedFilter("All");
+}} />
   </div>
 
   {/* FILTERS */}
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "180px 220px 1fr",
+      gridTemplateColumns: "140px 160px 160px 1fr 120px",
       gap: "0.75rem",
       alignItems: "center",
     }}
@@ -311,18 +546,68 @@ const breedOptions = useMemo(() => {
 
     <select value={breedFilter} onChange={e => setBreedFilter(e.target.value)} style={filterInputStyle}>
       {breedOptions.map(b => <option key={b} value={b}>{b === "All" ? "All Breeds" : b}</option>)}
-    </select>
+</select>
 
-    <input
-      type="text"
-      placeholder="Search Tag, Name, Breed, Colour, UID..."
-      value={searchText}
-      onChange={e => setSearchText(e.target.value)}
-      style={filterInputStyle}
-    />
+<select
+  value={genderFilter}
+  onChange={e => setGenderFilter(e.target.value)}
+  style={filterInputStyle}
+>
+  <option value="All">All Gender</option>
+  <option value="Female">Female</option>
+  <option value="Male">Male</option>
+</select>
+
+<div style={searchBoxWrapStyle}>
+  <input
+    type="text"
+    placeholder="Search Tag, Name, Breed, Colour, UID..."
+    value={searchText}
+    onChange={e => setSearchText(e.target.value)}
+    style={searchInputStyle}
+  />
+
+  {searchText && (
+    <button
+      type="button"
+      onClick={() => setSearchText("")}
+      style={clearSearchBtnStyle}
+      title="Clear search"
+    >
+      ×
+    </button>
+  )}
+</div>
   </div>
 </div>
 
+<button
+  type="button"
+  onClick={handleClearFilters}
+  style={clearFiltersBtnStyle}
+>
+  Clear Filters
+</button>
+
+{filteredRows.length > 0 && (
+  <div style={topPaginationStyle}>
+    <button onClick={handlePrev} disabled={currentPage === 1} style={pageBtnStyle}>
+      ‹ Prev
+    </button>
+
+    <span style={pageNumberStyle}>
+      Page {currentPage} of {totalPages || 1}
+    </span>
+
+    <button
+      onClick={handleNext}
+      disabled={currentPage === totalPages || totalPages === 0}
+      style={pageBtnStyle}
+    >
+      Next ›
+    </button>
+  </div>
+)}
       {/* TABLE */}
       <div
   style={{
@@ -365,70 +650,150 @@ const breedOptions = useMemo(() => {
 </tr>
           </thead>
           <tbody>
-            {displayedRows.length === 0 ? (
-               <tr><td colSpan={6} style={{padding:"2rem", textAlign:"center", color:"#999"}}>No records found.</td></tr>
-            ) : (
-              displayedRows.map((row, idx) => {
-                const type = String(row.admissionType || "").toLowerCase();
-                const showCert = !type.includes("rescue") && !type.includes("slaughter"); 
-                // 🔥 GET ID SAFELY
-                const safeId = getRowId(row);
+  {displayedRows.length === 0 ? (
+    <tr>
+      <td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "#999" }}>
+        No records found.
+      </td>
+    </tr>
+  ) : (
+    displayedRows.map((row, idx) => {
+      const type = String(row.admissionType || "").toLowerCase();
+const isActiveRow = String(row.status || "").toLowerCase() === "active";
+const isDeactiveRow = String(row.status || "").toLowerCase() === "deactive";
 
-                return (
-                  <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={tdStyle}>
-  <CattleThumb url={row.photo} />
-</td>
+const safeId = getRowId(row);
+const exitType = getExitTypeForCattle(row, exitLogs);
+const deactiveCertLabel = getDeactiveCertificateLabel(exitType);
 
-<td style={tdStyle}>
-  <div style={{ fontWeight: "800", color: "#0f172a" }}>{row.tag || "-"}</div>
-  <div style={{ fontSize: "0.9rem", color: "#334155", marginTop: "2px" }}>
-    {row.name || "-"}
-  </div>
-  <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "2px" }}>
-    {safeId}
-  </div>
-</td>
+if (isDeactiveRow && row.tag === "632643") {
+  console.log("MATCH TEST FOR 632643:", {
+    rowTag: row.tag,
+    rowInternalId: safeId,
+    exitType,
+    deactiveCertLabel,
+    exitLogsCount: exitLogs.length,
+    firstExitLog: exitLogs[0],
+  });
+}
 
-<td style={tdStyle}>
-  <div style={{ fontWeight: 600 }}>{row.breed || "-"}</div>
-  <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{row.color || ""}</div>
-</td>
 
-<td style={tdStyle}>{row.gender || "-"}</td>
+      return (
+  <tr
+    key={idx}
+    onClick={() => setSelected(row)}
+    style={{
+  borderBottom: "1px solid #f1f5f9",
+  cursor: "pointer",
+  background:
+    String(row.status || "").toLowerCase() === "deactive"
+      ? "#fff7ed"
+      : "#ffffff",
+}}
+  >
+    <td style={tdStyle}>
+      <CattleThumb url={row.photo} />
+    </td>
 
-<td style={tdStyle}><StatusPill status={row.status} /></td>
-                    <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
-                          <button onClick={() => setSelected(row)} style={viewBtnStyle}>👁️ View</button>
-                          
-                          {showCert && (
-                              <button 
-                                  onClick={() => handleGenerateCert(row)} 
-                                  style={certBtnStyle}
-                                  title={type.includes("born") || type.includes("birth") ? "Birth Certificate" : "Incoming Certificate"}
-                              >
-                                  📜 Cert
-                              </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+    <td style={tdStyle}>
+      <div style={{ fontWeight: "800", color: "#0f172a" }}>{row.tag || "-"}</div>
+      <div style={{ fontSize: "0.9rem", color: "#334155", marginTop: "2px" }}>
+        {row.name || "-"}
+      </div>
+      <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "2px" }}>
+        {safeId}
+      </div>
+    </td>
+
+    <td style={tdStyle}>
+      <div style={{ fontWeight: 600 }}>{row.breed || "-"}</div>
+      <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{row.color || ""}</div>
+    </td>
+
+    <td style={tdStyle}>{row.gender || "-"}</td>
+
+    <td style={tdStyle}>
+      <StatusPill status={row.status} />
+    </td>
+
+    <td style={{ ...tdStyle, textAlign: "center" }}>
+      <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActionMenuId(actionMenuId === safeId ? null : safeId);
+          }}
+          style={menuBtnStyle}
+          title="Actions"
+        >
+          ⋮
+        </button>
+
+        {actionMenuId === safeId && (
+          <div style={actionMenuStyle} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              style={actionMenuItemStyle}
+              onClick={() => {
+                setActionMenuId(null);
+                setSelected(row);
+              }}
+            >
+              👁 View Details
+            </button>
+
+            {isActiveRow && (
+              <button
+                type="button"
+                style={actionMenuItemStyle}
+                onClick={() => {
+                  setActionMenuId(null);
+                  handleGenerateCert(row);
+                }}
+              >
+                {type.includes("birth") || type.includes("born")
+                  ? "📜 Birth Certificate"
+                  : "📜 Incoming Certificate"}
+              </button>
             )}
-          </tbody>
-        </table>
-        </div>
 
-        {filteredRows.length > 0 && (
-          <div style={paginationStyle}>
-             <button onClick={handlePrev} disabled={currentPage === 1} style={pageBtnStyle}>Prev</button>
-             <span style={pageNumberStyle}>Page {currentPage} of {totalPages || 1}</span>
-             <button onClick={handleNext} disabled={currentPage === totalPages || totalPages === 0} style={pageBtnStyle}>Next</button>
+            {isDeactiveRow && deactiveCertLabel && (
+              <button
+                type="button"
+                style={actionMenuItemStyle}
+                onClick={() => {
+                  setActionMenuId(null);
+                  handleGenerateDeactiveCert(row, exitType);
+                }}
+              >
+                {deactiveCertLabel}
+              </button>
+            )}
+
+            <button
+              type="button"
+              style={actionMenuItemStyle}
+              onClick={() => {
+                setActionMenuId(null);
+                alert("Pedigree shortcut will be connected next.");
+              }}
+            >
+              🌳 Pedigree
+            </button>
           </div>
         )}
       </div>
+    </td>
+  </tr>
+);
+    })
+  )}
+</tbody>
+</table>
+</div>
+
+</div>
 
       {/* MODAL */}
       {selected && (
@@ -442,9 +807,11 @@ const breedOptions = useMemo(() => {
   );
 }
 
-function SummaryChip({ label, value, color }) {
+function SummaryChip({ label, value, color, onClick }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       style={{
         background: "#fff",
         border: "1px solid #e2e8f0",
@@ -453,6 +820,8 @@ function SummaryChip({ label, value, color }) {
         padding: "0.65rem 0.9rem",
         minWidth: "105px",
         boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        textAlign: "left",
+        cursor: "pointer",
       }}
     >
       <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
@@ -461,30 +830,34 @@ function SummaryChip({ label, value, color }) {
       <div style={{ fontSize: "1.15rem", color: "#0f172a", fontWeight: 800 }}>
         {value}
       </div>
-    </div>
+    </button>
   );
 }
 
 function CattleThumb({ url }) {
-  if (!url || String(url).includes("drive.google.com")) {
-    return (
-      <div
-        style={{
-          width: "48px",
-          height: "48px",
-          borderRadius: "10px",
-          background: "#f1f5f9",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1.4rem",
-          border: "1px solid #e2e8f0",
-        }}
-      >
-        🐄
-      </div>
-    );
-  }
+  const [hasError, setHasError] = useState(false);
+
+  const placeholder = (
+    <div
+      style={{
+        width: "48px",
+        height: "48px",
+        borderRadius: "10px",
+        background: "#f8fafc",
+        border: "1px dashed #cbd5e1",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#94a3b8",
+      }}
+    >
+      <div style={{ fontSize: "1.1rem", lineHeight: 1 }}>🐄</div>
+      <div style={{ fontSize: "0.55rem", marginTop: "2px" }}>No Photo</div>
+    </div>
+  );
+
+  if (!url || hasError) return placeholder;
 
   return (
     <img
@@ -498,9 +871,7 @@ function CattleThumb({ url }) {
         border: "1px solid #e2e8f0",
         background: "#f8fafc",
       }}
-      onError={(e) => {
-        e.currentTarget.style.display = "none";
-      }}
+      onError={() => setHasError(true)}
     />
   );
 }
@@ -847,6 +1218,46 @@ const filterInputStyle = {
   fontSize: "0.9rem",
   color: "#334155",
 };
+const searchBoxWrapStyle = {
+  position: "relative",
+  width: "100%",
+};
+
+const searchInputStyle = {
+  ...filterInputStyle,
+  paddingRight: "2.5rem",
+};
+
+const clearSearchBtnStyle = {
+  position: "absolute",
+  right: "10px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "22px",
+  height: "22px",
+  border: "none",
+  borderRadius: "50%",
+  background: "#e2e8f0",
+  color: "#334155",
+  fontSize: "14px",
+  fontWeight: "bold",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 10,
+};
+
+const clearFiltersBtnStyle = {
+  padding: "0.6rem 0.75rem",
+  border: "1px solid #cbd5e1",
+  borderRadius: "8px",
+  background: "#fff",
+  color: "#334155",
+  fontSize: "0.85rem",
+  fontWeight: "600",
+  cursor: "pointer",
+};
 const primaryBtnStyle = { 
   background: "#2563eb", 
   color: "#fff", 
@@ -862,7 +1273,43 @@ const primaryBtnStyle = {
   justifyContent: "center",
   boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
 };
+const menuBtnStyle = {
+  width: "34px",
+  height: "30px",
+  borderRadius: "6px",
+  border: "1px solid #cbd5e1",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: "1.2rem",
+  fontWeight: "700",
+  color: "#334155",
+};
 
+const actionMenuStyle = {
+  position: "absolute",
+  top: "34px",
+  right: "0",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  boxShadow: "0 10px 25px rgba(15,23,42,0.15)",
+  minWidth: "180px",
+  padding: "0.4rem",
+  zIndex: 50,
+};
+
+const actionMenuItemStyle = {
+  width: "100%",
+  padding: "0.55rem 0.75rem",
+  border: "none",
+  background: "transparent",
+  textAlign: "left",
+  cursor: "pointer",
+  borderRadius: "7px",
+  fontSize: "0.85rem",
+  fontWeight: "600",
+  color: "#334155",
+};
 const viewBtnStyle = { background: "#eff6ff", color: "#1d4ed8", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bfdbfe", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
 const certBtnStyle = { background: "#f0fdf4", color: "#15803d", padding: "6px 10px", borderRadius: "5px", border: "1px solid #bbf7d0", cursor: "pointer", fontSize:"0.8rem", fontWeight:600 };
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 };
@@ -877,9 +1324,22 @@ const saveBtnStyle = { background: "#16a34a", color:"#fff", border:"none", paddi
 const cancelBtnStyle = { background: "#fff", color:"#666", border:"1px solid #ccc", padding:"6px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600 };
 const closeBtnStyle = { background: "none", border:"none", fontSize:"2rem", cursor:"pointer", color:"#9ca3af", lineHeight:1};
 const paginationStyle = { display: "flex", justifyContent: "space-between", alignItems:"center", padding:"1rem", background:"#f8fafc", borderTop:"1px solid #e2e8f0" };
-const pageBtnStyle = { padding: "6px 12px", border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", borderRadius:"4px", fontSize:"0.85rem" };
+const pageBtnStyle = {
+  padding: "4px 10px",
+  border: "1px solid #cbd5e1",
+  background: "#fff",
+  cursor: "pointer",
+  borderRadius: "6px",
+  fontSize: "0.8rem",
+};
 const pageNumberStyle = { padding: "6px 10px", fontWeight:600, color:"#334155" };
-
+const topPaginationStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  alignItems: "center",
+  gap: "0.5rem",
+  marginBottom: "0.5rem",
+};
 const largePhotoContainerStyle = { width: "100%", height: "300px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "12px", border: "1px solid #e5e7eb", marginBottom: "1.5rem" };
 const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };
 const placeholderStyle = { display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.9rem", color:"#999", textAlign:"center", width:"100%" };
