@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { fetchCattle, updateCattle, getCattleExitLog } from "../api/masterApi"; 
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import rashtrotthanaLogo from "../assets/Logo.png";
 
 // --- CLOUDINARY CONFIG ---
 const CLOUD_NAME = "dvcwgkszp";       
@@ -86,6 +87,31 @@ function formatDateDisplay(isoDate) {
   return isoDate;
 }
 
+function formatCertificateDate(dateValue) {
+  if (!dateValue) return "-";
+
+  const parts = String(dateValue).split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+
+  return dateValue;
+}
+
+function getCertificateDateCode(dateValue) {
+  if (!dateValue) return "00000000";
+
+  const parts = String(dateValue).split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}${parts[1]}${parts[0]}`;
+  }
+
+  return String(dateValue).replace(/\D/g, "") || "00000000";
+}
+
+function getCertificateNo(prefix, internalId, eventDate) {
+  return `${prefix}-${internalId || "NA"}-${getCertificateDateCode(eventDate)}`;
+}
 export default function MasterCattle() {
   const { user } = useAuth(); 
   const [rows, setRows] = useState([]);
@@ -248,15 +274,29 @@ const breedOptions = useMemo(() => {
 };
 
 const handleGenerateDeactiveCert = (row, exitType) => {
-  if (exitType.includes("sold") || exitType.includes("sale")) {
-    printDeactiveCertificate(row, "CATTLE SALE CERTIFICATE");
-  } else if (exitType.includes("death")) {
+  const t = String(exitType || "").toLowerCase().trim();
+
+  if (t.includes("death")) {
     printDeactiveCertificate(row, "CATTLE DEATH CERTIFICATE");
-  } else if (exitType.includes("transfer")) {
-    printDeactiveCertificate(row, "CATTLE TRANSFER CERTIFICATE");
-  } else if (exitType.includes("farmer")) {
-    printDeactiveCertificate(row, "FARMER HANDOVER CERTIFICATE");
+    return;
   }
+
+  if (t.includes("sold") || t.includes("sale")) {
+    printSaleCertificate(row);
+    return;
+  }
+
+  if (t.includes("transfer")) {
+    printTransferCertificate(row);
+    return;
+  }
+
+  if (t.includes("farmer")) {
+    printFarmerHandoverCertificate(row);
+    return;
+  }
+
+  alert(`Certificate format not available for exit type: ${exitType || "Unknown"}`);
 };
   // --- 1. BIRTH CERTIFICATE TEMPLATE ---
   const printBirthCertificate = (row) => {
@@ -366,93 +406,1150 @@ const handleGenerateDeactiveCert = (row, exitType) => {
   const exitLog = getExitLogForCattle(row, exitLogs);
   const exitType = getExitTypeForCattle(row, exitLogs);
 
-  const isDeath = exitType.includes("death");
-  const isSale = exitType.includes("sold") || exitType.includes("sale");
-  const isTransfer = exitType.includes("transfer");
-  const isFarmer = exitType.includes("farmer");
+  const internalId = getRowId(row);
+  const eventDate = exitLog?.exit_date || exitLog?.date || "";
+  const certificateNo = getCertificateNo("DC", internalId, eventDate);
+  const generatedOn = formatCertificateDate(new Date().toISOString().slice(0, 10));
 
-  const exitDate = formatDateDisplay(exitLog?.exit_date || exitLog?.date || "");
-  const partyName = exitLog?.party_name || exitLog?.partyName || "";
-  const partyContact = exitLog?.party_contact || exitLog?.partyContact || "";
-  const partyAddress = exitLog?.party_address || exitLog?.partyAddress || "";
-  const amount = exitLog?.amount || "";
-  const refNo = exitLog?.ref_no || exitLog?.refNo || "";
-  const gatePass = exitLog?.gate_pass || exitLog?.gatePass || "";
-  const receiptNo = exitLog?.receipt_no || exitLog?.receiptNo || "";
-  const causeDetails = exitLog?.cause_details || exitLog?.causeDetails || "";
-  const remarks = exitLog?.remarks || "";
-  const teethDetails = exitLog?.teeth_details || exitLog?.teethDetails || "";
-  const teethAge = exitLog?.teeth_age || exitLog?.teethAge || "";
-  const pregnancyStatus = exitLog?.preganancy_status || exitLog?.pregnancy_status || "";
-  const marketValue = exitLog?.market_value || exitLog?.marketValue || "";
+  const causeDetails =
+    exitLog?.cause_details ||
+    exitLog?.causeDetails ||
+    exitLog?.reason ||
+    "Not recorded";
 
-  const transactionRows = isDeath
-    ? `
-      <tr><td><span class="label">DATE OF DEATH:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">CAUSE:</span> <span class="value">${causeDetails || "-"}</span></td></tr>
-      <tr><td><span class="label">TEETH DETAILS:</span> <span class="value">${teethDetails || "-"}</span></td><td><span class="label">AGE BY TEETH:</span> <span class="value">${teethAge || "-"}</span></td></tr>
-      <tr><td><span class="label">PREGNANCY STATUS:</span> <span class="value">${pregnancyStatus || "-"}</span></td><td><span class="label">REMARKS:</span> <span class="value">${remarks || "-"}</span></td></tr>
-    `
-    : isSale
-    ? `
-      <tr><td><span class="label">SALE DATE:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">SOLD TO:</span> <span class="value">${partyName || "-"}</span></td></tr>
-      <tr><td><span class="label">CONTACT:</span> <span class="value">${partyContact || "-"}</span></td><td><span class="label">AMOUNT:</span> <span class="value">${amount || "-"}</span></td></tr>
-      <tr><td><span class="label">ADDRESS:</span> <span class="value">${partyAddress || "-"}</span></td><td><span class="label">RECEIPT NO:</span> <span class="value">${receiptNo || "-"}</span></td></tr>
-      <tr><td><span class="label">REF NO:</span> <span class="value">${refNo || "-"}</span></td><td><span class="label">GATE PASS:</span> <span class="value">${gatePass || "-"}</span></td></tr>
-    `
-    : isTransfer || isFarmer
-    ? `
-      <tr><td><span class="label">HANDOVER DATE:</span> <span class="value">${exitDate || "-"}</span></td><td><span class="label">HANDED OVER TO:</span> <span class="value">${partyName || "-"}</span></td></tr>
-      <tr><td><span class="label">CONTACT:</span> <span class="value">${partyContact || "-"}</span></td><td><span class="label">MARKET VALUE:</span> <span class="value">${marketValue || "-"}</span></td></tr>
-      <tr><td><span class="label">ADDRESS:</span> <span class="value">${partyAddress || "-"}</span></td><td><span class="label">GATE PASS:</span> <span class="value">${gatePass || "-"}</span></td></tr>
-      <tr><td><span class="label">TEETH DETAILS:</span> <span class="value">${teethDetails || "-"}</span></td><td><span class="label">AGE BY TEETH:</span> <span class="value">${teethAge || "-"}</span></td></tr>
-      <tr><td><span class="label">PREGNANCY STATUS:</span> <span class="value">${pregnancyStatus || "-"}</span></td><td><span class="label">REMARKS:</span> <span class="value">${remarks || "-"}</span></td></tr>
-    `
-    : "";
+  const remarks = exitLog?.remarks || "No remarks recorded";
+  const teethDetails = exitLog?.teeth_details || exitLog?.teethDetails || "Not recorded";
+  const teethAge = exitLog?.teeth_age || exitLog?.teethAge || "Not recorded";
+  const pregnancyStatus =
+    exitLog?.preganancy_status ||
+    exitLog?.pregnancy_status ||
+    "Not recorded";
+
+  const showPregnancy = String(row.gender || "").toLowerCase().startsWith("f");
 
   const html = `
     <html>
     <head>
       <title>${certificateTitle} - ${row.tag}</title>
       <style>
-        body { font-family: "Times New Roman", serif; padding: 20px; text-align: center; }
-        .container { border: 3px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; }
-        .header h1 { font-size: 22px; font-weight: 800; margin: 0; text-decoration: underline; }
-        .header h2 { font-size: 16px; font-weight: 700; margin: 5px 0; }
-        .cert-title { border: 2px solid #000; padding: 6px; font-size: 18px; font-weight: 800; width: 100%; margin-top: 10px; background: #eee; box-sizing: border-box; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 2px solid #000; }
-        td { border: 1px solid #000; padding: 10px; text-align: left; width: 50%; font-size: 14px; vertical-align: middle; }
-        .label { font-weight: 800; text-transform: uppercase; margin-right: 5px; }
-        .value { font-weight: 500; text-transform: uppercase; }
-        .footer { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 30px; }
-        .sign-line { width: 180px; border-bottom: 1px solid #000; margin-bottom: 8px; }
-        .sign-label { font-weight: 700; font-size: 13px; text-transform: uppercase; }
-        @media print { @page { size: A4; margin: 10mm; } body { padding: 0; } }
+        body {
+          font-family: "Times New Roman", serif;
+          padding: 18px;
+          color: #000;
+        }
+
+        .container {
+          border: 3px solid #000;
+          padding: 14px 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .header {
+          text-align: center;
+          position: relative;
+          padding-top: 4px;
+        }
+
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+          margin-bottom: 4px;
+        }
+
+        .org-title {
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: underline;
+          margin: 0;
+        }
+
+        .org-subtitle {
+          font-size: 14px;
+          font-weight: 700;
+          margin: 4px 0 10px 0;
+        }
+
+        .cert-title {
+          border: 2px solid #000;
+          padding: 7px;
+          font-size: 17px;
+          font-weight: 800;
+          background: #eee;
+          margin-bottom: 10px;
+        }
+
+        .meta-box {
+          border: 1px solid #000;
+          padding: 7px 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .photo-box {
+          width: 100%;
+          height: 180px;
+          border: 2px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .photo-box img {
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .section-title {
+          background: #f2f2f2;
+          border: 1px solid #000;
+          padding: 5px 8px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-top: 10px;
+          text-align: left;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 2px solid #000;
+          margin-bottom: 8px;
+        }
+
+        td {
+          border: 1px solid #000;
+          padding: 7px 9px;
+          width: 50%;
+          font-size: 12.8px;
+          vertical-align: top;
+        }
+
+        .label {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-right: 5px;
+        }
+
+        .value {
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .remarks-box {
+          border: 2px solid #000;
+          min-height: 42px;
+          padding: 8px;
+          font-size: 12.8px;
+          text-align: left;
+          margin-bottom: 10px;
+        }
+
+        .veterinary-box {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 12.8px;
+          line-height: 1.35;
+          text-align: left;
+          margin-top: 10px;
+          margin-bottom: 12px;
+        }
+
+        .veterinary-title {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .footer {
+          margin-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .sign {
+          width: 32%;
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .sign-line {
+          border-bottom: 1px solid #000;
+          height: 16px;
+          margin-bottom: 6px;
+        }
+
+        @media print {
+          @page { size: A4; margin: 8mm; }
+          body { padding: 0; }
+        }
       </style>
     </head>
+
     <body>
       <div class="container">
         <div class="header">
-          <h1>MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
-          <h2>SS GHATI DODDABALLAPURA</h2>
-          <div class="cert-title">${certificateTitle}</div>
+          <img class="logo" src="${rashtrotthanaLogo}" />
+          <h1 class="org-title">MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <div class="org-subtitle">SS GHATI DODDABALLAPURA</div>
+          <div class="cert-title">CATTLE DEATH CERTIFICATE</div>
         </div>
 
-        <div style="width:100%; height:260px; border:2px solid #000; margin:15px 0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-          ${row.photo ? `<img src="${row.photo}" style="height:100%; object-fit:contain;" />` : `<div style="color:#999; font-style:italic;">[ Photo Not Provided ]</div>`}
+        <div class="meta-box">
+          <div>Certificate No : ${certificateNo}</div>
+          <div>Generated On : ${generatedOn}</div>
         </div>
 
+        <div class="photo-box">
+          ${
+            row.photo
+              ? `<img src="${row.photo}" />`
+              : `<div style="color:#777; font-style:italic;">Photo Not Available</div>`
+          }
+        </div>
+
+        <div class="section-title">Cattle Identity</div>
         <table>
-          <tr><td><span class="label">TAG NO:</span> <span class="value">${row.tag || "-"}</span></td><td><span class="label">NAME:</span> <span class="value">${row.name || "-"}</span></td></tr>
-          <tr><td><span class="label">BREED:</span> <span class="value">${row.breed || "-"}</span></td><td><span class="label">GENDER:</span> <span class="value">${row.gender || "-"}</span></td></tr>
-          <tr><td><span class="label">COLOUR:</span> <span class="value">${row.color || "-"}</span></td><td><span class="label">CATEGORY:</span> <span class="value">${row.category || "-"}</span></td></tr>
-          ${transactionRows}
+          <tr>
+            <td><span class="label">Internal ID:</span> <span class="value">${internalId || "-"}</span></td>
+            <td><span class="label">Tag No:</span> <span class="value">${row.tag || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Name:</span> <span class="value">${row.name || "-"}</span></td>
+            <td><span class="label">Breed:</span> <span class="value">${row.breed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Gender:</span> <span class="value">${row.gender || "-"}</span></td>
+            <td><span class="label">Category:</span> <span class="value">${row.category || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Colour:</span> <span class="value">${row.color || "-"}</span></td>
+            <td><span class="label">Date of Birth:</span> <span class="value">${formatCertificateDate(row.dob)}</span></td>
+          </tr>
         </table>
 
+        <div class="section-title">Death Details</div>
+        <table>
+          <tr>
+            <td><span class="label">Date of Death:</span> <span class="value">${formatCertificateDate(eventDate)}</span></td>
+            <td><span class="label">Time of Death:</span> <span class="value">${exitLog?.exit_time || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Cause of Death:</span> <span class="value">${causeDetails}</span></td>
+            <td><span class="label">Location/Shed:</span> <span class="value">${row.shed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Teeth Details:</span> <span class="value">${teethDetails}</span></td>
+            <td><span class="label">Age by Teeth:</span> <span class="value">${teethAge}</span></td>
+          </tr>
+          ${
+            showPregnancy
+              ? `<tr><td><span class="label">Pregnancy Status:</span> <span class="value">${pregnancyStatus}</span></td><td><span class="label">Market Value:</span> <span class="value">${exitLog?.market_value || "-"}</span></td></tr>`
+              : `<tr><td><span class="label">Market Value:</span> <span class="value">${exitLog?.market_value || "-"}</span></td><td><span class="label">Reference No:</span> <span class="value">${exitLog?.ref_no || "-"}</span></td></tr>`
+          }
+        </table>
+
+        <div class="section-title">Remarks / Veterinary Observation</div>
+        <div class="remarks-box">${remarks}</div>
+
+        <div class="veterinary-box">
+          <div class="veterinary-title">Veterinary Certification</div>
+          This is to certify that the above cattle was recorded as deceased on the date mentioned above.
+          The details are based on available records and verification by the concerned goshala staff /
+          veterinary authority.
+        </div>
+
         <div class="footer">
-          <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">SUPERVISOR SIGNATURE</div></div>
-          <div style="text-align:center;"><div class="sign-line"></div><div class="sign-label">PROJECT MANAGER SIGNATURE</div></div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            SUPERVISOR SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            VETERINARY OFFICER SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            PROJECT MANAGER SIGNATURE
+          </div>
         </div>
       </div>
+
+      <script>setTimeout(() => window.print(), 500);</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+};
+
+const printSaleCertificate = (row) => {
+  const exitLog = getExitLogForCattle(row, exitLogs);
+
+  const internalId = getRowId(row);
+  const eventDate = exitLog?.exit_date || exitLog?.date || "";
+  const certificateNo = getCertificateNo("SC", internalId, eventDate);
+  const generatedOn = formatCertificateDate(new Date().toISOString().slice(0, 10));
+
+  const saleDate = formatCertificateDate(eventDate);
+  const soldTo = exitLog?.party_name || exitLog?.partyName || "Not recorded";
+  const contact = exitLog?.party_contact || exitLog?.partyContact || "Not recorded";
+  const address = exitLog?.party_address || exitLog?.partyAddress || "Not recorded";
+  const amount = exitLog?.amount || "Not recorded";
+  const refNo = exitLog?.ref_no || exitLog?.refNo || "Not recorded";
+  const gatePass = exitLog?.gate_pass || exitLog?.gatePass || "Not recorded";
+  const receiptNo = exitLog?.receipt_no || exitLog?.receiptNo || "Not recorded";
+  const remarks = exitLog?.remarks || "No remarks recorded";
+
+  const html = `
+    <html>
+    <head>
+      <title>Cattle Sale Certificate - ${row.tag}</title>
+      <style>
+        body {
+          font-family: "Times New Roman", serif;
+          padding: 18px;
+          color: #000;
+        }
+
+        .container {
+          border: 3px solid #000;
+          padding: 14px 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .header {
+          text-align: center;
+          position: relative;
+          padding-top: 4px;
+        }
+
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+          margin-bottom: 4px;
+        }
+
+        .org-title {
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: underline;
+          margin: 0;
+        }
+
+        .org-subtitle {
+          font-size: 14px;
+          font-weight: 700;
+          margin: 4px 0 10px 0;
+        }
+
+        .cert-title {
+          border: 2px solid #000;
+          padding: 7px;
+          font-size: 17px;
+          font-weight: 800;
+          background: #eee;
+          margin-bottom: 10px;
+        }
+
+        .meta-box {
+          border: 1px solid #000;
+          padding: 7px 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .photo-box {
+          width: 100%;
+          height: 180px;
+          border: 2px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .photo-box img {
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .section-title {
+          background: #f2f2f2;
+          border: 1px solid #000;
+          padding: 5px 8px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-top: 10px;
+          text-align: left;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 2px solid #000;
+          margin-bottom: 8px;
+        }
+
+        td {
+          border: 1px solid #000;
+          padding: 7px 9px;
+          width: 50%;
+          font-size: 12.8px;
+          vertical-align: top;
+        }
+
+        .label {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-right: 5px;
+        }
+
+        .value {
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .remarks-box {
+          border: 2px solid #000;
+          min-height: 28px;
+          padding: 8px;
+          font-size: 12.8px;
+          text-align: left;
+          margin-bottom: 10px;
+        }
+
+        .declaration-box {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 12.8px;
+          line-height: 1.35;
+          text-align: left;
+          margin-top: 10px;
+          margin-bottom: 12px;
+        }
+
+        .declaration-title {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .footer {
+          margin-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .sign {
+          width: 32%;
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .sign-line {
+          border-bottom: 1px solid #000;
+          height: 16px;
+          margin-bottom: 6px;
+        }
+
+        @media print {
+          @page { size: A4; margin: 8mm; }
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="container">
+        <div class="header">
+          <img class="logo" src="${rashtrotthanaLogo}" />
+          <h1 class="org-title">MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <div class="org-subtitle">SS GHATI DODDABALLAPURA</div>
+          <div class="cert-title">CATTLE SALE CERTIFICATE</div>
+        </div>
+
+        <div class="meta-box">
+          <div>Certificate No : ${certificateNo}</div>
+          <div>Generated On : ${generatedOn}</div>
+        </div>
+
+        <div class="photo-box">
+          ${
+            row.photo
+              ? `<img src="${row.photo}" />`
+              : `<div style="color:#777; font-style:italic;">Photo Not Available</div>`
+          }
+        </div>
+
+        <div class="section-title">Cattle Identity</div>
+        <table>
+          <tr>
+            <td><span class="label">Internal ID:</span> <span class="value">${internalId || "-"}</span></td>
+            <td><span class="label">Tag No:</span> <span class="value">${row.tag || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Name:</span> <span class="value">${row.name || "-"}</span></td>
+            <td><span class="label">Breed:</span> <span class="value">${row.breed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Gender:</span> <span class="value">${row.gender || "-"}</span></td>
+            <td><span class="label">Category:</span> <span class="value">${row.category || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Colour:</span> <span class="value">${row.color || "-"}</span></td>
+            <td><span class="label">Date of Birth:</span> <span class="value">${formatCertificateDate(row.dob)}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Sale Details</div>
+        <table>
+          <tr>
+            <td><span class="label">Sale Date:</span> <span class="value">${saleDate}</span></td>
+            <td><span class="label">Sale Amount:</span> <span class="value">${amount}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Sold To:</span> <span class="value">${soldTo}</span></td>
+            <td><span class="label">Contact:</span> <span class="value">${contact}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Address:</span> <span class="value">${address}</span></td>
+            <td><span class="label">Receipt No:</span> <span class="value">${receiptNo}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Reference No:</span> <span class="value">${refNo}</span></td>
+            <td><span class="label">Gate Pass No:</span> <span class="value">${gatePass}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Remarks</div>
+        <div class="remarks-box">${remarks}</div>
+
+        <div class="declaration-box">
+          <div class="declaration-title">Declaration</div>
+          This is to certify that the above cattle belonging to Madhava Srusti Rashtrotthana Goshala
+          was sold / handed over as per the details mentioned above and the transaction has been
+          recorded in Govardhana CDMS.
+        </div>
+
+        <div class="footer">
+          <div class="sign">
+            <div class="sign-line"></div>
+            SUPERVISOR SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            ACCOUNTS / RECEIPT VERIFICATION
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            PROJECT MANAGER SIGNATURE
+          </div>
+        </div>
+      </div>
+
+      <script>setTimeout(() => window.print(), 500);</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+};
+
+
+
+const printTransferCertificate = (row) => {
+  const exitLog = getExitLogForCattle(row, exitLogs);
+
+  const internalId = getRowId(row);
+  const eventDate = exitLog?.exit_date || exitLog?.date || "";
+  const certificateNo = getCertificateNo("TC", internalId, eventDate);
+  const generatedOn = formatCertificateDate(new Date().toISOString().slice(0, 10));
+
+  const transferDate = formatCertificateDate(eventDate);
+  const transferredTo = exitLog?.party_name || exitLog?.partyName || "Not recorded";
+  const contact = exitLog?.party_contact || exitLog?.partyContact || "Not recorded";
+  const address = exitLog?.party_address || exitLog?.partyAddress || "Not recorded";
+  const refNo = exitLog?.ref_no || exitLog?.refNo || "Not recorded";
+  const gatePass = exitLog?.gate_pass || exitLog?.gatePass || "Not recorded";
+  const remarks = exitLog?.remarks || "No remarks recorded";
+
+  const html = `
+    <html>
+    <head>
+      <title>Cattle Transfer Certificate - ${row.tag}</title>
+      <style>
+        body {
+          font-family: "Times New Roman", serif;
+          padding: 18px;
+          color: #000;
+        }
+
+        .container {
+          border: 3px solid #000;
+          padding: 14px 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .header {
+          text-align: center;
+          position: relative;
+          padding-top: 4px;
+        }
+
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+          margin-bottom: 4px;
+        }
+
+        .org-title {
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: underline;
+          margin: 0;
+        }
+
+        .org-subtitle {
+          font-size: 14px;
+          font-weight: 700;
+          margin: 4px 0 10px 0;
+        }
+
+        .cert-title {
+          border: 2px solid #000;
+          padding: 7px;
+          font-size: 17px;
+          font-weight: 800;
+          background: #eee;
+          margin-bottom: 10px;
+        }
+
+        .meta-box {
+          border: 1px solid #000;
+          padding: 7px 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .photo-box {
+          width: 100%;
+          height: 180px;
+          border: 2px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .photo-box img {
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .section-title {
+          background: #f2f2f2;
+          border: 1px solid #000;
+          padding: 5px 8px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-top: 10px;
+          text-align: left;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 2px solid #000;
+          margin-bottom: 8px;
+        }
+
+        td {
+          border: 1px solid #000;
+          padding: 7px 9px;
+          width: 50%;
+          font-size: 12.8px;
+          vertical-align: top;
+        }
+
+        .label {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-right: 5px;
+        }
+
+        .value {
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .remarks-box {
+          border: 2px solid #000;
+          min-height: 28px;
+          padding: 8px;
+          font-size: 12.8px;
+          text-align: left;
+          margin-bottom: 10px;
+        }
+
+        .declaration-box {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 12.8px;
+          line-height: 1.35;
+          text-align: left;
+          margin-top: 10px;
+          margin-bottom: 12px;
+        }
+
+        .declaration-title {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .footer {
+          margin-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .sign {
+          width: 32%;
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .sign-line {
+          border-bottom: 1px solid #000;
+          height: 16px;
+          margin-bottom: 6px;
+        }
+
+        @media print {
+          @page { size: A4; margin: 8mm; }
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="container">
+        <div class="header">
+          <img class="logo" src="${rashtrotthanaLogo}" />
+          <h1 class="org-title">MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <div class="org-subtitle">SS GHATI DODDABALLAPURA</div>
+          <div class="cert-title">CATTLE TRANSFER CERTIFICATE</div>
+        </div>
+
+        <div class="meta-box">
+          <div>Certificate No : ${certificateNo}</div>
+          <div>Generated On : ${generatedOn}</div>
+        </div>
+
+        <div class="photo-box">
+          ${
+            row.photo
+              ? `<img src="${row.photo}" />`
+              : `<div style="color:#777; font-style:italic;">Photo Not Available</div>`
+          }
+        </div>
+
+        <div class="section-title">Cattle Identity</div>
+        <table>
+          <tr>
+            <td><span class="label">Internal ID:</span> <span class="value">${internalId || "-"}</span></td>
+            <td><span class="label">Tag No:</span> <span class="value">${row.tag || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Name:</span> <span class="value">${row.name || "-"}</span></td>
+            <td><span class="label">Breed:</span> <span class="value">${row.breed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Gender:</span> <span class="value">${row.gender || "-"}</span></td>
+            <td><span class="label">Category:</span> <span class="value">${row.category || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Colour:</span> <span class="value">${row.color || "-"}</span></td>
+            <td><span class="label">Date of Birth:</span> <span class="value">${formatCertificateDate(row.dob)}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Transfer Details</div>
+        <table>
+          <tr>
+            <td><span class="label">Transfer Date:</span> <span class="value">${transferDate}</span></td>
+            <td><span class="label">Transferred To:</span> <span class="value">${transferredTo}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Contact:</span> <span class="value">${contact}</span></td>
+            <td><span class="label">Reference No:</span> <span class="value">${refNo}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Address:</span> <span class="value">${address}</span></td>
+            <td><span class="label">Gate Pass No:</span> <span class="value">${gatePass}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Remarks</div>
+        <div class="remarks-box">${remarks}</div>
+
+        <div class="declaration-box">
+          <div class="declaration-title">Declaration</div>
+          This is to certify that the above cattle belonging to Madhava Srusti Rashtrotthana Goshala
+          was transferred / handed over as per the details mentioned above and the transaction has
+          been recorded in Govardhana CDMS.
+        </div>
+
+        <div class="footer">
+          <div class="sign">
+            <div class="sign-line"></div>
+            SUPERVISOR SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            RECEIVING AUTHORITY SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            PROJECT MANAGER SIGNATURE
+          </div>
+        </div>
+      </div>
+
+      <script>setTimeout(() => window.print(), 500);</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+};
+
+const printFarmerHandoverCertificate = (row) => {
+  const exitLog = getExitLogForCattle(row, exitLogs);
+
+  const internalId = getRowId(row);
+  const eventDate = exitLog?.exit_date || exitLog?.date || "";
+  const certificateNo = getCertificateNo("FH", internalId, eventDate);
+  const generatedOn = formatCertificateDate(new Date().toISOString().slice(0, 10));
+
+  const handoverDate = formatCertificateDate(eventDate);
+  const farmerName = exitLog?.party_name || exitLog?.partyName || "Not recorded";
+  const contact = exitLog?.party_contact || exitLog?.partyContact || "Not recorded";
+  const address = exitLog?.party_address || exitLog?.partyAddress || "Not recorded";
+  const marketValue = exitLog?.market_value || exitLog?.marketValue || "Not recorded";
+  const teethDetails = exitLog?.teeth_details || exitLog?.teethDetails || "Not recorded";
+  const teethAge = exitLog?.teeth_age || exitLog?.teethAge || "Not recorded";
+  const pregnancyStatus =
+    exitLog?.preganancy_status ||
+    exitLog?.pregnancy_status ||
+    "Not recorded";
+  const remarks = exitLog?.remarks || "No remarks recorded";
+
+  const showPregnancy = String(row.gender || "").toLowerCase().startsWith("f");
+
+  const html = `
+    <html>
+    <head>
+      <title>Farmer Handover Certificate - ${row.tag}</title>
+      <style>
+        body {
+          font-family: "Times New Roman", serif;
+          padding: 18px;
+          color: #000;
+        }
+
+        .container {
+          border: 3px solid #000;
+          padding: 14px 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .header {
+          text-align: center;
+          position: relative;
+          padding-top: 4px;
+        }
+
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+          margin-bottom: 4px;
+        }
+
+        .org-title {
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: underline;
+          margin: 0;
+        }
+
+        .org-subtitle {
+          font-size: 14px;
+          font-weight: 700;
+          margin: 4px 0 10px 0;
+        }
+
+        .cert-title {
+          border: 2px solid #000;
+          padding: 7px;
+          font-size: 17px;
+          font-weight: 800;
+          background: #eee;
+          margin-bottom: 10px;
+        }
+
+        .meta-box {
+          border: 1px solid #000;
+          padding: 7px 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .photo-box {
+          width: 100%;
+          height: 180px;
+          border: 2px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .photo-box img {
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .section-title {
+          background: #f2f2f2;
+          border: 1px solid #000;
+          padding: 5px 8px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-top: 10px;
+          text-align: left;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 2px solid #000;
+          margin-bottom: 8px;
+        }
+
+        td {
+          border: 1px solid #000;
+          padding: 7px 9px;
+          width: 50%;
+          font-size: 12.8px;
+          vertical-align: top;
+        }
+
+        .label {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-right: 5px;
+        }
+
+        .value {
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .remarks-box {
+          border: 2px solid #000;
+          min-height: 28px;
+          padding: 8px;
+          font-size: 12.8px;
+          text-align: left;
+          margin-bottom: 10px;
+        }
+
+        .declaration-box {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 12.8px;
+          line-height: 1.35;
+          text-align: left;
+          margin-top: 10px;
+          margin-bottom: 12px;
+        }
+
+        .declaration-title {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .footer {
+          margin-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .sign {
+          width: 32%;
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .sign-line {
+          border-bottom: 1px solid #000;
+          height: 16px;
+          margin-bottom: 6px;
+        }
+
+        @media print {
+          @page { size: A4; margin: 8mm; }
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="container">
+        <div class="header">
+          <img class="logo" src="${rashtrotthanaLogo}" />
+          <h1 class="org-title">MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <div class="org-subtitle">SS GHATI DODDABALLAPURA</div>
+          <div class="cert-title">FARMER HANDOVER CERTIFICATE</div>
+        </div>
+
+        <div class="meta-box">
+          <div>Certificate No : ${certificateNo}</div>
+          <div>Generated On : ${generatedOn}</div>
+        </div>
+
+        <div class="photo-box">
+          ${
+            row.photo
+              ? `<img src="${row.photo}" />`
+              : `<div style="color:#777; font-style:italic;">Photo Not Available</div>`
+          }
+        </div>
+
+        <div class="section-title">Cattle Identity</div>
+        <table>
+          <tr>
+            <td><span class="label">Internal ID:</span> <span class="value">${internalId || "-"}</span></td>
+            <td><span class="label">Tag No:</span> <span class="value">${row.tag || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Name:</span> <span class="value">${row.name || "-"}</span></td>
+            <td><span class="label">Breed:</span> <span class="value">${row.breed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Gender:</span> <span class="value">${row.gender || "-"}</span></td>
+            <td><span class="label">Category:</span> <span class="value">${row.category || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Colour:</span> <span class="value">${row.color || "-"}</span></td>
+            <td><span class="label">Date of Birth:</span> <span class="value">${formatCertificateDate(row.dob)}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Farmer Handover Details</div>
+        <table>
+          <tr>
+            <td><span class="label">Handover Date:</span> <span class="value">${handoverDate}</span></td>
+            <td><span class="label">Farmer Name:</span> <span class="value">${farmerName}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Contact:</span> <span class="value">${contact}</span></td>
+            <td><span class="label">Market Value:</span> <span class="value">${marketValue}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Address:</span> <span class="value">${address}</span></td>
+            <td><span class="label">Teeth Details:</span> <span class="value">${teethDetails}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Age by Teeth:</span> <span class="value">${teethAge}</span></td>
+            <td><span class="label">${showPregnancy ? "Pregnancy Status:" : "Remarks:"}</span>
+              <span class="value">${showPregnancy ? pregnancyStatus : remarks}</span></td>
+          </tr>
+        </table>
+
+        ${showPregnancy ? `
+          <div class="section-title">Remarks</div>
+          <div class="remarks-box">${remarks}</div>
+        ` : ""}
+
+        <div class="declaration-box">
+          <div class="declaration-title">Declaration</div>
+          This is to certify that the above cattle belonging to Madhava Srusti Rashtrotthana Goshala
+          was handed over to the farmer / beneficiary as per the details mentioned above and the
+          transaction has been recorded in Govardhana CDMS.
+        </div>
+
+        <div class="footer">
+          <div class="sign">
+            <div class="sign-line"></div>
+            SUPERVISOR SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            FARMER / BENEFICIARY SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            PROJECT MANAGER SIGNATURE
+          </div>
+        </div>
+      </div>
+
       <script>setTimeout(() => window.print(), 500);</script>
     </body>
     </html>
