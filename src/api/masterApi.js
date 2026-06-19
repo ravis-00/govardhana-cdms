@@ -170,6 +170,9 @@ export const addShed = async (data) => { return postRequest("addShed", data); };
 export const updateShed = async (data) => { return postRequest("updateShed", data); };
 export const deleteShed = async (data) => { return postRequest("deleteShed", data); };
 
+export const reactivateCattle = (payload) => {
+  return postRequest("reactivateCattle", payload);
+};
 
 // =========================================================================
 // ALIASES (For backward compatibility)

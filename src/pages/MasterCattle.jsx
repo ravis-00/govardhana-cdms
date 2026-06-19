@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { fetchCattle, updateCattle, getCattleExitLog } from "../api/masterApi"; 
+import { fetchCattle, updateCattle, getCattleExitLog, reactivateCattle } from "../api/masterApi";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import rashtrotthanaLogo from "../assets/Logo.png";
@@ -18,47 +18,171 @@ function getRowId(row) {
   return row.internalId || row.id || row.internal_id || "";
 }
 
-function getExitLogForCattle(row, exitLogs = []) {
-  if (!row) return null;
+function cleanValue(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
 
-  const cattleId = String(getRowId(row) || "").toLowerCase().trim();
-  const tag = String(row.tag || "").toLowerCase().trim();
+function getAnyValue(obj, keys = []) {
+  for (const key of keys) {
+    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+      return obj[key];
+    }
+  }
+  return "";
+}
 
-  return exitLogs.find((log) => {
-    const logInternalId = String(
-      log.internal_id ||
-      log.internalId ||
-      log.rowInternalId ||
-      log.id ||
-      ""
-    ).toLowerCase().trim();
+function getLogExitType(log) {
+  return String(
+    getAnyValue(log, [
+      "exit_type",
+      "exitType",
+      "Exit Type",
+      "EXIT TYPE",
+      "reason",
+      "Reason",
+      "type",
+    ])
+  ).toLowerCase().trim();
+}
 
-    const logTagNumber = String(
-      log.tag_number ||
-      log.tagNumber ||
-      log.tag ||
-      log.tagNo ||
-      log.cattleId ||
-      ""
-    ).toLowerCase().trim();
+function getLogDateValue(log) {
+  return String(
+    getAnyValue(log, [
+      "exit_date",
+      "exitDate",
+      "Exit Date",
+      "EXIT DATE",
+      "date",
+    ])
+  );
+}
+
+function getLogTimeValue(log) {
+  return String(
+    getAnyValue(log, [
+      "exit_time",
+      "exitTime",
+      "Exit Time",
+      "EXIT TIME",
+      "time",
+    ])
+  );
+}
+
+function getExitLogsForCattle(row, exitLogs = []) {
+  if (!row) return [];
+
+  const cattleId = cleanValue(getRowId(row));
+  const tag = cleanValue(row.tag || row.tag_number || row.tagNumber);
+
+  return exitLogs.filter((log) => {
+    const logInternalId = cleanValue(
+      getAnyValue(log, [
+        "internal_id",
+        "internalId",
+        "Internal ID",
+        "INTERNAL ID",
+        "id",
+      ])
+    );
+
+    const logTagNumber = cleanValue(
+      getAnyValue(log, [
+        "tag_number",
+        "tagNumber",
+        "Tag Number",
+        "TAG NUMBER",
+        "tag",
+        "tagNo",
+        "cattleId",
+        "cattle_id",
+      ])
+    );
 
     return (
       (cattleId && logInternalId && cattleId === logInternalId) ||
       (tag && logTagNumber && tag === logTagNumber)
     );
-  }) || null;
+  });
+
+
+  return matches.sort((a, b) => {
+    const aDate = `${getLogDateValue(a)} ${getLogTimeValue(a)}`;
+    const bDate = `${getLogDateValue(b)} ${getLogTimeValue(b)}`;
+    return new Date(aDate) - new Date(bDate);
+  });
+}
+
+function getLatestExitLogForCattle(row, exitLogs = []) {
+  const matches = getExitLogsForCattle(row, exitLogs).filter((log) => {
+    const type = getLogExitType(log);
+    return type && !type.includes("reactivation");
+  });
+
+  if (!matches.length) return null;
+  return matches[matches.length - 1];
+}
+
+function getLatestLifecycleLogForCattle(row, exitLogs = []) {
+  const matches = getExitLogsForCattle(row, exitLogs);
+  if (!matches.length) return null;
+  return matches[matches.length - 1];
+}
+
+function getExitLogForCattle(row, exitLogs = []) {
+  return getLatestExitLogForCattle(row, exitLogs);
 }
 
 function getExitTypeForCattle(row, exitLogs = []) {
-  const match = getExitLogForCattle(row, exitLogs);
+  const match = getLatestExitLogForCattle(row, exitLogs);
+  return getLogExitType(match);
+}
 
-  return String(
-    match?.exit_type ||
-    match?.exitType ||
-    match?.reason ||
-    match?.type ||
-    ""
-  ).toLowerCase().trim();
+function getDisplayTypeForCattle(row, exitLogs = []) {
+  const status = String(row.status || "").toLowerCase().trim();
+  const latestLifecycleLog = getLatestLifecycleLogForCattle(row, exitLogs);
+  const latestLifecycleType = getLogExitType(latestLifecycleLog);
+
+  if (status === "active") {
+    if (latestLifecycleType.includes("reactivation")) {
+      return "Reactivated";
+    }
+
+    return (
+      row.admissionType ||
+      row.type_of_admission ||
+      row.admission_type ||
+      row.origin ||
+      "-"
+    );
+  }
+
+  if (status === "deactive") {
+    const latestExitType = getExitTypeForCattle(row, exitLogs);
+
+    return latestExitType
+      ? latestExitType.charAt(0).toUpperCase() + latestExitType.slice(1)
+      : "-";
+  }
+
+  return "-";
+}
+
+
+
+function canReactivateCattle(row, exitLogs = []) {
+  const status = String(row?.status || "").toLowerCase().trim();
+  const exitType = getExitTypeForCattle(row, exitLogs);
+
+  return (
+    status === "deactive" &&
+    exitType &&
+    !exitType.includes("death")
+  );
 }
 
 function getDeactiveCertificateLabel(exitType) {
@@ -124,7 +248,9 @@ const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [genderFilter, setGenderFilter] = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All");
 const [actionMenuId, setActionMenuId] = useState(null);
+const [reactivationRow, setReactivationRow] = useState(null);
   const loadData = async () => {
     try {
       setLoading(true);
@@ -145,6 +271,11 @@ const exitData = Array.isArray(exitRes)
 
 console.log("EXIT LOG DATA COUNT:", exitData.length);
 console.log("FIRST EXIT LOG ROW:", exitData[0]);
+console.log("FULL EXIT RESPONSE:", JSON.stringify(exitRes));
+
+console.log("EXIT LOG SAMPLE:", exitData.slice(0, 5));
+setExitLogs(exitData);
+
 
 setExitLogs(exitData);
     } catch (err) {
@@ -156,6 +287,10 @@ setExitLogs(exitData);
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+  setTypeFilter("All");
+}, [statusFilter]);
 
   const filteredRows = useMemo(() => {
   if (!rows || rows.length === 0) return [];
@@ -174,6 +309,11 @@ setExitLogs(exitData);
     .toLowerCase()
     .startsWith(genderFilter.toLowerCase());
 
+    const displayType = getDisplayTypeForCattle(row, exitLogs);
+
+const matchType =
+  typeFilter === "All" || displayType === typeFilter;
+
     const haystack = `
       ${row.tag || ""}
       ${row.name || ""}
@@ -190,10 +330,11 @@ setExitLogs(exitData);
       matchStatus &&
       matchBreed &&
       matchGender &&
+      matchType &&
       haystack.includes(searchText.toLowerCase())
     );
   });
-}, [rows, statusFilter, breedFilter, genderFilter, searchText]);
+}, [rows, statusFilter, breedFilter, genderFilter, typeFilter, searchText, exitLogs]);
 
   const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
   const sortedRows = useMemo(() => {
@@ -209,16 +350,17 @@ const displayedRows = useMemo(() => {
   return sortedRows.slice(start, start + ITEMS_PER_PAGE);
 }, [sortedRows, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, genderFilter, searchText]);
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, genderFilter, typeFilter, searchText]);
   useEffect(() => {
   setActionMenuId(null);
-}, [currentPage, statusFilter, breedFilter, genderFilter, searchText]);
+}, [currentPage, statusFilter, breedFilter, genderFilter, typeFilter, searchText]);
   const handleNext = () => { if (currentPage < totalPages) setCurrentPage(p => p + 1); };
   const handlePrev = () => { if (currentPage > 1) setCurrentPage(p => p - 1); };
   const handleClearFilters = () => {
   setStatusFilter("All");
   setBreedFilter("All");
   setGenderFilter("All");
+  setTypeFilter("All");
   setSearchText("");
   setCurrentPage(1);
 };
@@ -260,13 +402,32 @@ const breedOptions = useMemo(() => {
   return ["All", ...Array.from(new Set(breeds)).sort()];
 }, [rows]);
 
+const typeOptions = useMemo(() => {
+  const types = rows
+    .filter((row) => {
+      const status = String(row.status || "").toLowerCase().trim();
+      return statusFilter === "All" || status === statusFilter.toLowerCase();
+    })
+    .map((row) => getDisplayTypeForCattle(row, exitLogs))
+    .filter(Boolean)
+    .filter((t) => t !== "-");
+
+  return ["All", ...Array.from(new Set(types)).sort()];
+}, [rows, exitLogs, statusFilter]);
+
   /* =========================================
      🔥 CERTIFICATE GENERATION LOGIC
      ========================================= */
   const handleGenerateCert = (row) => {
-  const type = String(row.admissionType || "").toLowerCase();
+  const displayType = getDisplayTypeForCattle(row, exitLogs);
+  const admissionType = String(row.admissionType || "").toLowerCase();
 
-  if (type.includes("birth") || type.includes("born")) {
+  if (displayType === "Reactivated") {
+    printReactivationCertificate(row);
+    return;
+  }
+
+  if (admissionType.includes("birth") || admissionType.includes("born")) {
     printBirthCertificate(row);
   } else {
     printIncomingCertificate(row);
@@ -349,6 +510,303 @@ const handleGenerateDeactiveCert = (row, exitType) => {
     const win = window.open("", "_blank", "width=900,height=1100");
     if (win) { win.document.write(html); win.document.close(); }
   };
+
+
+const printReactivationCertificate = (row) => {
+  const reactLog = getLatestLifecycleLogForCattle(row, exitLogs);
+  const internalId = getRowId(row);
+
+  const eventDate = reactLog?.exit_date || reactLog?.date || "";
+  const certificateNo = getCertificateNo("RC", internalId, eventDate);
+  const generatedOn = formatCertificateDate(new Date().toISOString().slice(0, 10));
+
+  const previousExitType =
+    reactLog?.category ||
+    reactLog?.previous_exit_type ||
+    "Not recorded";
+
+  const reactivationDate = formatCertificateDate(eventDate);
+  const returnedFrom =
+    reactLog?.party_name ||
+    reactLog?.partyName ||
+    "Not recorded";
+
+  const contact =
+    reactLog?.party_contact ||
+    reactLog?.partyContact ||
+    "Not recorded";
+
+  const reason =
+    reactLog?.cause_details ||
+    reactLog?.causeDetails ||
+    reactLog?.remarks ||
+    "Not recorded";
+
+  const remarks = reactLog?.remarks || "No remarks recorded";
+
+  const html = `
+    <html>
+    <head>
+      <title>Cattle Reactivation Certificate - ${row.tag}</title>
+      <style>
+        body {
+          font-family: "Times New Roman", serif;
+          padding: 18px;
+          color: #000;
+        }
+
+        .container {
+          border: 3px solid #000;
+          padding: 14px 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+
+        .header {
+          text-align: center;
+          position: relative;
+          padding-top: 4px;
+        }
+
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+          margin-bottom: 4px;
+        }
+
+        .org-title {
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: underline;
+          margin: 0;
+        }
+
+        .org-subtitle {
+          font-size: 14px;
+          font-weight: 700;
+          margin: 4px 0 10px 0;
+        }
+
+        .cert-title {
+          border: 2px solid #000;
+          padding: 7px;
+          font-size: 17px;
+          font-weight: 800;
+          background: #eee;
+          margin-bottom: 10px;
+        }
+
+        .meta-box {
+          border: 1px solid #000;
+          padding: 7px 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .photo-box {
+          width: 100%;
+          height: 180px;
+          border: 2px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+
+        .photo-box img {
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .section-title {
+          background: #f2f2f2;
+          border: 1px solid #000;
+          padding: 5px 8px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-top: 10px;
+          text-align: left;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 2px solid #000;
+          margin-bottom: 8px;
+        }
+
+        td {
+          border: 1px solid #000;
+          padding: 7px 9px;
+          width: 50%;
+          font-size: 12.8px;
+          vertical-align: top;
+        }
+
+        .label {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-right: 5px;
+        }
+
+        .value {
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .remarks-box {
+          border: 2px solid #000;
+          min-height: 32px;
+          padding: 8px;
+          font-size: 12.8px;
+          text-align: left;
+          margin-bottom: 10px;
+        }
+
+        .declaration-box {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 12.8px;
+          line-height: 1.35;
+          text-align: left;
+          margin-top: 10px;
+          margin-bottom: 12px;
+        }
+
+        .declaration-title {
+          font-weight: 800;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .footer {
+          margin-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .sign {
+          width: 32%;
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .sign-line {
+          border-bottom: 1px solid #000;
+          height: 16px;
+          margin-bottom: 6px;
+        }
+
+        @media print {
+          @page { size: A4; margin: 8mm; }
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="container">
+        <div class="header">
+          <img class="logo" src="${rashtrotthanaLogo}" />
+          <h1 class="org-title">MADHAVA SRUSTI RASHTROTTHANA GOSHALA</h1>
+          <div class="org-subtitle">SS GHATI DODDABALLAPURA</div>
+          <div class="cert-title">CATTLE REACTIVATION CERTIFICATE</div>
+        </div>
+
+        <div class="meta-box">
+          <div>Certificate No : ${certificateNo}</div>
+          <div>Generated On : ${generatedOn}</div>
+        </div>
+
+        <div class="photo-box">
+          ${
+            row.photo
+              ? `<img src="${row.photo}" />`
+              : `<div style="color:#777; font-style:italic;">Photo Not Available</div>`
+          }
+        </div>
+
+        <div class="section-title">Cattle Identity</div>
+        <table>
+          <tr>
+            <td><span class="label">Internal ID:</span> <span class="value">${internalId || "-"}</span></td>
+            <td><span class="label">Tag No:</span> <span class="value">${row.tag || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Name:</span> <span class="value">${row.name || "-"}</span></td>
+            <td><span class="label">Breed:</span> <span class="value">${row.breed || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Gender:</span> <span class="value">${row.gender || "-"}</span></td>
+            <td><span class="label">Category:</span> <span class="value">${row.category || "-"}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Colour:</span> <span class="value">${row.color || "-"}</span></td>
+            <td><span class="label">Current Status:</span> <span class="value">${row.status || "-"}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Reactivation Details</div>
+        <table>
+          <tr>
+            <td><span class="label">Reactivation Date:</span> <span class="value">${reactivationDate}</span></td>
+            <td><span class="label">Previous Exit Type:</span> <span class="value">${previousExitType}</span></td>
+          </tr>
+          <tr>
+            <td><span class="label">Returned From:</span> <span class="value">${returnedFrom}</span></td>
+            <td><span class="label">Contact:</span> <span class="value">${contact}</span></td>
+          </tr>
+          <tr>
+            <td colspan="2"><span class="label">Reason for Return:</span> <span class="value">${reason}</span></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Remarks</div>
+        <div class="remarks-box">${remarks}</div>
+
+        <div class="declaration-box">
+          <div class="declaration-title">Declaration</div>
+          This is to certify that the above cattle has returned to Madhava Srusti Rashtrotthana Goshala
+          and has been reactivated in Govardhana CDMS. The previous exit record remains preserved
+          in the cattle lifecycle history.
+        </div>
+
+        <div class="footer">
+          <div class="sign">
+            <div class="sign-line"></div>
+            SUPERVISOR SIGNATURE
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            RECORD VERIFICATION
+          </div>
+          <div class="sign">
+            <div class="sign-line"></div>
+            PROJECT MANAGER SIGNATURE
+          </div>
+        </div>
+      </div>
+
+      <script>setTimeout(() => window.print(), 500);</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+};
 
   // --- 2. INCOMING CERTIFICATE TEMPLATE ---
   const printIncomingCertificate = (row) => {
@@ -1632,7 +2090,7 @@ const printFarmerHandoverCertificate = (row) => {
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "140px 160px 160px 1fr 120px",
+      gridTemplateColumns: "140px 160px 160px 170px 1fr",
       gap: "0.75rem",
       alignItems: "center",
     }}
@@ -1653,6 +2111,18 @@ const printFarmerHandoverCertificate = (row) => {
   <option value="All">All Gender</option>
   <option value="Female">Female</option>
   <option value="Male">Male</option>
+</select>
+
+<select
+  value={typeFilter}
+  onChange={e => setTypeFilter(e.target.value)}
+  style={filterInputStyle}
+>
+  {typeOptions.map(t => (
+    <option key={t} value={t}>
+      {t === "All" ? "All Types" : t}
+    </option>
+  ))}
 </select>
 
 <div style={searchBoxWrapStyle}>
@@ -1693,8 +2163,8 @@ const printFarmerHandoverCertificate = (row) => {
     </button>
 
     <span style={pageNumberStyle}>
-      Page {currentPage} of {totalPages || 1}
-    </span>
+  Records: {filteredRows.length} | Page {currentPage} of {totalPages || 1}
+</span>
 
     <button
       onClick={handleNext}
@@ -1743,13 +2213,14 @@ const printFarmerHandoverCertificate = (row) => {
   <th style={thStyle}>Breed</th>
   <th style={thStyle}>Gender</th>
   <th style={thStyle}>Status</th>
+  <th style={thStyle}>Type</th>
   <th style={{ ...thStyle, textAlign: "center" }}>Action</th>
 </tr>
           </thead>
           <tbody>
   {displayedRows.length === 0 ? (
     <tr>
-      <td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "#999" }}>
+      <td colSpan={7} style={{ padding: "2rem", textAlign: "center", color: "#999" }}>
         No records found.
       </td>
     </tr>
@@ -1812,6 +2283,9 @@ if (isDeactiveRow && row.tag === "632643") {
     <td style={tdStyle}>
       <StatusPill status={row.status} />
     </td>
+<td style={tdStyle}>
+  <TypePill type={getDisplayTypeForCattle(row, exitLogs)} />
+</td>
 
     <td style={{ ...tdStyle, textAlign: "center" }}>
       <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
@@ -1849,9 +2323,11 @@ if (isDeactiveRow && row.tag === "632643") {
                   handleGenerateCert(row);
                 }}
               >
-                {type.includes("birth") || type.includes("born")
-                  ? "📜 Birth Certificate"
-                  : "📜 Incoming Certificate"}
+                {getDisplayTypeForCattle(row, exitLogs) === "Reactivated"
+  ? "📜 Reactivation Certificate"
+  : type.includes("birth") || type.includes("born")
+    ? "📜 Birth Certificate"
+    : "📜 Incoming Certificate"}
               </button>
             )}
 
@@ -1868,6 +2344,18 @@ if (isDeactiveRow && row.tag === "632643") {
               </button>
             )}
 
+{canReactivateCattle(row, exitLogs) && (
+  <button
+    type="button"
+    style={actionMenuItemStyle}
+    onClick={() => {
+      setActionMenuId(null);
+      setReactivationRow(row);
+    }}
+  >
+    🔄 Reactivate
+  </button>
+)}
             <button
               type="button"
               style={actionMenuItemStyle}
@@ -1892,14 +2380,241 @@ if (isDeactiveRow && row.tag === "632643") {
 
 </div>
 
+{/* REACTIVATION MODAL - UI ONLY */}
+{reactivationRow && (
+  <ReactivationModal
+    row={reactivationRow}
+    exitLog={getExitLogForCattle(reactivationRow, exitLogs)}
+    exitType={getExitTypeForCattle(reactivationRow, exitLogs)}
+    onClose={() => setReactivationRow(null)}
+    onSubmit={async (payload) => {
+  try {
+    const res = await reactivateCattle(payload);
+
+    if (res?.success) {
+      alert("Cattle reactivated successfully.");
+      setReactivationRow(null);
+      await loadData();
+    } else {
+      alert(res?.error || "Failed to reactivate cattle.");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Failed to reactivate cattle.");
+  }
+}}
+  />
+)}
+
       {/* MODAL */}
       {selected && (
         <div style={modalOverlayStyle} onClick={() => setSelected(null)}>
           <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
-             <CattleDetailsPanel selected={selected} onClose={() => setSelected(null)} canEdit={isAdmin} refreshData={loadData} />
+             <CattleDetailsPanel
+  selected={selected}
+  exitLogs={exitLogs}
+  onClose={() => setSelected(null)}
+  canEdit={isAdmin}
+  refreshData={loadData}
+/>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ReactivationModal({ row, exitLog, exitType, onClose, onSubmit }) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [form, setForm] = useState({
+    reactivationDate: today,
+    reasonForReturn: "",
+    returnedFrom: exitLog?.party_name || exitLog?.partyName || "",
+    returnedFromContact: exitLog?.party_contact || exitLog?.partyContact || "",
+    remarks: "",
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = () => {
+    if (!form.reactivationDate) {
+      alert("Please select Reactivation Date.");
+      return;
+    }
+
+    if (!form.reasonForReturn.trim()) {
+      alert("Please enter Reason for Return.");
+      return;
+    }
+
+    onSubmit({
+      internal_id: getRowId(row),
+      tag_number: row.tag || "",
+      cattle_name: row.name || "",
+      previous_exit_type: exitType || "",
+      linked_exit_id: exitLog?.exit_id || exitLog?.exitId || "",
+      reactivation_date: form.reactivationDate,
+      reason_for_return: form.reasonForReturn,
+      returned_from: form.returnedFrom,
+      returned_from_contact: form.returnedFromContact,
+      remarks: form.remarks,
+    });
+  };
+
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div
+        style={{
+          ...modalContentStyle,
+          width: "560px",
+          maxHeight: "90vh",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: "0.75rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a" }}>
+              🔄 Reactivate Cattle
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "4px" }}>
+              This will update Master status to Active and add Reactivation entry in Exit Log
+            </div>
+          </div>
+
+          <button type="button" onClick={onClose} style={closeBtnStyle}>
+            ×
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            borderRadius: "10px",
+            padding: "0.75rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <div style={{ fontWeight: 800, color: "#0f172a" }}>
+            {row.tag || "-"} — {row.name || "-"}
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "4px" }}>
+            Internal ID: <strong>{getRowId(row) || "-"}</strong>
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "4px" }}>
+            Current Status: <strong>{row.status || "-"}</strong> | Exit Type:{" "}
+            <strong>{exitType || "-"}</strong>
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "4px" }}>
+            Original Exit ID: <strong>{exitLog?.exit_id || exitLog?.exitId || "-"}</strong>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: "0.85rem" }}>
+          <div>
+            <label style={labelStyle}>Reactivation Date *</label>
+            <input
+              type="date"
+              name="reactivationDate"
+              value={form.reactivationDate}
+              onChange={handleChange}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Reason for Return *</label>
+            <textarea
+              name="reasonForReturn"
+              value={form.reasonForReturn}
+              onChange={handleChange}
+              placeholder="Example: Returned by farmer due to inability to maintain..."
+              style={{
+                ...inputStyle,
+                minHeight: "80px",
+                resize: "vertical",
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Returned From</label>
+            <input
+              type="text"
+              name="returnedFrom"
+              value={form.returnedFrom}
+              onChange={handleChange}
+              placeholder="Person / farmer / party name"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Returned From Contact</label>
+            <input
+              type="text"
+              name="returnedFromContact"
+              value={form.returnedFromContact}
+              onChange={handleChange}
+              placeholder="Contact number"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Remarks</label>
+            <textarea
+              name="remarks"
+              value={form.remarks}
+              onChange={handleChange}
+              placeholder="Any additional observations on return"
+              style={{
+                ...inputStyle,
+                minHeight: "70px",
+                resize: "vertical",
+              }}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "0.75rem",
+            marginTop: "1.25rem",
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "1rem",
+          }}
+        >
+          <button type="button" onClick={onClose} style={cancelBtnStyle}>
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            style={{
+              ...saveBtnStyle,
+              background: "#2563eb",
+            }}
+          >
+            Capture Reactivation
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1990,13 +2705,21 @@ function CattlePhoto({ url, imgStyle = largePhotoStyle }) {
 }
 
 /* ------------ DETAILS PANEL WITH UPLOAD ------------ */
-function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
+function CattleDetailsPanel({
+  selected,
+  exitLogs = [],
+  onClose,
+  canEdit,
+  refreshData,
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null); 
 
   useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
+
+  
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -2165,6 +2888,36 @@ function CattleDetailsPanel({ selected, onClose, canEdit, refreshData }) {
            )}
         </div>
 
+{getDisplayTypeForCattle(selected, exitLogs) === "Reactivated" && (
+  <>
+    <SectionTitle>REACTIVATION DETAILS</SectionTitle>
+
+    <div style={gridStyle}>
+      <DetailItem
+        label="Previous Exit Type"
+        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.category}
+      />
+
+      <DetailItem
+        label="Reactivation Date"
+        value={formatDate(
+          getLatestLifecycleLogForCattle(selected, exitLogs)?.exit_date
+        )}
+      />
+
+      <DetailItem
+        label="Returned From"
+        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.party_name}
+      />
+
+      <DetailItem
+        label="Reason for Return"
+        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.cause_details}
+      />
+    </div>
+  </>
+)}
+
         {/* PARENTAGE */}
         <SectionTitle>Parentage</SectionTitle>
         <div style={{ background: "#fff7ed", padding: "10px", borderRadius: "8px", border: "1px solid #ffedd5" }}>
@@ -2268,6 +3021,46 @@ const EditInput = ({ label, name, value, onChange, type="text", options=[], plac
 
 const DetailItem = ({ label, value }) => { if(!value) return null; return <div><div style={labelItemStyle}>{label}</div><div style={{fontWeight:500, fontSize:"0.9rem"}}>{value}</div></div>; };
 const SectionTitle = ({ children }) => <div style={sectionTitleStyle}>{children}</div>;
+const TypePill = ({ type }) => {
+  const t = String(type || "-").toLowerCase();
+
+  let style = {
+    background: "#eef2ff",
+    color: "#3730a3",
+  };
+
+  if (t.includes("reactivated") || t.includes("reactivation")) {
+    style = { background: "#dbeafe", color: "#1d4ed8" };
+  } else if (t.includes("birth") || t.includes("born")) {
+    style = { background: "#dcfce7", color: "#166534" };
+  } else if (t.includes("sold") || t.includes("sale")) {
+    style = { background: "#ffedd5", color: "#9a3412" };
+  } else if (t.includes("transfer")) {
+    style = { background: "#e0e7ff", color: "#3730a3" };
+  } else if (t.includes("farmer")) {
+    style = { background: "#fef3c7", color: "#92400e" };
+  } else if (t.includes("death")) {
+    style = { background: "#fee2e2", color: "#991b1b" };
+  }
+
+  return (
+    <span
+      style={{
+        ...style,
+        padding: "4px 10px",
+        borderRadius: "999px",
+        fontSize: "0.75rem",
+        fontWeight: 800,
+        display: "inline-flex",
+        alignItems: "center",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {type || "-"}
+    </span>
+  );
+};
+
 const StatusPill = ({ status }) => {
   const s = String(status || "").toLowerCase();
 
