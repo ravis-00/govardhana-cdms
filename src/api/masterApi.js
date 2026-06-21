@@ -75,7 +75,17 @@ export async function getCattleById(id) { return getRequest("getCattleById", { i
 export async function addCattle(payload) { return postRequest("addCattle", payload); }
 export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
 export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
-export async function fetchBreeds() { return getRequest("getBreeds"); } 
+
+export async function getTagHistoryByCattle(internalId) {
+  return getRequest("getTagHistoryByCattle", { internalId });
+}
+export async function getAllTagHistory() {
+  return getRequest("getAllTagHistory");
+}
+
+export async function fetchBreeds() {
+  return getRequest("getBreeds");
+}
 
 // 1.1 PEDIGREE
 export async function getPedigreeList() { return getRequest("getPedigreeList"); }
