@@ -1,5 +1,13 @@
 # Govardhana CDMS - Current State
 
+Current Version:
+v1.9-tag-history
+
+Current Sprint:
+Sprint 1 - UI Standardization
+
+Last Updated:
+21-Jun-2026
 ## Project Information
 
 Project Name: Govardhana CDMS

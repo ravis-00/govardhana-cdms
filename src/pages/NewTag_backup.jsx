@@ -1,3 +1,10 @@
+/*
+  ARCHIVE FILE
+  Old prototype version of Tag Management page.
+  Not used by routing.
+  Kept temporarily for reference.
+*/
+
 // src/pages/NewTag.jsx
 import React, { useMemo, useState } from "react";
 

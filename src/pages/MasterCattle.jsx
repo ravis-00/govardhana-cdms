@@ -3,6 +3,9 @@ import { fetchCattle, updateCattle, getCattleExitLog, reactivateCattle } from ".
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import rashtrotthanaLogo from "../assets/Logo.png";
+import PageHeader from "../components/common/PageHeader";
+import StatusBadge from "../components/common/StatusBadge";
+import MetricCard from "../components/common/MetricCard";
 
 // --- CLOUDINARY CONFIG ---
 const CLOUD_NAME = "dvcwgkszp";       
@@ -2025,61 +2028,57 @@ const printFarmerHandoverCertificate = (row) => {
   return (
     <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
       
-      {/* HEADER */}
+ {/* HEADER */}
 <div style={{ marginBottom: "1.25rem" }}>
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      flexWrap: "wrap",
-      gap: "1rem",
-      marginBottom: "1rem",
-    }}
-  >
-    <div>
-      <h1 style={{ fontSize: "1.8rem", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-        🐄 Master Cattle Data
-      </h1>
-      <div style={{ fontSize: "0.9rem", color: "#64748b", marginTop: "4px" }}>
-        Showing <strong>{filteredRows.length}</strong> of <strong>{rows.length}</strong> records
-      </div>
-    </div>
-
-    {isAdmin && (
-      <Link to="/cattle/register" style={primaryBtnStyle}>
-        <span>+</span> Add New
-      </Link>
-    )}
-  </div>
+  <PageHeader
+    title="🐄 Master Cattle Data"
+    countText={
+      <>
+        Showing <strong>{filteredRows.length}</strong> of{" "}
+        <strong>{rows.length}</strong> records
+      </>
+    }
+    action={
+      isAdmin ? (
+        <Link to="/cattle/register" style={primaryBtnStyle}>
+          <span>+</span> Add New
+        </Link>
+      ) : null
+    }
+  />
 
   {/* SUMMARY CHIPS */}
   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-    <SummaryChip label="Total" value={summary.total} color="#2563eb" onClick={() => {
-  setStatusFilter("All");
-  setGenderFilter("All");
-  setBreedFilter("All");
-}} />
+    <MetricCard
+  label="Total"
+  value={summary.total}
+  color="#2563eb"
+  onClick={() => {
+    setStatusFilter("All");
+    setGenderFilter("All");
+    setBreedFilter("All");
+  }}
+/>
 
-<SummaryChip label="Active" value={summary.active} color="#16a34a" onClick={() => {
+<MetricCard label="Active" value={summary.active} color="#16a34a" onClick={() => {
   setStatusFilter("Active");
   setGenderFilter("All");
   setBreedFilter("All");
 }} />
 
-<SummaryChip label="Active Female" value={summary.female} color="#ec4899" onClick={() => {
+<MetricCard label="Active Female" value={summary.female} color="#ec4899" onClick={() => {
   setStatusFilter("Active");
   setGenderFilter("Female");
   setBreedFilter("All");
 }} />
 
-<SummaryChip label="Active Male" value={summary.male} color="#3b82f6" onClick={() => {
+<MetricCard label="Active Male" value={summary.male} color="#3b82f6" onClick={() => {
   setStatusFilter("Active");
   setGenderFilter("Male");
   setBreedFilter("All");
 }} />
 
-<SummaryChip label="Active Breeds" value={summary.breeds} color="#f97316" onClick={() => {
+<MetricCard label="Active Breeds" value={summary.breeds} color="#f97316" onClick={() => {
   setStatusFilter("Active");
   setGenderFilter("All");
   setBreedFilter("All");
@@ -2087,74 +2086,63 @@ const printFarmerHandoverCertificate = (row) => {
   </div>
 
   {/* FILTERS */}
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "140px 160px 160px 170px 1fr",
-      gap: "0.75rem",
-      alignItems: "center",
-    }}
-  >
+<div style={filterPanelStyle}>
+  <div style={filterGridStyle}>
     <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={filterInputStyle}>
       {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
     </select>
 
     <select value={breedFilter} onChange={e => setBreedFilter(e.target.value)} style={filterInputStyle}>
       {breedOptions.map(b => <option key={b} value={b}>{b === "All" ? "All Breeds" : b}</option>)}
-</select>
+    </select>
 
-<select
-  value={genderFilter}
-  onChange={e => setGenderFilter(e.target.value)}
-  style={filterInputStyle}
->
-  <option value="All">All Gender</option>
-  <option value="Female">Female</option>
-  <option value="Male">Male</option>
-</select>
+    <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)} style={filterInputStyle}>
+      <option value="All">All Gender</option>
+      <option value="Female">Female</option>
+      <option value="Male">Male</option>
+    </select>
 
-<select
-  value={typeFilter}
-  onChange={e => setTypeFilter(e.target.value)}
-  style={filterInputStyle}
->
-  {typeOptions.map(t => (
-    <option key={t} value={t}>
-      {t === "All" ? "All Types" : t}
-    </option>
-  ))}
-</select>
+    <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={filterInputStyle}>
+      {typeOptions.map(t => (
+        <option key={t} value={t}>
+          {t === "All" ? "All Types" : t}
+        </option>
+      ))}
+    </select>
 
-<div style={searchBoxWrapStyle}>
-  <input
-    type="text"
-    placeholder="Search Tag, Name, Breed, Colour, UID..."
-    value={searchText}
-    onChange={e => setSearchText(e.target.value)}
-    style={searchInputStyle}
-  />
+    <div style={searchBoxWrapStyle}>
+      <input
+        type="text"
+        placeholder="Search Tag, Name, Breed, Colour, UID..."
+        value={searchText}
+        onChange={e => setSearchText(e.target.value)}
+        style={searchInputStyle}
+      />
 
-  {searchText && (
+      {searchText && (
+        <button
+          type="button"
+          onClick={() => setSearchText("")}
+          style={clearSearchBtnStyle}
+          title="Clear search"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  </div>
+
+  <div style={filterActionsStyle}>
     <button
       type="button"
-      onClick={() => setSearchText("")}
-      style={clearSearchBtnStyle}
-      title="Clear search"
+      onClick={handleClearFilters}
+      style={clearFiltersBtnStyle}
     >
-      ×
+      Clear Filters
     </button>
-  )}
-</div>
   </div>
 </div>
-
-<button
-  type="button"
-  onClick={handleClearFilters}
-  style={clearFiltersBtnStyle}
->
-  Clear Filters
-</button>
+</div>
 
 {filteredRows.length > 0 && (
   <div style={topPaginationStyle}>
@@ -2254,9 +2242,13 @@ if (isDeactiveRow && row.tag === "632643") {
   borderBottom: "1px solid #f1f5f9",
   cursor: "pointer",
   background:
-    String(row.status || "").toLowerCase() === "deactive"
-      ? "#fff7ed"
-      : "#ffffff",
+  selected && getRowId(selected) === safeId
+    ? "#fef3c7"
+    : String(row.status || "").toLowerCase() === "deactive"
+    ? "#fff7ed"
+    : idx % 2 === 0
+    ? "#ffffff"
+    : "#fafafa",
 }}
   >
     <td style={tdStyle}>
@@ -2278,13 +2270,15 @@ if (isDeactiveRow && row.tag === "632643") {
       <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{row.color || ""}</div>
     </td>
 
-    <td style={tdStyle}>{row.gender || "-"}</td>
+    <td style={tdStyle}>
+  <GenderText gender={row.gender} />
+</td>
 
     <td style={tdStyle}>
-      <StatusPill status={row.status} />
+      <StatusBadge value={row.status} />
     </td>
 <td style={tdStyle}>
-  <TypePill type={getDisplayTypeForCattle(row, exitLogs)} />
+  <StatusBadge value={getDisplayTypeForCattle(row, exitLogs)} />
 </td>
 
     <td style={{ ...tdStyle, textAlign: "center" }}>
@@ -2619,30 +2613,18 @@ function ReactivationModal({ row, exitLog, exitType, onClose, onSubmit }) {
   );
 }
 
-function SummaryChip({ label, value, color, onClick }) {
+function GenderText({ gender }) {
+  const g = String(gender || "").toLowerCase();
+
+  let color = "#334155";
+
+  if (g.startsWith("f")) color = "#ec4899";
+  if (g.startsWith("m")) color = "#2563eb";
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderLeft: `4px solid ${color}`,
-        borderRadius: "10px",
-        padding: "0.65rem 0.9rem",
-        minWidth: "105px",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-        textAlign: "left",
-        cursor: "pointer",
-      }}
-    >
-      <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
-        {label}
-      </div>
-      <div style={{ fontSize: "1.15rem", color: "#0f172a", fontWeight: 800 }}>
-        {value}
-      </div>
-    </button>
+    <span style={{ color, fontWeight: 700 }}>
+      {gender || "-"}
+    </span>
   );
 }
 
@@ -2862,7 +2844,7 @@ function CattleDetailsPanel({
                <DetailItem label="Gender" value={selected.gender} />
                <DetailItem label="DOB" value={formatDate(selected.dob)} />
                {isActive && <DetailItem label="Current Age" value={ageText} />}
-               <DetailItem label="Status" value={<StatusPill status={selected.status} />} />
+               <DetailItem label="Status" value={<StatusBadge value={selected.status} />} />
                <DetailItem label="Location" value={selected.shed} />
                <DetailItem label="Category" value={selected.category} />
              </>
@@ -3095,8 +3077,25 @@ const StatusPill = ({ status }) => {
 const formatDate = (v) => (!v || v==="-") ? "-" : new Date(v).toLocaleDateString('en-GB');
 
 const cardStyle = { background: "#fff", borderRadius: "10px", padding: "0", boxShadow: "0 2px 5px rgba(0,0,0,0.1)", overflow:"hidden", border:"1px solid #e5e7eb" };
-const thStyle = { padding: "1rem", textAlign: "left", fontSize: "0.8rem", color: "#64748b", textTransform: "uppercase", background:"#f8fafc", borderBottom:"1px solid #e2e8f0" };
-const tdStyle = { padding: "0.8rem 1rem", borderBottom: "1px solid #f1f5f9", fontSize:"0.9rem", verticalAlign: "middle" };
+const thStyle = {
+  background: "#f8fafc",
+  color: "#475569",
+  fontSize: "0.75rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  padding: "12px",
+  borderBottom: "2px solid #e2e8f0",
+  textAlign: "left",
+  position: "sticky",
+  top: 0,
+  zIndex: 2,
+};
+const tdStyle = {
+  padding: "12px",
+  borderBottom: "1px solid #f1f5f9",
+  verticalAlign: "middle",
+};
 const inputStyle = { padding: "0.5rem", border: "1px solid #ccc", borderRadius: "5px", width: "100%", boxSizing:"border-box" };
 const filterInputStyle = {
   padding: "0.6rem 0.75rem",
@@ -3233,3 +3232,23 @@ const topPaginationStyle = {
 const largePhotoContainerStyle = { width: "100%", height: "300px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "12px", border: "1px solid #e5e7eb", marginBottom: "1.5rem" };
 const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };
 const placeholderStyle = { display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:"0.9rem", color:"#999", textAlign:"center", width:"100%" };
+const filterPanelStyle = {
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "1rem",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+};
+
+const filterGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "140px 160px 160px 170px 1fr",
+  gap: "0.75rem",
+  alignItems: "center",
+};
+
+const filterActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  marginTop: "0.75rem",
+};

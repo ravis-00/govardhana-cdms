@@ -6,6 +6,9 @@ import {
   getAllTagHistory,
 } from "../api/masterApi";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import PageHeader from "../components/common/PageHeader";
+import SectionCard from "../components/common/SectionCard";
+import FormActions from "../components/common/FormActions";
 
 function getToday() {
   const d = new Date();
@@ -468,14 +471,15 @@ async function confirmTagChange() {
         }
       `}</style>
 
-      <header style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>
-          Tag Management
-        </h1>
-        <p style={{ margin: "4px 0 0", fontSize: "0.9rem", color: "#6b7280" }}>
-          Identify cattle using details and assign a new ear tag.
-        </p>
-      </header>
+      <PageHeader
+  title="🏷️ Tag Management"
+  description="Identify cattle using filters and assign a new ear tag."
+  countText={
+    <>
+      Matches: <strong>{filteredCattle.length}</strong> active cattle
+    </>
+  }
+/>
 
       <div className="tag-layout">
         <section className="tag-list-panel">
@@ -656,7 +660,7 @@ async function confirmTagChange() {
         </section>
 
         <section className="tag-form-panel">
-          <div className="card">
+          <SectionCard>
             {selectedAnimal ? (
               <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                 <div
@@ -709,151 +713,138 @@ async function confirmTagChange() {
                 👈 Use filters and select cattle from the list.
               </div>
             )}
-          </div>
+          </SectionCard>
 
-          <div className="card">
-            <h3 className="section-title" style={{ marginTop: 0 }}>
-              Update Tag Details
-            </h3>
+          <SectionCard title="Update Tag Details">
+  <form onSubmit={handleSubmit}>
+    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+      <Field label="Current Tag Number">
+        <input
+          type="text"
+          value={selectedAnimal ? selectedAnimal.tagNo : ""}
+          readOnly
+          className="form-input"
+          style={{ backgroundColor: "#f9fafb", color: "#6b7280" }}
+          placeholder="Auto-filled"
+        />
+      </Field>
 
-            <form onSubmit={handleSubmit}>
-              <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
-                <Field label="Current Tag Number">
-                  <input
-                    type="text"
-                    value={selectedAnimal ? selectedAnimal.tagNo : ""}
-                    readOnly
-                    className="form-input"
-                    style={{ backgroundColor: "#f9fafb", color: "#6b7280" }}
-                    placeholder="Auto-filled"
-                  />
-                </Field>
+      <Field label="New Tag Number *">
+        <input
+          type="text"
+          name="newTagNo"
+          value={form.newTagNo}
+          onChange={handleFormChange}
+          className="form-input"
+          placeholder="Enter new tag"
+          disabled={!selectedAnimal}
+        />
+      </Field>
+    </div>
 
-                <Field label="New Tag Number *">
-                  <input
-                    type="text"
-                    name="newTagNo"
-                    value={form.newTagNo}
-                    onChange={handleFormChange}
-                    className="form-input"
-                    placeholder="Enter new tag"
-                    disabled={!selectedAnimal}
-                  />
-                </Field>
-              </div>
+    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+      <Field label="Change Date *">
+        <input
+          type="date"
+          name="changeDate"
+          value={form.changeDate}
+          onChange={handleFormChange}
+          className="form-input"
+          disabled={!selectedAnimal}
+        />
+      </Field>
 
-              <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
-                <Field label="Change Date *">
-                  <input
-                    type="date"
-                    name="changeDate"
-                    value={form.changeDate}
-                    onChange={handleFormChange}
-                    className="form-input"
-                    disabled={!selectedAnimal}
-                  />
-                </Field>
+      <Field label="Reason">
+        <select
+          name="reason"
+          value={form.reason}
+          onChange={handleFormChange}
+          className="form-select"
+          disabled={!selectedAnimal}
+        >
+          <option value="">Select reason</option>
+          <option value="Lost tag">Lost tag</option>
+          <option value="Damaged tag">Damaged tag</option>
+          <option value="Govt re-tag">Govt re-tag</option>
+          <option value="Other">Other</option>
+        </select>
+      </Field>
+    </div>
 
-                <Field label="Reason">
-                  <select
-                    name="reason"
-                    value={form.reason}
-                    onChange={handleFormChange}
-                    className="form-select"
-                    disabled={!selectedAnimal}
-                  >
-                    <option value="">Select reason</option>
-                    <option value="Lost tag">Lost tag</option>
-                    <option value="Damaged tag">Damaged tag</option>
-                    <option value="Govt re-tag">Govt re-tag</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </Field>
-              </div>
+    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+      <Field label="Changed By *">
+        <input
+          type="text"
+          name="changedBy"
+          value={form.changedBy}
+          onChange={handleFormChange}
+          className="form-input"
+          placeholder="Enter staff name"
+          disabled={!selectedAnimal}
+        />
+      </Field>
+    </div>
 
-              <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
-                <Field label="Changed By *">
-                  <input
-                    type="text"
-                    name="changedBy"
-                    value={form.changedBy}
-                    onChange={handleFormChange}
-                    className="form-input"
-                    placeholder="Enter staff name"
-                    disabled={!selectedAnimal}
-                  />
-                </Field>
-              </div>
+    <Field label="Remarks">
+      <textarea
+        name="remarks"
+        value={form.remarks}
+        onChange={handleFormChange}
+        rows={2}
+        className="form-input"
+        placeholder="Optional details..."
+        disabled={!selectedAnimal}
+      />
+    </Field>
 
-              <Field label="Remarks">
-                <textarea
-                  name="remarks"
-                  value={form.remarks}
-                  onChange={handleFormChange}
-                  rows={2}
-                  className="form-input"
-                  placeholder="Optional details..."
-                  disabled={!selectedAnimal}
-                />
-              </Field>
+    <FormActions
+  submitText="Save New Tag"
+  loading={saving}
+/>
+  </form>
+</SectionCard>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
-                <button
-                  type="submit"
-                  disabled={saving || !selectedAnimal}
-                  className="btn btn-primary"
-                  style={{ minWidth: "140px" }}
-                >
-                  {saving ? "Saving..." : "Save New Tag"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="card" style={{ overflow: "hidden", padding: 0 }}>
-            <div style={{ padding: "1rem", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontWeight: 600, color: "#374151" }}>
-              Tag History Log
-            </div>
-
-            {historyLoading ? (
-              <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
-                Loading tag history...
-              </div>
-            ) : selectedAnimal && tagHistoryRows.length > 0 ? (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                      <th style={thStyle}>Date</th>
-                      <th style={thStyle}>Old Tag</th>
-                      <th style={thStyle}>New Tag</th>
-                      <th style={thStyle}>Reason</th>
-                      <th style={thStyle}>Changed By</th>
-                      <th style={thStyle}>Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tagHistoryRows.map((row, idx) => (
-                      <tr key={row.history_id || idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={tdStyle}>{formatDateDDMMYYYY(row.change_date)}</td>
-                        <td style={tdStyle}>{row.old_tag_number || "-"}</td>
-                        <td style={tdStyle}>{row.new_tag_number || "-"}</td>
-                        <td style={tdStyle}>{row.reason || "-"}</td>
-                        <td style={tdStyle}>{row.changed_by || "-"}</td>
-                        <td style={tdStyle}>{row.remarks || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
-                {selectedAnimal ? "No previous tag history." : "Select cattle to view history."}
-              </div>
-            )}
-          </div>
-                </section>
-      </div>
+<SectionCard title="Tag History Log" style={{ overflow: "hidden", padding: 0 }}>
+  {historyLoading ? (
+    <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
+      Loading tag history...
+    </div>
+  ) : selectedAnimal && tagHistoryRows.length > 0 ? (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+        <thead>
+          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Old Tag</th>
+            <th style={thStyle}>New Tag</th>
+            <th style={thStyle}>Reason</th>
+            <th style={thStyle}>Changed By</th>
+            <th style={thStyle}>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tagHistoryRows.map((row, idx) => (
+            <tr key={row.history_id || idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <td style={tdStyle}>{formatDateDDMMYYYY(row.change_date)}</td>
+              <td style={tdStyle}>{row.old_tag_number || "-"}</td>
+              <td style={tdStyle}>{row.new_tag_number || "-"}</td>
+              <td style={tdStyle}>{row.reason || "-"}</td>
+              <td style={tdStyle}>{row.changed_by || "-"}</td>
+              <td style={tdStyle}>{row.remarks || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
+      {selectedAnimal ? "No previous tag history." : "Select cattle to view history."}
+    </div>
+  )}
+</SectionCard>
+</section>
+</div>
+      
 
       <ConfirmDialog
         open={showConfirm}
