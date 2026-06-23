@@ -9,6 +9,7 @@ import ConfirmDialog from "../components/common/ConfirmDialog";
 import PageHeader from "../components/common/PageHeader";
 import SectionCard from "../components/common/SectionCard";
 import FormActions from "../components/common/FormActions";
+import StatusBadge from "../components/common/StatusBadge";
 
 function getToday() {
   const d = new Date();
@@ -482,11 +483,9 @@ async function confirmTagChange() {
 />
 
       <div className="tag-layout">
-        <section className="tag-list-panel">
+        <SectionCard title="Find Cattle" style={tagListPanelStyle}>
           <div style={{ paddingBottom: "0.75rem", borderBottom: "1px solid #f3f4f6" }}>
-            <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827", marginBottom: "0.75rem" }}>
-              Find Cattle
-            </div>
+            
 
             <div className="filter-grid">
               <FilterField label="Breed">
@@ -657,65 +656,55 @@ async function confirmTagChange() {
               })
             )}
           </div>
-        </section>
+        </SectionCard>
 
         <section className="tag-form-panel">
-          <SectionCard>
-            {selectedAnimal ? (
-              <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                <div
-                  style={{
-                    width: "110px",
-                    height: "85px",
-                    background: "#f3f4f6",
-                    borderRadius: "10px",
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    border: "1px solid #e5e7eb",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {selectedAnimal.photo ? (
-                    <img src={selectedAnimal.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt={selectedAnimal.name} />
-                  ) : (
-                    <span style={{ fontSize: "2rem" }}>🐄</span>
-                  )}
-                </div>
+         <SectionCard>
+  {selectedAnimal ? (
+    <div style={selectedCardStyle}>
+      <div style={selectedPhotoBoxStyle}>
+        {selectedAnimal.photo ? (
+          <img
+            src={selectedAnimal.photo}
+            style={selectedPhotoStyle}
+            alt={selectedAnimal.name}
+          />
+        ) : (
+          <span style={{ fontSize: "2rem" }}>🐄</span>
+        )}
+      </div>
 
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280", fontWeight: "bold" }}>
-                    Selected Cattle
-                  </div>
+      <div style={{ flex: 1 }}>
+        <div style={selectedLabelStyle}>Selected Cattle</div>
 
-                  <div style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>
-                    {selectedAnimal.name || "Unnamed"}{" "}
-                    <span style={{ fontWeight: 400, color: "#6b7280" }}>
-                      ({selectedAnimal.tagNo || "No Tag"})
-                    </span>
-                  </div>
+        <div style={selectedTitleStyle}>
+          {selectedAnimal.name || "Unnamed"}
+        </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.35rem 1rem", marginTop: "0.5rem", fontSize: "0.8rem" }}>
-                    <Detail label="Internal ID" value={selectedAnimal.internalId} />
-                    <Detail label="Breed" value={selectedAnimal.breed} />
-                    <Detail label="Gender" value={selectedAnimal.gender} />
-                    <Detail label="Category" value={selectedAnimal.category} />
-                    <Detail label="Colour" value={selectedAnimal.color} />
-                    <Detail label="Shed" value={selectedAnimal.shed} />
-                    <Detail label="Status" value={selectedAnimal.status} />
-                    <Detail label="Tag Changes" value={tagHistoryRows.length} />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ padding: "1rem", textAlign: "center", color: "#9ca3af", fontStyle: "italic" }}>
-                👈 Use filters and select cattle from the list.
-              </div>
-            )}
-          </SectionCard>
+        <div style={selectedSubTextStyle}>
+          Tag: <strong>{selectedAnimal.tagNo || "No Tag"}</strong> · Internal ID:{" "}
+          <strong>{selectedAnimal.internalId || "-"}</strong>
+        </div>
 
-          <SectionCard title="Update Tag Details">
+        <div style={selectedInfoGridStyle}>
+          <Detail label="Breed" value={selectedAnimal.breed} />
+          <Detail label="Gender" value={<GenderText gender={selectedAnimal.gender} />} />
+          <Detail label="Category" value={selectedAnimal.category} />
+          <Detail label="Shed" value={selectedAnimal.shed} />
+          <Detail label="Colour" value={selectedAnimal.color} />
+          
+          <Detail label="Tag Changes" value={tagHistoryRows.length} />
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div style={emptySelectedStyle}>
+      👈 Use filters and select cattle from the list.
+    </div>
+  )}
+</SectionCard>
+
+<SectionCard title="Update Tag Details">
   <form onSubmit={handleSubmit}>
     <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
       <Field label="Current Tag Number">
@@ -804,40 +793,49 @@ async function confirmTagChange() {
   </form>
 </SectionCard>
 
-<SectionCard title="Tag History Log" style={{ overflow: "hidden", padding: 0 }}>
+<SectionCard title="Tag History Log">
   {historyLoading ? (
-    <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
-      Loading tag history...
-    </div>
+    <div style={historyEmptyStyle}>Loading tag history...</div>
   ) : selectedAnimal && tagHistoryRows.length > 0 ? (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+    <div style={historyTableWrapStyle}>
+      <table style={historyTableStyle}>
         <thead>
-          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-            <th style={thStyle}>Date</th>
-            <th style={thStyle}>Old Tag</th>
-            <th style={thStyle}>New Tag</th>
-            <th style={thStyle}>Reason</th>
-            <th style={thStyle}>Changed By</th>
-            <th style={thStyle}>Remarks</th>
+          <tr>
+            <th style={historyThStyle}>Date</th>
+            <th style={historyThStyle}>Old Tag</th>
+            <th style={historyThStyle}>New Tag</th>
+            <th style={historyThStyle}>Reason</th>
+            <th style={historyThStyle}>Changed By</th>
+            <th style={historyThStyle}>Remarks</th>
           </tr>
         </thead>
+
         <tbody>
           {tagHistoryRows.map((row, idx) => (
-            <tr key={row.history_id || idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-              <td style={tdStyle}>{formatDateDDMMYYYY(row.change_date)}</td>
-              <td style={tdStyle}>{row.old_tag_number || "-"}</td>
-              <td style={tdStyle}>{row.new_tag_number || "-"}</td>
-              <td style={tdStyle}>{row.reason || "-"}</td>
-              <td style={tdStyle}>{row.changed_by || "-"}</td>
-              <td style={tdStyle}>{row.remarks || "-"}</td>
+            <tr
+              key={row.history_id || idx}
+              style={{
+                background: idx % 2 === 0 ? "#ffffff" : "#f8fafc",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              <td style={historyTdStyle}>{formatDateDDMMYYYY(row.change_date)}</td>
+              <td style={historyTdStyle}>{row.old_tag_number || "-"}</td>
+              <td style={{ ...historyTdStyle, fontWeight: 800, color: "#0f172a" }}>
+                {row.new_tag_number || "-"}
+              </td>
+              <td style={historyTdStyle}>{row.reason || "-"}</td>
+              <td style={historyTdStyle}>{row.changed_by || "-"}</td>
+              <td style={{ ...historyTdStyle, whiteSpace: "normal" }}>
+                {row.remarks || "-"}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   ) : (
-    <div style={{ padding: "2rem", textAlign: "center", fontSize: "0.85rem", color: "#9ca3af" }}>
+    <div style={historyEmptyStyle}>
       {selectedAnimal ? "No previous tag history." : "Select cattle to view history."}
     </div>
   )}
@@ -878,7 +876,66 @@ Proceed with tag update?`
   );
 }
 
-    
+    const selectedCardStyle = {
+  display: "flex",
+  gap: "1rem",
+  alignItems: "flex-start",
+};
+
+const selectedPhotoBoxStyle = {
+  width: "120px",
+  height: "95px",
+  background: "#f3f4f6",
+  borderRadius: "12px",
+  overflow: "hidden",
+  flexShrink: 0,
+  border: "1px solid #e5e7eb",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const selectedPhotoStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const selectedLabelStyle = {
+  fontSize: "0.7rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "#64748b",
+  fontWeight: 800,
+};
+
+const selectedTitleStyle = {
+  fontSize: "1.2rem",
+  fontWeight: 800,
+  color: "#0f172a",
+  marginTop: "2px",
+};
+
+const selectedSubTextStyle = {
+  fontSize: "0.85rem",
+  color: "#475569",
+  marginTop: "4px",
+};
+
+const selectedInfoGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: "0.5rem 1rem",
+  marginTop: "0.75rem",
+  fontSize: "0.85rem",
+};
+
+const emptySelectedStyle = {
+  padding: "1rem",
+  textAlign: "center",
+  color: "#94a3b8",
+  fontStyle: "italic",
+};
 
 const thStyle = {
   padding: "0.7rem 1rem",
@@ -894,6 +951,51 @@ const tdStyle = {
   color: "#374151",
   fontSize: "0.82rem",
   whiteSpace: "nowrap",
+};
+
+const tagListPanelStyle = {
+  height: "calc(100vh - 140px)",
+  display: "flex",
+  flexDirection: "column",
+};
+
+const historyTableWrapStyle = {
+  overflowX: "auto",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+};
+
+const historyTableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: "0.85rem",
+};
+
+const historyThStyle = {
+  background: "#f8fafc",
+  color: "#475569",
+  fontSize: "0.72rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  padding: "0.75rem",
+  borderBottom: "1px solid #e2e8f0",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+};
+
+const historyTdStyle = {
+  padding: "0.75rem",
+  color: "#334155",
+  fontSize: "0.82rem",
+  whiteSpace: "nowrap",
+};
+
+const historyEmptyStyle = {
+  padding: "2rem",
+  textAlign: "center",
+  fontSize: "0.85rem",
+  color: "#94a3b8",
 };
 
 function FilterField({ label, children }) {
@@ -918,16 +1020,46 @@ function Field({ label, children }) {
   );
 }
 
+function GenderText({ gender }) {
+  const g = String(gender || "").toLowerCase();
+
+  let color = "#0f172a";
+  if (g.startsWith("f")) color = "#ec4899";
+  if (g.startsWith("m")) color = "#2563eb";
+
+  return (
+    <span style={{ color, fontWeight: 800 }}>
+      {gender || "-"}
+    </span>
+  );
+}
+
 function Detail({ label, value }) {
   return (
     <div>
-      <div style={{ color: "#6b7280", fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700 }}>
+      <div
+        style={{
+          color: "#64748b",
+          fontSize: "0.68rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          fontWeight: 800,
+          marginBottom: "2px",
+        }}
+      >
         {label}
       </div>
-      <div style={{ color: "#111827", fontWeight: 600 }}>
+
+      <div
+        style={{
+          color: "#0f172a",
+          fontWeight: 700,
+          fontSize: "0.86rem",
+          lineHeight: 1.25,
+        }}
+      >
         {value || "-"}
       </div>
-      
     </div>
   );
 }
