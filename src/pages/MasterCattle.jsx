@@ -2757,7 +2757,60 @@ function CattleDetailsPanel({
   };
 
   const isActive = String(selected.status || "").toLowerCase() === "active";
-  const ageText = calculateSmartAge(selected.dob, selected.admissionDate, selected.admissionAge);
+  const admissionAgeMonths = getAdmissionAgeMonths(selected);
+const ageAtAdmissionText = formatAgeFromMonths(admissionAgeMonths);
+calculateSmartAge
+const isBornAtGoshala = isBornAtGoshalaType(selected);
+const admissionDate = getAnyValue(selected, [
+  "admissionDate",
+  "admission_date",
+]);
+
+const admissionType = getAnyValue(selected, [
+  "admissionType",
+  "admission_type",
+]);
+
+const admissionAgeMonthsValue = getAnyValue(selected, [
+  "admissionAgeMonths",
+  "admission_age_months",
+  "admissionAge",
+]);
+
+const admissionWeight = getAnyValue(selected, [
+  "admissionWeight",
+  "admission_weight",
+  "weight",
+]);
+
+const ageText = calculateSmartAge(
+  selected.dob,
+  admissionDate,
+  admissionAgeMonthsValue
+);
+
+const sourceName = getAnyValue(selected, [
+  "sourceName",
+  "source_party_name",
+  "sourcePartyName",
+]);
+
+const sourceMobile = getAnyValue(selected, [
+  "sourceMobile",
+  "source_party_mobile",
+  "sourcePartyMobile",
+]);
+
+const sourceAddress = getAnyValue(selected, [
+  "sourceAddress",
+  "source_party_address",
+  "sourcePartyAddress",
+]);
+
+const purchasePrice = getAnyValue(selected, [
+  "purchasePrice",
+  "purchase_price",
+]);
   const displayId = getRowId(selected);
 
   return (
@@ -2843,7 +2896,16 @@ function CattleDetailsPanel({
                <DetailItem label="Breed" value={selected.breed} />
                <DetailItem label="Gender" value={selected.gender} />
                <DetailItem label="DOB" value={formatDate(selected.dob)} />
-               {isActive && <DetailItem label="Current Age" value={ageText} />}
+               {isBornAtGoshala && (
+  <DetailItem label="Date of Birth" value={formatDate(selected.dob)} />
+)}
+
+{isActive && (
+  <DetailItem
+    label={isBornAtGoshala ? "Current Age" : "Estimated Current Age"}
+    value={ageText}
+  />
+)}
                <DetailItem label="Status" value={<StatusBadge value={selected.status} />} />
                <DetailItem label="Location" value={selected.shed} />
                <DetailItem label="Category" value={selected.category} />
@@ -2852,23 +2914,32 @@ function CattleDetailsPanel({
         </div>
 
         {/* ORIGINS */}
-        <SectionTitle>Origins & Source</SectionTitle>
-        <div style={gridStyle}>
-           {isEditing ? (
-             <>
-               <EditInput label="Source" name="sourceName" value={formData.sourceName} onChange={handleChange} />
-               <EditInput label="Purchase Price" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} />
-             </>
-           ) : (
-             <>
-               <DetailItem label="Admission Date" value={formatDate(selected.admissionDate)} />
-               <DetailItem label="Type" value={selected.admissionType} />
-               <DetailItem label="Age at Adm." value={selected.admissionAge ? `${String(selected.admissionAge).replace(/[^0-9]/g, '')} months` : "-"} />
-               <DetailItem label="Source" value={selected.sourceName} />
-               <DetailItem label="Price" value={selected.purchasePrice} />
-             </>
-           )}
-        </div>
+<SectionTitle>Origins & Source</SectionTitle>
+<div style={gridStyle}>
+  {isEditing ? (
+    <>
+      <EditInput label="Source" name="sourceName" value={formData.sourceName} onChange={handleChange} />
+      <EditInput label="Purchase Price" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} />
+    </>
+  ) : (
+    <>
+      <DetailItem label="Admission Date" value={formatDate(admissionDate)} />
+<DetailItem label="Type" value={admissionType} />
+<DetailItem label="Age at Admission" value={formatAgeFromMonths(admissionAgeMonthsValue)} />
+<DetailItem
+  label="Admission Weight"
+  value={admissionWeight ? `${admissionWeight} Kg` : "-"}
+/>
+<DetailItem label="Source" value={sourceName} />
+<DetailItem label="Contact Number" value={sourceMobile} />
+<DetailItem label="Address" value={sourceAddress} />
+
+{String(admissionType || "").toLowerCase() === "purchase" && (
+  <DetailItem label="Purchase Price" value={purchasePrice} />
+)}
+    </>
+  )}
+</div>
 
 {getDisplayTypeForCattle(selected, exitLogs) === "Reactivated" && (
   <>
@@ -2901,33 +2972,103 @@ function CattleDetailsPanel({
 )}
 
         {/* PARENTAGE */}
-        <SectionTitle>Parentage</SectionTitle>
-        <div style={{ background: "#fff7ed", padding: "10px", borderRadius: "8px", border: "1px solid #ffedd5" }}>
-           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-             <div>
-               <div style={{ fontSize: "0.7rem", fontWeight: "bold", color: "#ea580c", marginBottom: "4px" }}>MOTHER (DAM)</div>
-               {isEditing ? (
-                  <EditInput label="ID / Tag" name="damId" value={formData.damId} onChange={handleChange} />
-               ) : (
-                  <div style={{ fontSize: "0.9rem" }}>
-                    {selected.damId || "-"} 
-                    {selected.damBreed && selected.damBreed.trim() && <span style={{ color: "#888", fontSize: "0.8rem", marginLeft: "4px" }}>({selected.damBreed})</span>}
-                  </div>
-               )}
-             </div>
-             <div>
-               <div style={{ fontSize: "0.7rem", fontWeight: "bold", color: "#ea580c", marginBottom: "4px" }}>FATHER (SIRE)</div>
-               {isEditing ? (
-                  <EditInput label="ID / Tag" name="sireId" value={formData.sireId} onChange={handleChange} />
-               ) : (
-                  <div style={{ fontSize: "0.9rem" }}>
-                    {selected.sireId || "-"} 
-                    {selected.sireBreed && selected.sireBreed.trim() && <span style={{ color: "#888", fontSize: "0.8rem", marginLeft: "4px" }}>({selected.sireBreed})</span>}
-                  </div>
-               )}
-             </div>
-           </div>
+{isBornAtGoshala && (
+  <>
+    <SectionTitle>Parentage</SectionTitle>
+
+    <div
+      style={{
+        background: "#fff7ed",
+        padding: "10px",
+        borderRadius: "8px",
+        border: "1px solid #ffedd5",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: "bold",
+              color: "#ea580c",
+              marginBottom: "4px",
+            }}
+          >
+            MOTHER (DAM)
+          </div>
+
+          {isEditing ? (
+            <EditInput
+              label="ID / Tag"
+              name="damId"
+              value={formData.damId}
+              onChange={handleChange}
+            />
+          ) : (
+            <div style={{ fontSize: "0.9rem" }}>
+              {selected.damId || "-"}
+              {selected.damBreed && selected.damBreed.trim() && (
+                <span
+                  style={{
+                    color: "#888",
+                    fontSize: "0.8rem",
+                    marginLeft: "4px",
+                  }}
+                >
+                  ({selected.damBreed})
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        <div>
+          <div
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: "bold",
+              color: "#ea580c",
+              marginBottom: "4px",
+            }}
+          >
+            FATHER (SIRE)
+          </div>
+
+          {isEditing ? (
+            <EditInput
+              label="ID / Tag"
+              name="sireId"
+              value={formData.sireId}
+              onChange={handleChange}
+            />
+          ) : (
+            <div style={{ fontSize: "0.9rem" }}>
+              {selected.sireId || "-"}
+              {selected.sireBreed && selected.sireBreed.trim() && (
+                <span
+                  style={{
+                    color: "#888",
+                    fontSize: "0.8rem",
+                    marginLeft: "4px",
+                  }}
+                >
+                  ({selected.sireBreed})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </>
+)}
+        
 
         {/* HEALTH */}
         <SectionTitle>Health & Other</SectionTitle>
@@ -2954,6 +3095,35 @@ function CattleDetailsPanel({
 }
 
 // Logic & Helpers
+function formatAgeFromMonths(totalMonths) {
+  const n = Number(String(totalMonths || "").replace(/[^0-9]/g, ""));
+  if (!n) return "-";
+
+  const years = Math.floor(n / 12);
+  const months = n % 12;
+
+  if (years === 0) return `${months} month${months === 1 ? "" : "s"}`;
+  if (months === 0) return `${years} year${years === 1 ? "" : "s"}`;
+  return `${years} years ${months} months`;
+}
+
+function getAdmissionAgeMonths(row) {
+  return (
+    row.admissionAgeMonths ||
+    row.admission_age_months ||
+    row.admissionAge ||
+    ""
+  );
+}
+
+function isBornAtGoshalaType(row) {
+  const type = String(
+    row.admissionType || row.admission_type || row.type_of_admission || ""
+  ).toLowerCase();
+
+  return type.includes("born") || type.includes("birth");
+}
+
 function calculateSmartAge(dob, admissionDate, admissionAgeRaw) {
   const now = new Date();
   if (dob && dob !== "-" && dob !== "") {

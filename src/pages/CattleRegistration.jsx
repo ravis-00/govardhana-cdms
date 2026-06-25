@@ -1,9 +1,50 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom"; 
 import { addCattle, getUnregisteredBirths } from "../api/masterApi"; 
+import PageHeader from "../components/common/PageHeader";
+import SectionCard from "../components/common/SectionCard";
+import FormActions from "../components/common/FormActions";
+import ProgressToast from "../components/common/ProgressToast";
 
 const CLOUD_NAME = "dvcwgkszp";       
 const UPLOAD_PRESET = "cattle_upload"; 
+
+function getCategoryOptions(gender) {
+  const g = String(gender || "").toLowerCase();
+
+  if (g === "male") {
+    return [
+      "",
+      "Male Calf",
+      "Bull",
+      "Ox / Bullock",
+    ];
+  }
+
+  if (g === "female") {
+    return [
+      "",
+      "Female Calf",
+      "Heifer",
+      "Cow",
+      "Milking Cow",
+      "Dry Cow",
+    ];
+  }
+
+  return [
+    "",
+    "Calf",
+    "Male Calf",
+    "Female Calf",
+    "Heifer",
+    "Cow",
+    "Milking Cow",
+    "Dry Cow",
+    "Bull",
+    "Ox / Bullock",
+  ];
+}
 
 export default function CattleRegistration() {
   const navigate = useNavigate();
@@ -18,10 +59,10 @@ export default function CattleRegistration() {
 
   const [form, setForm] = useState({
     cattleId: "", govtId: "", name: "", gender: "", category: "",
-    breed: "", colour: "", typeOfAdmission: "",
+    breed: "", colour: "", pattern: "", typeOfAdmission: "",
     admissionDate: new Date().toISOString().split('T')[0],
     sourceName: "", sourceAddress: "", sourceMobile: "", 
-    price: "", weight: "", ageMonths: "0",
+    price: "", weight: "", ageMonths: "",ageYears:"0",ageMonthsPart:"0",
     disabilityFlag: "N", disabilityDetails: "", adoptionStatus: "Available",
     locationShed: "", prevTags: "", remarks: "",
     photo: "", 
@@ -97,12 +138,48 @@ export default function CattleRegistration() {
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    if (name === "admissionDate") {
-        setForm(prev => ({...prev, ageMonths: calculateAge(value)}));
-    }
+  const { name, value } = e.target;
+
+  if (name === "price") {
+    const onlyDigits = value.replace(/\D/g, "");
+    setForm((prev) => ({ ...prev, [name]: onlyDigits }));
+    return;
   }
+
+  if (name === "gender") {
+    setForm((prev) => ({
+      ...prev,
+      gender: value,
+      category: "",
+    }));
+    return;
+  }
+
+  if (name === "ageYears" || name === "ageMonthsPart") {
+  setForm((prev) => {
+    const updated = {
+      ...prev,
+      [name]: value,
+    };
+
+    const years = Number(updated.ageYears || 0);
+    const months = Number(updated.ageMonthsPart || 0);
+
+    return {
+      ...updated,
+      ageMonths: String(years * 12 + months),
+    };
+  });
+
+  return;
+}
+
+  setForm((prev) => ({ ...prev, [name]: value }));
+
+  if (name === "admissionDate") {
+    setForm((prev) => ({ ...prev, ageMonths: calculateAge(value) }));
+  }
+}
 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
@@ -137,52 +214,88 @@ export default function CattleRegistration() {
   function handleCancel() { navigate("/cattle/master"); } 
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const payload = {
-        tagNumber: form.cattleId,
-        govtId: form.govtId,
-        name: form.name,
-        gender: form.gender,
-        category: form.category,
-        breed: form.breed,
-        color: form.colour,
-        isDisabled: form.disabilityFlag === "Y",
-        disabilityDetails: form.disabilityFlag === "Y" ? form.disabilityDetails : "",
-        adoptionStatus: form.adoptionStatus,
-        shedId: form.locationShed,
-        prevTags: form.prevTags,
-        remarks: form.remarks,
-        photoUrl: form.photo || "",
-        admissionType: form.typeOfAdmission,
-        admissionDate: form.admissionDate,
-        sourceName: form.sourceName,
-        sourceAddress: form.sourceAddress,
-        sourceMobile: form.sourceMobile,
-        price: form.price,
-        weight: form.weight,
-        ageMonths: form.ageMonths,
-        damId: form.damId,
-        sireId: form.sireId,
-        damBreed: form.damBreed,
-        sireBreed: form.sireBreed,
-        birthWeight: form.birthWeight,
-        linkedBirthId: manualBirthEntry ? "" : form.linkedBirthId // 🔥 Clear link if manual
-      };
-      const response = await addCattle(payload);
-      if (response && response.success) {
-        alert(`SUCCESS: Cattle Registered!\nInternal ID: ${response.id}`); 
-        navigate("/cattle/master"); 
-      } else {
-        alert("Server Error: " + (response?.error || "Unknown"));
-      }
-    } catch (error) {
-      alert("Network/Code Error: " + error.message);
-    } finally {
-      setLoading(false);
-    }
+  e.preventDefault();
+
+  const ageYears = Number(form.ageYears || 0);
+  const ageMonthsPart = Number(form.ageMonthsPart || 0);
+  const totalAgeMonths = ageYears * 12 + ageMonthsPart;
+
+  if (totalAgeMonths === 0) {
+    alert("Please enter valid age. Years and months cannot both be 0.");
+    return;
   }
+
+  const isBornAtGoshala = form.typeOfAdmission === "Born at Goshala";
+
+  setLoading(true);
+
+  try {
+    const payload = {
+      // cattle_master fields
+      tagNumber: form.cattleId,
+      govtUid: form.govtId,
+      prevTagNumbers: form.prevTags,
+
+      cattleName: form.name,
+      gender: form.gender,
+      category: form.category,
+      breed: form.breed,
+      color: form.colour,
+
+      dob: isBornAtGoshala ? form.admissionDate : "",
+
+      shedId: form.locationShed,
+      status: "Active",
+      adoptionStatus: form.adoptionStatus || "Available",
+      photoUrl: form.photo,
+
+      isDisabled: form.disabilityFlag,
+      disabilityDetails: form.disabilityDetails,
+      remarks: form.remarks,
+
+      // cattle_origins fields
+      admissionDate: form.admissionDate,
+      admissionType: form.typeOfAdmission,
+      admissionAgeMonths: String(totalAgeMonths),
+
+      sourcePartyName: form.sourceName,
+      sourcePartyAddress: form.sourceAddress,
+      sourcePartyMobile: form.sourceMobile,
+
+      admissionWeight: form.weight,
+      birthWeight: form.birthWeight,
+
+      purchasePrice:
+        form.typeOfAdmission === "Purchase"
+          ? form.price
+          : "",
+
+      damId: form.damId,
+      damBreed: form.damBreed,
+      sireId: form.sireId,
+      sireBreed: form.sireBreed,
+
+      linkedBirthId: form.linkedBirthId,
+    };
+
+    console.log("Registration payload:", payload);
+
+    const response = await addCattle(payload);
+
+    alert(
+      `SUCCESS: Cattle Registered!\nInternal ID: ${
+        response?.id || response?.internalId || "Generated"
+      }`
+    );
+
+    navigate("/cattle/master");
+  } catch (error) {
+    console.error("Registration failed:", error);
+    alert("Failed to register cattle. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+}
 
   const isLinked = !!form.linkedBirthId;
 
@@ -190,139 +303,334 @@ export default function CattleRegistration() {
   const isBornLocked = isLinked && !manualBirthEntry; 
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", paddingBottom: "4rem" }}>
+  <div style={pageWrapStyle}>
+    <ProgressToast
+      show={loading}
+      type="loading"
+      message="Registering cattle, please wait..."
+    />
       
-      {/* HEADER */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: "700", color: "#111827", margin: 0 }}>Register New Cattle</h1>
-        <p style={{ color: "#6b7280", margin: "4px 0 0 0" }}>Enter details to add a new animal to the herd.</p>
-      </div>
+      <PageHeader
+  title="🐄 Register New Cattle"
+  description="Register cattle born, purchased, donated, rescued or admitted to the goshala."
+/>
 
       <form onSubmit={handleSubmit}>
+  <div style={registrationGridStyle}>
         
         {/* --- SECTION 1: IDENTIFICATION --- */}
-        <div className="card">
-          <h3 className="section-title">Identification</h3>
+        <SectionCard title="Identification">
           <div className="responsive-grid">
              <TextField label="Tag Number *" name="cattleId" value={form.cattleId} onChange={handleChange} placeholder="Enter New Tag" required />
              <TextField label="Govt ID (INAPH)" name="govtId" value={form.govtId} onChange={handleChange} placeholder="Optional" />
           </div>
-        </div>
+        </SectionCard>
 
         {/* --- SECTION 2: ORIGIN & SOURCE --- */}
-        <div className="card">
-          <h3 className="section-title">Origin Details</h3>
+        <SectionCard title="Origin Details">
           
           <div style={{ marginBottom: "1rem" }}>
              <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} disabled={isLinked && !manualBirthEntry} />
           </div>
 
-          {/* Logic for Born at Goshala */}
-          {form.typeOfAdmission === "Born at Goshala" && (
-             <div style={{ background: "#eff6ff", padding: "1.2rem", borderRadius: "8px", border: "1px solid #bfdbfe", marginBottom: "1rem" }}>
-                
-                {/* 🔥 NEW: Manual Entry Toggle */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                    <label style={{ fontSize: "0.9rem", fontWeight: "bold", color: "#1e40af" }}>
-                        {manualBirthEntry ? "Manual Entry Mode (Old Data)" : "Link to Birth Record (New Borns)"}
-                    </label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <input 
-                            type="checkbox" 
-                            checked={manualBirthEntry} 
-                            onChange={(e) => {
-                                setManualBirthEntry(e.target.checked);
-                                if (e.target.checked) {
-                                    // Clear linked data if switching to manual
-                                    setForm(prev => ({ ...prev, linkedBirthId: "" }));
-                                }
-                            }} 
-                            id="manualEntry"
-                        />
-                        <label htmlFor="manualEntry" style={{ fontSize: "0.85rem", color: "#4b5563", cursor: "pointer" }}>Manual Entry (No Log)</label>
-                    </div>
-                </div>
+          
 
-                {/* Dropdown (Only show if NOT manual and NOT linked yet) */}
-                {!manualBirthEntry && !isLinked && (
-                    <div style={{ marginBottom: "1rem" }}>
-                        <select onChange={handleBirthSelection} className="form-select" style={{borderColor: "#2563eb"}}>
-                            <option value="">-- Select Unregistered Calf --</option>
-                            {birthRecords.map(rec => (<option key={rec.id} value={rec.id}>Born: {rec.dateOfBirth} | Mother: {rec.motherTag} | {rec.calfSex}</option>))}
-                        </select>
-                        <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "4px" }}>
-                            * List empty? Ensure calf is entered in "Calving Log" first, or use Manual Entry.
-                        </div>
-                    </div>
-                )}
+          
+        </SectionCard>
 
-                {/* Linked Badge */}
-                {isLinked && !manualBirthEntry && (
-                    <div style={{marginBottom:"1rem", padding:"8px", background:"#dbeafe", color:"#1e40af", fontWeight:"bold", borderRadius:"4px", textAlign:"center"}}>
-                        ✓ Linked to Birth Record: {form.linkedBirthId}
-                    </div>
-                )}
-                
-                <div className="responsive-grid" style={{ marginTop:"1rem" }}>
-                      <TextField label="Mother ID (Dam)" name="damId" value={form.damId} onChange={handleChange} readOnly={!manualBirthEntry} placeholder={manualBirthEntry ? "Enter Dam ID" : "Auto-filled"} />
-                      <TextField label="Father ID (Sire)" name="sireId" value={form.sireId} onChange={handleChange} readOnly={!manualBirthEntry} placeholder={manualBirthEntry ? "Enter Sire ID" : "Auto-filled"} />
-                      <TextField label="Dam Breed" name="damBreed" value={form.damBreed} onChange={handleChange} readOnly={!manualBirthEntry} />
-                      <TextField label="Sire Breed" name="sireBreed" value={form.sireBreed} onChange={handleChange} readOnly={!manualBirthEntry} />
-                      <TextField label="Birth Weight" name="birthWeight" value={form.birthWeight} onChange={handleChange} readOnly={!manualBirthEntry} />
-                </div>
-             </div>
-          )}
+{form.typeOfAdmission === "Born at Goshala" && (
+  <SectionCard
+    title="Birth / Parentage Details"
+    style={{ gridColumn: "1 / -1" }}
+  >
+    <div style={birthRecordPanelStyle}>
+      <div style={birthRecordHeaderStyle}>
+        <label style={birthRecordTitleStyle}>
+          {manualBirthEntry
+            ? "Manual birth details"
+  : "Birth Record Link"}
+        </label>
 
-          {/* Logic for Purchase/Donation */}
-          {(form.typeOfAdmission === "Purchase" || form.typeOfAdmission === "Donation" || form.typeOfAdmission === "Rescue") && (
-             <div style={{ background: "#f8fafc", padding: "1.2rem", borderRadius: "8px", border: "1px dashed #cbd5e1", marginBottom: "1rem" }}>
-                <div className="responsive-grid">
-                    <TextField label="Source Name (Vendor/Donor)" name="sourceName" value={form.sourceName} onChange={handleChange} />
-                    <TextField label="Source Mobile" name="sourceMobile" value={form.sourceMobile} onChange={handleChange} />
-                </div>
-                <div style={{ marginTop: "1rem" }}>
-                    <TextField label="Source Address" name="sourceAddress" value={form.sourceAddress} onChange={handleChange} />
-                </div>
-                {form.typeOfAdmission === "Purchase" && (
-                    <div style={{ marginTop: "1rem" }}>
-                        <TextField label="Purchase Price (₹)" name="price" value={form.price} onChange={handleChange} type="number" />
-                    </div>
-                )}
-             </div>
-          )}
+        <div style={manualToggleStyle}>
+          <input
+            type="checkbox"
+            checked={manualBirthEntry}
+            onChange={(e) => {
+              setManualBirthEntry(e.target.checked);
+              if (e.target.checked) {
+                setForm((prev) => ({ ...prev, linkedBirthId: "" }));
+              }
+            }}
+            id="manualEntry"
+          />
+
+          <label
+            htmlFor="manualEntry"
+            style={{
+              fontSize: "0.85rem",
+              color: "#4b5563",
+              cursor: "pointer",
+            }}
+          >
+            Manual birth details
+          </label>
+        </div>
+      </div>
+
+      {!manualBirthEntry && !isLinked && (
+        <div style={{ marginBottom: "1rem" }}>
+          <select
+            onChange={handleBirthSelection}
+            className="form-select"
+            style={{ borderColor: "#2563eb" }}
+          >
+            <option value="">Select calf from Calving Log</option>
+            {birthRecords.map((rec) => (
+              <option key={rec.id} value={rec.id}>
+                Born: {rec.dateOfBirth} | Mother: {rec.motherTag} | {rec.calfSex}
+              </option>
+            ))}
+          </select>
+
+          <div style={birthHelpTextStyle}>
+           Use this option to link a calf already recorded in Calving Log. Use manual birth details only for old records not available in Calving Log.
+          </div>
+        </div>
+      )}
+
+      {isLinked && !manualBirthEntry && (
+        <div style={linkedBirthBadgeStyle}>
+          ✓ Linked to Birth Record: {form.linkedBirthId}
+        </div>
+      )}
+
+      <div className="responsive-grid" style={{ marginTop: "1rem" }}>
+       <TextField
+  label="Mother Tag / ID"
+  name="damId"
+  value={form.damId}
+  onChange={handleChange}
+  readOnly={!manualBirthEntry}
+  placeholder={manualBirthEntry ? "Enter Mother Tag / ID" : "Auto-filled"}
+/>
+
+<TextField
+  label="Father Tag / ID"
+  name="sireId"
+  value={form.sireId}
+  onChange={handleChange}
+  readOnly={!manualBirthEntry}
+  placeholder={manualBirthEntry ? "Enter Father Tag / ID" : "Auto-filled"}
+/>
+
+<TextField
+  label="Mother Breed"
+  name="damBreed"
+  value={form.damBreed}
+  onChange={handleChange}
+  readOnly={!manualBirthEntry}
+/>
+
+<TextField
+  label="Father Breed"
+  name="sireBreed"
+  value={form.sireBreed}
+  onChange={handleChange}
+  readOnly={!manualBirthEntry}
+/>
+
+<TextField
+  label="Birth Weight (Kg)"
+  name="birthWeight"
+  value={form.birthWeight}
+  onChange={handleChange}
+  readOnly={!manualBirthEntry}
+/>
+      </div>
+    </div>
+  </SectionCard>
+)}
+
+{["Purchase", "Donation", "Rescue"].includes(form.typeOfAdmission) && (
+  <SectionCard
+    title={
+      form.typeOfAdmission === "Purchase"
+        ? "Purchase Source Details"
+        : form.typeOfAdmission === "Donation"
+        ? "Donation Source Details"
+        : "Rescue Source Details"
+    }
+    style={{ gridColumn: "1 / -1" }}
+  >
+    <div style={sourceDetailsPanelStyle}>
+      <div className="responsive-grid">
+        <TextField
+          label={
+            form.typeOfAdmission === "Purchase"
+              ? "Vendor Name"
+              : form.typeOfAdmission === "Donation"
+              ? "Donor Name"
+              : "Rescue Source Name"
+          }
+          name="sourceName"
+          value={form.sourceName}
+          onChange={handleChange}
+        />
+
+        <TextField
+          label={
+            form.typeOfAdmission === "Purchase"
+              ? "Vendor Phone Number"
+              : form.typeOfAdmission === "Donation"
+              ? "Donor Phone Number"
+              : "Source Phone Number"
+          }
+          name="sourceMobile"
+          value={form.sourceMobile}
+          onChange={handleChange}
+        />
+      </div>
+
+      <div style={{ marginTop: "1rem" }}>
+        <TextField
+          label={
+            form.typeOfAdmission === "Purchase"
+              ? "Vendor Address"
+              : form.typeOfAdmission === "Donation"
+              ? "Donor Address"
+              : "Rescue Source Address"
+          }
+          name="sourceAddress"
+          value={form.sourceAddress}
+          onChange={handleChange}
+        />
+      </div>
+
+      {form.typeOfAdmission === "Purchase" && (
+        <div style={{ marginTop: "1rem", maxWidth: "260px" }}>
+          <TextField
+            label="Purchase Price (₹)"
+            name="price"
+            value={form.price}
+            onChange={handleChange}
+            type="text"
+            inputMode="numeric"
+          />
         </div>
 
+        
+      )}
+    </div>
+  </SectionCard>
+)}
+
         {/* --- SECTION 3: DEMOGRAPHICS --- */}
-        <div className="card">
-           <h3 className="section-title">Demographics</h3>
+        <SectionCard title="Demographics">
            <div style={{ marginBottom: "1rem" }}>
               <TextField label="Name *" name="name" value={form.name} onChange={handleChange} placeholder="e.g. Gowri" />
            </div>
            <div className="responsive-grid">
               <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} options={["", "Female", "Male"]} disabled={isBornLocked} />
-              <SelectField label="Category *" name="category" value={form.category} onChange={handleChange} options={["", "Milking", "Dry", "Heifer", "Calf", "Bull", "Ox"]} />
+              <SelectField
+  label="Category *"
+  name="category"
+  value={form.category}
+  onChange={handleChange}
+  options={getCategoryOptions(form.gender)}
+/>
               <SelectField label="Breed *" name="breed" value={form.breed} onChange={handleChange} options={["", "Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal", "Kankrej", "Deoni", "Malnad Gidda"]} />
-              <TextField label="Color" name="colour" value={form.colour} onChange={handleChange} />
+              <SelectField
+  label="Base Colour"
+  name="colour"
+  value={form.colour}
+  onChange={handleChange}
+  options={[
+    "",
+    "Black",
+    "White",
+    "Grey",
+    "Brown",
+    "Red",
+    "Reddish Brown",
+    "Fawn",
+    "Cream",
+    "Mixed",
+    "To be confirmed",
+    
+  ]}
+/>
+<TextField
+  label="Pattern"
+  name="pattern"
+  value={form.pattern}
+  onChange={handleChange}
+  placeholder="Optional, e.g. white patches, dorsal stripe"
+/>
            </div>
-        </div>
+        </SectionCard>
 
         {/* --- SECTION 4: PHYSICAL SPECS --- */}
-        <div className="card">
-           <h3 className="section-title">Physical Specs</h3>
+        <SectionCard title="Physical Specs">
            <div className="responsive-grid">
-              <TextField label="Admission Date" name="admissionDate" type="date" value={form.admissionDate} onChange={handleChange} readOnly={isBornLocked} />
+              <TextField
+  label={
+    form.typeOfAdmission === "Born at Goshala"
+      ? "Date of Birth"
+      : "Admission Date"
+  }
+  name="admissionDate"
+  value={form.admissionDate}
+  onChange={handleChange}
+  type="date"
+/>
               <TextField label="Weight (Kg)" name="weight" value={form.weight} onChange={handleChange} type="number" />
-              <TextField label="Age (Months)" name="ageMonths" value={form.ageMonths} onChange={handleChange} readOnly={isBornLocked} type="number" />
+              <div>
+  <label className="form-label">Age *</label>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "0.75rem",
+    }}
+  >
+    <SelectField
+      label="Years"
+      name="ageYears"
+      value={form.ageYears}
+      onChange={handleChange}
+      options={ageYearOptions}
+    />
+
+    <SelectField
+      label="Months"
+      name="ageMonthsPart"
+      value={form.ageMonthsPart}
+      onChange={handleChange}
+      options={ageMonthOptions}
+    />
+  </div>
+
+  <div
+    style={{
+      marginTop: "0.35rem",
+      fontSize: "0.78rem",
+      color: "#64748b",
+      fontWeight: 600,
+    }}
+  >
+    Total age: {formatAgeFromMonths(form.ageMonths)}
+  </div>
+</div>
            </div>
-        </div>
+        </SectionCard>
 
         {/* --- SECTION 5: PHOTO (Mobile Optimized) --- */}
-        <div className="card">
-           <h3 className="section-title">Cattle Photo</h3>
-           <div 
-             className="photo-upload-box" 
-             onClick={() => !uploading && fileInputRef.current.click()}
-           >
+        <SectionCard title="Cattle Photo">
+           <div
+  style={photoUploadBoxStyle}
+  onClick={() => !uploading && fileInputRef.current.click()}
+>
               {uploading ? (
                  <span style={{ color: "#2563eb", fontWeight: "bold" }}>Uploading Image...</span>
               ) : form.photo ? (
@@ -348,11 +656,10 @@ export default function CattleRegistration() {
              onChange={handleFileSelect} 
              style={{display:"none"}} 
            />
-        </div>
+       </SectionCard>
 
         {/* --- SECTION 6: STATUS & LOCATION --- */}
-        <div className="card">
-           <h3 className="section-title">Status & Location</h3>
+        <SectionCard title="Status & Location">
            
            <div style={{ marginBottom: "1rem" }}>
                <label className="form-label">Permanent Disability?</label>
@@ -380,8 +687,8 @@ export default function CattleRegistration() {
                <SelectField label="Shed Location" name="locationShed" value={form.locationShed} onChange={handleChange} options={["", "Punyakoti", "Samrakshana", "Kaveri", "Nandini", "Others"]} />
                <TextField label="Remarks" name="remarks" value={form.remarks} onChange={handleChange} />
            </div>
-        </div>
-
+        </SectionCard>
+</div>
         {/* --- ACTIONS --- */}
         <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", justifyContent: "flex-end" }}>
            <button type="button" onClick={handleCancel} className="btn btn-secondary btn-full-mobile">Cancel</button>
@@ -394,6 +701,90 @@ export default function CattleRegistration() {
     </div>
   );
 }
+
+const pageWrapStyle = {
+  maxWidth: "1180px",
+  margin: "0 auto",
+  padding: "1.5rem",
+  paddingBottom: "4rem",
+  boxSizing: "border-box",
+};
+
+const registrationGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "1rem",
+  alignItems: "start",
+};
+
+const photoUploadBoxStyle = {
+  minHeight: "150px",
+  border: "2px dashed #cbd5e1",
+  borderRadius: "12px",
+  background: "#f8fafc",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexDirection: "column",
+  cursor: "pointer",
+  padding: "1rem",
+  textAlign: "center",
+};
+
+const birthRecordPanelStyle = {
+  background: "#eff6ff",
+  padding: "1rem",
+  borderRadius: "10px",
+  border: "1px solid #bfdbfe",
+};
+
+const birthRecordHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "1rem",
+  marginBottom: "1rem",
+  flexWrap: "wrap",
+};
+
+const birthRecordTitleStyle = {
+  fontSize: "0.9rem",
+  fontWeight: 800,
+  color: "#1e40af",
+};
+
+const manualToggleStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+};
+
+const birthHelpTextStyle = {
+  fontSize: "0.75rem",
+  color: "#6b7280",
+  marginTop: "4px",
+};
+
+const linkedBirthBadgeStyle = {
+  marginBottom: "1rem",
+  padding: "8px",
+  background: "#dbeafe",
+  color: "#1e40af",
+  fontWeight: 800,
+  borderRadius: "6px",
+  textAlign: "center",
+};
+
+const sourceDetailsPanelStyle = {
+  background: "#f8fafc",
+  padding: "1rem",
+  borderRadius: "10px",
+  border: "1px dashed #cbd5e1",
+};
+
+const ageYearOptions = Array.from({ length: 21 }, (_, i) => String(i));
+const ageMonthOptions = Array.from({ length: 12 }, (_, i) => String(i));
+
 
 // --- HELPER COMPONENTS ---
 
@@ -432,4 +823,18 @@ function SelectField({ label, name, value, onChange, options, disabled=false }) 
        </select> 
     </div> 
   ); 
+}
+
+function formatAgeFromMonths(totalMonths) {
+  const monthsNumber = Number(totalMonths || 0);
+
+  if (!monthsNumber) return "0 months";
+
+  const years = Math.floor(monthsNumber / 12);
+  const months = monthsNumber % 12;
+
+  if (years === 0) return `${months} month${months === 1 ? "" : "s"}`;
+  if (months === 0) return `${years} year${years === 1 ? "" : "s"}`;
+
+  return `${years} year${years === 1 ? "" : "s"} ${months} month${months === 1 ? "" : "s"}`;
 }
