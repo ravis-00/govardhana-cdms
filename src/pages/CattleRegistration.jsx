@@ -86,8 +86,10 @@ export default function CattleRegistration() {
         colour: b.colour || "", 
         photo: b.photo || "",
         damId: b.motherTag,
+        damInternalId: b.motherId,
         damBreed: b.motherBreed,
         sireId: b.fatherTag,
+        sireInternalId: b.fatherId,
         sireBreed: b.fatherBreed,
         ageMonths: calculateAge(b.dateOfBirth),
         category: "Calf"
@@ -330,7 +332,7 @@ export default function CattleRegistration() {
         <SectionCard title="Origin Details">
           
           <div style={{ marginBottom: "1rem" }}>
-             <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} options={["", "Purchase", "Donation", "Born at Goshala", "Rescue"]} disabled={isLinked && !manualBirthEntry} />
+             <SelectField label="Type of Admission *" name="typeOfAdmission" value={form.typeOfAdmission} onChange={handleChange} options={["", "Purchase", "Donation", "Born at Goshala", "From Farmer", "Rescue / Slaughter House"]} disabled={isLinked && !manualBirthEntry} />
           </div>
 
           
@@ -451,13 +453,15 @@ export default function CattleRegistration() {
   </SectionCard>
 )}
 
-{["Purchase", "Donation", "Rescue"].includes(form.typeOfAdmission) && (
+{["Purchase", "Donation", "From Farmer", "Rescue / Slaughter House"].includes(form.typeOfAdmission) && (
   <SectionCard
     title={
       form.typeOfAdmission === "Purchase"
         ? "Purchase Source Details"
         : form.typeOfAdmission === "Donation"
         ? "Donation Source Details"
+        : form.typeOfAdmission === "From Farmer"
+        ? "Farmer Source Details"
         : "Rescue Source Details"
     }
     style={{ gridColumn: "1 / -1" }}
@@ -470,6 +474,8 @@ export default function CattleRegistration() {
               ? "Vendor Name"
               : form.typeOfAdmission === "Donation"
               ? "Donor Name"
+              : form.typeOfAdmission === "From Farmer"
+              ? "Farmer Name"
               : "Rescue Source Name"
           }
           name="sourceName"
@@ -483,6 +489,8 @@ export default function CattleRegistration() {
               ? "Vendor Phone Number"
               : form.typeOfAdmission === "Donation"
               ? "Donor Phone Number"
+              : form.typeOfAdmission === "From Farmer"
+              ? "Farmer Phone Number"
               : "Source Phone Number"
           }
           name="sourceMobile"
@@ -491,34 +499,29 @@ export default function CattleRegistration() {
         />
       </div>
 
-      <div style={{ marginTop: "1rem" }}>
-        <TextField
-          label={
-            form.typeOfAdmission === "Purchase"
-              ? "Vendor Address"
-              : form.typeOfAdmission === "Donation"
-              ? "Donor Address"
-              : "Rescue Source Address"
-          }
-          name="sourceAddress"
-          value={form.sourceAddress}
-          onChange={handleChange}
-        />
-      </div>
+      <TextField
+        label={
+          form.typeOfAdmission === "Purchase"
+            ? "Vendor Address"
+            : form.typeOfAdmission === "Donation"
+            ? "Donor Address"
+            : form.typeOfAdmission === "From Farmer"
+            ? "Farmer Address"
+            : "Rescue Location / Address"
+        }
+        name="sourceAddress"
+        value={form.sourceAddress}
+        onChange={handleChange}
+      />
 
       {form.typeOfAdmission === "Purchase" && (
-        <div style={{ marginTop: "1rem", maxWidth: "260px" }}>
-          <TextField
-            label="Purchase Price (₹)"
-            name="price"
-            value={form.price}
-            onChange={handleChange}
-            type="text"
-            inputMode="numeric"
-          />
-        </div>
-
-        
+        <TextField
+          label="Purchase Price (₹)"
+          name="Price"
+          type="number"
+          value={form.Price}
+          onChange={handleChange}
+        />
       )}
     </div>
   </SectionCard>

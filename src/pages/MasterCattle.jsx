@@ -6,6 +6,7 @@ import rashtrotthanaLogo from "../assets/Logo.png";
 import PageHeader from "../components/common/PageHeader";
 import StatusBadge from "../components/common/StatusBadge";
 import MetricCard from "../components/common/MetricCard";
+import ProgressToast from "../components/common/ProgressToast";
 
 // --- CLOUDINARY CONFIG ---
 const CLOUD_NAME = "dvcwgkszp";       
@@ -14,6 +15,23 @@ const UPLOAD_PRESET = "cattle_upload";
 // Configuration
 const ITEMS_PER_PAGE = 20;
 const STATUS_OPTIONS = ["All", "Active", "Deactive"];
+
+const BREED_OPTIONS = ["Hallikar", "Gir", "Jersey", "HF", "Mix", "Sahiwal", "Kankrej", "Deoni", "Malnad Gidda"];
+
+const COLOUR_OPTIONS = [
+  "Black",
+  "White",
+  "Grey",
+  "Brown",
+  "Red",
+  "Reddish Brown",
+  "Fawn",
+  "Cream",
+  "Mixed",
+  "To be confirmed",
+];
+
+const SHED_OPTIONS = ["Punyakoti", "Samrakshana", "Kaveri", "Nandini", "Others"];
 
 // --- HELPER: Get Robust ID ---
 function getRowId(row) {
@@ -82,7 +100,7 @@ function getExitLogsForCattle(row, exitLogs = []) {
   const cattleId = cleanValue(getRowId(row));
   const tag = cleanValue(row.tag || row.tag_number || row.tagNumber);
 
-  return exitLogs.filter((log) => {
+  const matches = exitLogs.filter((log) => {
     const logInternalId = cleanValue(
       getAnyValue(log, [
         "internal_id",
@@ -112,11 +130,11 @@ function getExitLogsForCattle(row, exitLogs = []) {
     );
   });
 
-
   return matches.sort((a, b) => {
-    const aDate = `${getLogDateValue(a)} ${getLogTimeValue(a)}`;
-    const bDate = `${getLogDateValue(b)} ${getLogTimeValue(b)}`;
-    return new Date(aDate) - new Date(bDate);
+    const aDate = parseFlexibleDate(`${getLogDateValue(a)} ${getLogTimeValue(a)}`);
+    const bDate = parseFlexibleDate(`${getLogDateValue(b)} ${getLogTimeValue(b)}`);
+
+    return (aDate?.getTime() || 0) - (bDate?.getTime() || 0);
   });
 }
 
@@ -145,6 +163,32 @@ function getExitTypeForCattle(row, exitLogs = []) {
   return getLogExitType(match);
 }
 
+function normalizeAdmissionType(type) {
+  const t = String(type || "").toLowerCase().trim();
+
+  if (!t || t === "-") return "-";
+
+  if (t === "farmer" || t === "from farmer" || t.includes("farmer")) {
+    return "From Farmer";
+  }
+
+  if (
+    t === "rescue" ||
+    t === "slaughter house" ||
+    t === "slaughterhouse" ||
+    t.includes("rescue") ||
+    t.includes("slaughter")
+  ) {
+    return "Rescue / Slaughter House";
+  }
+
+  if (t.includes("birth") || t.includes("born")) return "Born at Goshala";
+  if (t.includes("purchase")) return "Purchase";
+  if (t.includes("donation")) return "Donation";
+
+  return type;
+}
+
 function getDisplayTypeForCattle(row, exitLogs = []) {
   const status = String(row.status || "").toLowerCase().trim();
   const latestLifecycleLog = getLatestLifecycleLogForCattle(row, exitLogs);
@@ -155,13 +199,13 @@ function getDisplayTypeForCattle(row, exitLogs = []) {
       return "Reactivated";
     }
 
-    return (
-      row.admissionType ||
-      row.type_of_admission ||
-      row.admission_type ||
-      row.origin ||
-      "-"
-    );
+    return normalizeAdmissionType(
+  row.admissionType ||
+  row.type_of_admission ||
+  row.admission_type ||
+  row.origin ||
+  "-"
+);
   }
 
   if (status === "deactive") {
@@ -2237,7 +2281,15 @@ if (isDeactiveRow && row.tag === "632643") {
       return (
   <tr
     key={idx}
-    onClick={() => setSelected(row)}
+    onClick={() =>
+  setSelected({
+    ...row,
+    is_disabled: row.is_disabled || row.isDisabled || "No",
+    isDisabled: row.is_disabled || row.isDisabled || "No",
+    disability_details: row.disability_details || row.disabilityDetails || "",
+    disabilityDetails: row.disability_details || row.disabilityDetails || "",
+  })
+}
     style={{
   borderBottom: "1px solid #f1f5f9",
   cursor: "pointer",
@@ -2252,7 +2304,7 @@ if (isDeactiveRow && row.tag === "632643") {
 }}
   >
     <td style={tdStyle}>
-      <CattleThumb url={row.photo} />
+      <CattleThumb url={row.photo || row.photoUrl || row.photo_url} />
     </td>
 
     <td style={tdStyle}>
@@ -2302,7 +2354,13 @@ if (isDeactiveRow && row.tag === "632643") {
               style={actionMenuItemStyle}
               onClick={() => {
                 setActionMenuId(null);
-                setSelected(row);
+                setSelected({
+  ...row,
+  is_disabled: row.is_disabled || row.isDisabled || "No",
+  isDisabled: row.is_disabled || row.isDisabled || "No",
+  disability_details: row.disability_details || row.disabilityDetails || "",
+  disabilityDetails: row.disability_details || row.disabilityDetails || "",
+});
               }}
             >
               👁 View Details
@@ -2697,6 +2755,12 @@ function CattleDetailsPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState({
+  open: false,
+  type: "info",
+  message: "",
+});
   const fileInputRef = useRef(null); 
 
   useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
@@ -2704,25 +2768,86 @@ function CattleDetailsPanel({
   
 
   const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  const { name, value } = e.target;
+
+  setFormData((prev) => {
+    if (name === "gender") {
+      return {
+        ...prev,
+        gender: value,
+        category: "",
+      };
+    }
+
+    return {
+      ...prev,
+      [name]: value,
+    };
+  });
+};
 
   const handleSave = async () => {
-    const idToUpdate = formData.internalId || formData.id || formData.internal_id;
-    if (!idToUpdate) {
-        alert("Error: Missing Internal ID for this record. Cannot update.");
-        return;
-    }
-    const res = await updateCattle({ id: idToUpdate, ...formData });
+  const idToUpdate = formData.internalId || formData.id || formData.internal_id;
+
+  if (!idToUpdate) {
+    alert("Error: Missing Internal ID for this record. Cannot update.");
+    return;
+  }
+
+  try {
+    setSaving(true);
+    setToast({
+  open: true,
+  type: "info",
+  message: "Please wait... Updating cattle details.",
+});
+
+    const photoValue =
+      formData.photo ||
+      formData.photoUrl ||
+      formData.photo_url ||
+      "";
+
+    const res = await updateCattle({
+      id: idToUpdate,
+      ...formData,
+      photo: photoValue,
+      photoUrl: photoValue,
+      photo_url: photoValue,
+    });
+
     if (res && res.success) {
-      alert("Updated Successfully!");
-      setIsEditing(false);
-      refreshData();
-      onClose();
+      setToast({
+  open: true,
+  type: "success",
+  message: "Cattle details updated successfully.",
+});
+
+setIsEditing(false);
+
+// Give user time to see the success toast
+setTimeout(async () => {
+  await refreshData();
+  onClose();
+}, 1800);
     } else {
-      alert("Failed: " + res.error);
+      setToast({
+  open: true,
+  type: "error",
+  message: res?.error || "Update failed.",
+});
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setToast({
+  open: true,
+  type: "error",
+  message: err.message || String(err),
+});
+  } finally {
+    setSaving(false);
+  }
+};
 
   // UPLOAD LOGIC
   const handleFileSelect = async (e) => {
@@ -2733,7 +2858,7 @@ function CattleDetailsPanel({
     const data = new FormData();
     data.append("file", file);
     data.append("upload_preset", UPLOAD_PRESET); 
-    data.append("folder", "cattle_photos"); 
+    // data.append("folder", "cattle_photos"); 
 
     try {
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
@@ -2743,10 +2868,15 @@ function CattleDetailsPanel({
       const fileData = await res.json();
       
       if (fileData.secure_url) {
-        setFormData(prev => ({ ...prev, photo: fileData.secure_url }));
+        setFormData(prev => ({
+  ...prev,
+  photo: fileData.secure_url,
+  photoUrl: fileData.secure_url,
+  photo_url: fileData.secure_url,
+}));
       } else {
-        alert("Upload failed. Check console.");
-        console.error(fileData);
+        console.error("Cloudinary upload failed:", fileData);
+alert(fileData?.error?.message || "Upload failed. Check console.");
       }
     } catch (err) {
       console.error("Error uploading:", err);
@@ -2757,64 +2887,161 @@ function CattleDetailsPanel({
   };
 
   const isActive = String(selected.status || "").toLowerCase() === "active";
-  const admissionAgeMonths = getAdmissionAgeMonths(selected);
-const ageAtAdmissionText = formatAgeFromMonths(admissionAgeMonths);
-calculateSmartAge
 const isBornAtGoshala = isBornAtGoshalaType(selected);
-const admissionDate = getAnyValue(selected, [
-  "admissionDate",
-  "admission_date",
-]);
+
+
+
+const latestLifecycleLog = getLatestLifecycleLogForCattle(selected, exitLogs);
+const latestReactivationLog = getExitLogsForCattle(selected, exitLogs)
+  .filter((log) => getLogExitType(log).includes("reactivation"))
+  .slice(-1)[0];
+
+const reactivationLogToShow = latestReactivationLog || latestLifecycleLog;
+const latestLifecycleType = getLogExitType(latestLifecycleLog);
+
+const admissionDate =
+  getAnyValue(selected, [
+    "admissionDate",
+    "admission_date",
+    "date_of_admission",
+    "Date of Admission",
+    "Admission Date",
+    "origin_admission_date",
+  ]) || selected.dob || "";
 
 const admissionType = getAnyValue(selected, [
   "admissionType",
   "admission_type",
+  "type_of_admission",
+  "type",
+  "origin_type",
 ]);
+
+const displayAdmissionType = normalizeAdmissionType(admissionType);
 
 const admissionAgeMonthsValue = getAnyValue(selected, [
   "admissionAgeMonths",
   "admission_age_months",
   "admissionAge",
+  "age_at_admission",
+  "ageAtAdmission",
 ]);
 
 const admissionWeight = getAnyValue(selected, [
   "admissionWeight",
   "admission_weight",
   "weight",
+  "admissionWeightKg",
+  "body_weight",
 ]);
 
-const ageText = calculateSmartAge(
+const birthWeight = getAnyValue(selected, [
+  "birthWeight",
+  "birth_weight",
+  "calfWeight",
+  "calf_weight",
+]);
+
+const colour = getAnyValue(selected, [
+  "color",
+  "colour",
+  "Color",
+  "Colour",
+]);
+
+const reactivationDate = getAnyValue(latestLifecycleLog, [
+  "reactivation_date",
+  "exit_date",
+  "date",
+]);
+
+const reactivationWeight = getAnyValue(latestLifecycleLog, [
+  "reactivation_weight",
+  "weight",
+  "admission_weight",
+  "body_weight",
+]);
+
+const currentAgeText = calculateSmartAge(
   selected.dob,
+  admissionDate,
+  admissionAgeMonthsValue
+);
+
+const ageAtAdmissionText = formatAgeFromMonths(admissionAgeMonthsValue);
+
+const ageAtReactivationText = calculateAgeAtDate(
+  selected.dob,
+  reactivationDate,
   admissionDate,
   admissionAgeMonthsValue
 );
 
 const sourceName = getAnyValue(selected, [
   "sourceName",
+  "source_name",
   "source_party_name",
   "sourcePartyName",
+  "party_name",
 ]);
 
 const sourceMobile = getAnyValue(selected, [
   "sourceMobile",
+  "source_mobile",
   "source_party_mobile",
   "sourcePartyMobile",
+  "party_contact",
 ]);
 
 const sourceAddress = getAnyValue(selected, [
   "sourceAddress",
+  "source_address",
   "source_party_address",
   "sourcePartyAddress",
+  "party_address",
 ]);
 
 const purchasePrice = getAnyValue(selected, [
   "purchasePrice",
   "purchase_price",
+  "amount",
 ]);
-  const displayId = getRowId(selected);
+
+const linkedBirthId = getAnyValue(selected, ["linkedBirthId", "linked_birth_id"]);
+const birthTime = getAnyValue(selected, ["birthTime", "birth_time"]);
+const birthStatus = getAnyValue(selected, ["birthStatus", "birth_status"]);
+const deliveryType = getAnyValue(selected, ["deliveryType", "delivery_type"]);
+
+const disabledValue = String(
+  getAnyValue(selected, [
+    "is_disabled",
+    "isDisabled",
+    "Is Disabled",
+    "is disabled",
+  ]) || "No"
+).trim();
+
+const isDisabledYes = ["yes", "y", "true", "1"].includes(
+  disabledValue.toLowerCase()
+);
+
+const disabilityDetailsValue = getAnyValue(selected, [
+  "disability_details",
+  "disabilityDetails",
+  "Disability Details",
+]);
+
+const displayId = getRowId(selected);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {toast.open && (
+  <ProgressToast
+    show={toast.open}
+    type={toast.type}
+    message={toast.message}
+  />
+)}
       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem" }}>
         <div>
              {isEditing ? (
@@ -2832,11 +3059,42 @@ const purchasePrice = getAnyValue(selected, [
           {canEdit && !isEditing && <button onClick={() => setIsEditing(true)} style={editBtnStyle}>✎ Edit</button>}
           {isEditing && (
             <>
-              <button onClick={() => setIsEditing(false)} style={cancelBtnStyle}>Cancel</button>
-              <button onClick={handleSave} style={saveBtnStyle}>Save</button>
+              <button
+  onClick={() => setIsEditing(false)}
+  disabled={saving}
+  style={{
+    ...cancelBtnStyle,
+    opacity: saving ? 0.6 : 1,
+    cursor: saving ? "not-allowed" : "pointer",
+  }}
+>
+  Cancel
+</button>
+              <button
+  onClick={handleSave}
+  disabled={saving}
+  style={{
+    ...saveBtnStyle,
+    opacity: saving ? 0.6 : 1,
+    cursor: saving ? "not-allowed" : "pointer",
+  }}
+>
+  {saving ? "Saving..." : "Save"}
+</button>
             </>
           )}
-          <button onClick={onClose} style={closeBtnStyle}>×</button>
+          <button
+  onClick={() => {
+    if (!saving) onClose();
+  }}
+  disabled={saving}
+  style={{
+    background: "transparent",
+    border: "none",
+    cursor: saving ? "not-allowed" : "pointer",
+    opacity: saving ? 0.5 : 1,
+  }}
+>×</button>
         </div>
       </div>
 
@@ -2847,7 +3105,9 @@ const purchasePrice = getAnyValue(selected, [
              {isEditing ? (
                 formData.photo ? <img src={formData.photo} style={largePhotoStyle} alt="Preview" /> : <div style={placeholderStyle}>No Photo Selected</div>
              ) : (
-                <CattlePhoto url={selected.photo} />
+                <CattlePhoto
+  url={selected.photo || selected.photoUrl || selected.photo_url}
+/>
              )}
         </div>
 
@@ -2857,44 +3117,123 @@ const purchasePrice = getAnyValue(selected, [
           {isEditing ? (
              <>
                 <EditInput label="Name" name="name" value={formData.name} onChange={handleChange} />
-                <EditInput label="Tag No" name="tag" value={formData.tag} onChange={handleChange} />
-                <EditInput label="Breed" name="breed" value={formData.breed} onChange={handleChange} />
-                <EditInput label="Gender" name="gender" value={formData.gender} onChange={handleChange} type="select" options={["Female", "Male"]} />
-                <EditInput label="DOB" name="dob" value={formData.dob} onChange={handleChange} type="date" />
-                <EditInput label="Status" name="status" value={formData.status} onChange={handleChange} type="select" options={["Active", "Sold", "Dead"]} />
-                <EditInput label="Shed (Location)" name="shed" value={formData.shed} onChange={handleChange} />
-                <EditInput label="Category" name="category" value={formData.category} onChange={handleChange} type="select" options={["Milking", "Dry", "Heifer", "Calf", "Bull"]} />
+
+<EditInput label="Tag No" name="tag" value={formData.tag} onChange={handleChange} />
+
+<EditInput
+  label="Colour"
+  name="color"
+  value={formData.color || formData.colour || ""}
+  onChange={handleChange}
+  type="select"
+  options={COLOUR_OPTIONS}
+/>
+
+<EditInput
+  label="Breed"
+  name="breed"
+  value={formData.breed || ""}
+  onChange={handleChange}
+  type="select"
+  options={BREED_OPTIONS}
+/>
+
+<EditInput
+  label="Gender"
+  name="gender"
+  value={formData.gender || ""}
+  onChange={handleChange}
+  type="select"
+  options={["Female", "Male"]}
+/>
+
+<EditInput label="DOB" name="dob" value={formData.dob} onChange={handleChange} type="date" />
+
+<EditInput
+  label="Status"
+  name="status"
+  value={formData.status}
+  onChange={handleChange}
+  type="select"
+  options={["Active", "Deactive"]}
+/>
+
+<EditInput
+  label="Shed (Location)"
+  name="shed"
+  value={formData.shed || formData.shed_id || ""}
+  onChange={handleChange}
+  type="select"
+  options={SHED_OPTIONS}
+/>
+
+<EditInput
+  label="Category"
+  name="category"
+  value={formData.category || ""}
+  onChange={handleChange}
+  type="select"
+  options={getCategoryOptionsForEdit(formData.gender)}
+/>
                 
                 {/* UPLOAD BUTTON CONTROL */}
-                <div style={{ gridColumn: "1 / -1", background: "#f0f9ff", padding: "10px", borderRadius: "8px", border: "1px solid #bae6fd" }}>
-                  <label style={{...labelStyle, color:"#0369a1"}}>Photo URL (Auto-filled on Upload)</label>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <input 
-                      type="text" name="photo" value={formData.photo || ""} 
-                      onChange={handleChange} placeholder="Paste link or Upload ->" 
-                      style={{...inputStyle, flex:1}} 
-                    />
-                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} style={{display:"none"}} />
-                    <button 
-                      onClick={() => fileInputRef.current.click()} 
-                      disabled={uploading}
-                      style={{
-                        background: uploading ? "#ccc" : "#0ea5e9", color: "#fff",
-                        border: "none", borderRadius: "5px", padding: "0 15px",
-                        fontWeight: "bold", cursor: uploading ? "not-allowed" : "pointer",
-                        display: "flex", alignItems: "center", gap: "5px", whiteSpace:"nowrap"
-                      }}
-                    >
-                      {uploading ? "Uploading..." : "📷 Upload New"}
-                    </button>
-                  </div>
-                </div>
+<div style={{ gridColumn: "1 / -1", background: "#f0f9ff", padding: "10px", borderRadius: "8px", border: "1px solid #bae6fd" }}>
+  <label style={{ ...labelStyle, color: "#0369a1" }}>
+    Photo URL (Auto-filled on Upload)
+  </label>
+
+  <div style={{ display: "flex", gap: "10px" }}>
+    <input
+      type="text"
+      name="photo"
+      value={formData.photo || formData.photoUrl || formData.photo_url || ""}
+      onChange={handleChange}
+      placeholder="Paste link or Upload ->"
+      style={{ ...inputStyle, flex: 1 }}
+    />
+
+    <input
+      type="file"
+      accept="image/*"
+      ref={fileInputRef}
+      onChange={handleFileSelect}
+      style={{ display: "none" }}
+    />
+
+    <button
+      type="button"
+      onClick={() => {
+        if (!saving && !uploading) {
+          fileInputRef.current?.click();
+        }
+      }}
+      disabled={saving || uploading}
+      style={{
+        background: saving || uploading ? "#cbd5e1" : "#0ea5e9",
+        color: "#fff",
+        border: "none",
+        borderRadius: "5px",
+        padding: "0 15px",
+        fontWeight: "bold",
+        cursor: saving || uploading ? "not-allowed" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: "5px",
+        whiteSpace: "nowrap",
+        opacity: saving || uploading ? 0.7 : 1,
+      }}
+    >
+      {saving ? "Saving..." : uploading ? "Uploading..." : "📷 Upload New"}
+    </button>
+  </div>
+</div>
 
              </>
           ) : (
              <>
                <DetailItem label="Breed" value={selected.breed} />
                <DetailItem label="Gender" value={selected.gender} />
+               <DetailItem label="Colour" value={colour || "-"} />
                <DetailItem label="DOB" value={formatDate(selected.dob)} />
                {isBornAtGoshala && (
   <DetailItem label="Date of Birth" value={formatDate(selected.dob)} />
@@ -2903,7 +3242,7 @@ const purchasePrice = getAnyValue(selected, [
 {isActive && (
   <DetailItem
     label={isBornAtGoshala ? "Current Age" : "Estimated Current Age"}
-    value={ageText}
+    value={currentAgeText}
   />
 )}
                <DetailItem label="Status" value={<StatusBadge value={selected.status} />} />
@@ -2918,56 +3257,175 @@ const purchasePrice = getAnyValue(selected, [
 <div style={gridStyle}>
   {isEditing ? (
     <>
-      <EditInput label="Source" name="sourceName" value={formData.sourceName} onChange={handleChange} />
-      <EditInput label="Purchase Price" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} />
+
+    <EditInput
+  label="Admission Date"
+  name="admissionDate"
+  value={formData.admissionDate || formData.admission_date || ""}
+  onChange={handleChange}
+  type="date"
+/>
+
+<EditInput
+  label="Admission Weight (Kg)"
+  name="admissionWeight"
+  value={formData.admissionWeight || formData.admission_weight || ""}
+  onChange={handleChange}
+  type="number"
+/>
+
+<EditInput
+  label="Age at Admission (Months)"
+  name="admissionAgeMonths"
+  value={formData.admissionAgeMonths || formData.admission_age_months || ""}
+  onChange={handleChange}
+  type="number"
+/>
+      <EditInput
+        label={
+          displayAdmissionType === "Purchase"
+            ? "Vendor Name"
+            : displayAdmissionType === "Donation"
+            ? "Donor Name"
+            : displayAdmissionType === "From Farmer"
+            ? "Farmer Name"
+            : displayAdmissionType === "Rescue / Slaughter House"
+            ? "Rescue Source Name"
+            : "Source"
+        }
+        name="sourceName"
+        value={formData.sourceName || formData.source_party_name || ""}
+        onChange={handleChange}
+      />
+
+      <EditInput
+        label={
+          displayAdmissionType === "Purchase"
+            ? "Vendor Phone Number"
+            : displayAdmissionType === "Donation"
+            ? "Donor Phone Number"
+            : displayAdmissionType === "From Farmer"
+            ? "Farmer Phone Number"
+            : displayAdmissionType === "Rescue / Slaughter House"
+            ? "Source Phone Number"
+            : "Contact Number"
+        }
+        name="sourceMobile"
+        value={formData.sourceMobile || formData.source_party_mobile || ""}
+        onChange={handleChange}
+      />
+
+      <EditInput
+        label={
+          displayAdmissionType === "Purchase"
+            ? "Vendor Address"
+            : displayAdmissionType === "Donation"
+            ? "Donor Address"
+            : displayAdmissionType === "From Farmer"
+            ? "Farmer Address"
+            : displayAdmissionType === "Rescue / Slaughter House"
+            ? "Rescue Location / Address"
+            : "Address"
+        }
+        name="sourceAddress"
+        value={formData.sourceAddress || formData.source_party_address || ""}
+        onChange={handleChange}
+      />
+
+      {displayAdmissionType === "Purchase" && (
+        <EditInput
+          label="Purchase Price"
+          name="purchasePrice"
+          value={formData.purchasePrice || formData.purchase_price || ""}
+          onChange={handleChange}
+        />
+      )}
     </>
   ) : (
     <>
-      <DetailItem label="Admission Date" value={formatDate(admissionDate)} />
-<DetailItem label="Type" value={admissionType} />
-<DetailItem label="Age at Admission" value={formatAgeFromMonths(admissionAgeMonthsValue)} />
-<DetailItem
-  label="Admission Weight"
-  value={admissionWeight ? `${admissionWeight} Kg` : "-"}
-/>
-<DetailItem label="Source" value={sourceName} />
-<DetailItem label="Contact Number" value={sourceMobile} />
-<DetailItem label="Address" value={sourceAddress} />
+      {isBornAtGoshala ? (
+  <>
+    <DetailItem label="Registration / Tagging Date" value={formatDate(admissionDate)} />
+    <DetailItem label="Type" value={displayAdmissionType || "-"} />
+    <DetailItem label="Date of Birth" value={formatDate(selected.dob)} />
+    <DetailItem label="Birth Weight" value={birthWeight ? `${birthWeight} Kg` : "-"} />
+    <DetailItem label="Birth Log ID" value={linkedBirthId || "-"} />
+    <DetailItem label="Delivery Type" value={deliveryType || "-"} />
+    <DetailItem label="Birth Status" value={birthStatus || "-"} />
+    <DetailItem label="Birth Time" value={birthTime || "-"} />
+  </>
+) : (
+  <>
+    <DetailItem label="Admission Date" value={formatDate(admissionDate)} />
+    <DetailItem label="Type" value={displayAdmissionType || "-"} />
+    <DetailItem label="Age at Admission" value={ageAtAdmissionText} />
+    <DetailItem
+      label="Admission Weight"
+      value={admissionWeight ? `${admissionWeight} Kg` : "-"}
+    />
+    <DetailItem label="Source" value={sourceName || "-"} />
+    <DetailItem label="Contact Number" value={sourceMobile || "-"} />
+    <DetailItem label="Address" value={sourceAddress || "-"} />
 
-{String(admissionType || "").toLowerCase() === "purchase" && (
-  <DetailItem label="Purchase Price" value={purchasePrice} />
+    {displayAdmissionType === "Purchase" && (
+      <DetailItem label="Purchase Price" value={purchasePrice || "-"} />
+    )}
+  </>
 )}
     </>
   )}
 </div>
 
+
 {getDisplayTypeForCattle(selected, exitLogs) === "Reactivated" && (
   <>
     <SectionTitle>REACTIVATION DETAILS</SectionTitle>
 
-    <div style={gridStyle}>
-      <DetailItem
-        label="Previous Exit Type"
-        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.category}
-      />
+<div style={gridStyle}>
+  <DetailItem
+    label="Previous Exit Type"
+    value={
+      reactivationLogToShow?.category ||
+      reactivationLogToShow?.previous_exit_type ||
+      "-"
+    }
+  />
 
-      <DetailItem
-        label="Reactivation Date"
-        value={formatDate(
-          getLatestLifecycleLogForCattle(selected, exitLogs)?.exit_date
-        )}
-      />
+  <DetailItem
+    label="Reactivation Date"
+    value={formatDate(reactivationDate)}
+  />
 
-      <DetailItem
-        label="Returned From"
-        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.party_name}
-      />
+  <DetailItem
+    label="Age at Readmission"
+    value={ageAtReactivationText}
+  />
 
-      <DetailItem
-        label="Reason for Return"
-        value={getLatestLifecycleLogForCattle(selected, exitLogs)?.cause_details}
-      />
-    </div>
+  <DetailItem
+    label="Estimated Current Age"
+    value={currentAgeText}
+  />
+
+  <DetailItem
+    label="Weight at Readmission"
+    value={reactivationWeight ? `${reactivationWeight} Kg` : "-"}
+  />
+
+  <DetailItem
+    label="Returned From"
+    value={reactivationLogToShow?.party_name || latestLifecycleLog?.returned_from || "-"}
+  />
+
+  <DetailItem
+    label="Reason for Return"
+    value={
+      reactivationLogToShow?.cause_details ||
+      reactivationLogToShow?.reason_for_return ||
+      reactivationLogToShow?.remarks ||
+      "-"
+    }
+  />
+</div>
   </>
 )}
 
@@ -3071,23 +3529,65 @@ const purchasePrice = getAnyValue(selected, [
         
 
         {/* HEALTH */}
-        <SectionTitle>Health & Other</SectionTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-           <DetailItem label="Is Disabled?" value={selected.isDisabled ? "Yes" : "No"} />
-           {isEditing ? (
-             <div>
-                <label style={labelStyle}>Remarks</label>
-                <textarea name="remarks" value={formData.remarks} onChange={handleChange} style={{...inputStyle, minHeight:"60px"}} />
-             </div>
-           ) : (
-             <div style={{ marginTop: "5px" }}>
-               <div style={labelItemStyle}>Remarks</div>
-               <div style={{ background: "#f3f4f6", padding: "10px", borderRadius: "6px", fontSize: "0.85rem", fontStyle: "italic", color: "#374151" }}>
-                 "{selected.remarks || "No remarks."}"
-               </div>
-             </div>
-           )}
+<SectionTitle>Health & Other</SectionTitle>
+
+<div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+  {isEditing ? (
+    <>
+      <EditInput
+        label="Is Disabled?"
+        name="is_disabled"
+        value={formData.is_disabled || formData.isDisabled || "No"}
+        onChange={handleChange}
+        type="select"
+        options={["No", "Yes"]}
+      />
+
+      {(formData.isDisabled === "Yes" || formData.is_disabled === "Yes") && (
+        <div>
+          <label style={labelStyle}>Disability Details</label>
+          <textarea
+            name="disabilityDetails"
+            value={formData.disability_details || formData.disabilityDetails || ""}
+            onChange={handleChange}
+            style={{ ...inputStyle, minHeight: "60px" }}
+          />
         </div>
+      )}
+
+      <div>
+        <label style={labelStyle}>Remarks</label>
+        <textarea
+          name="remarks"
+          value={formData.remarks || ""}
+          onChange={handleChange}
+          style={{ ...inputStyle, minHeight: "70px" }}
+        />
+      </div>
+    </>
+  ) : (
+    <>
+      <DetailItem
+        label="Is Disabled?"
+        value={selected.is_disabled || selected.isDisabled || "No"}
+      />
+
+      {(selected.isDisabled === "Yes" || selected.is_disabled === "Yes") && (
+        <DetailItem
+          label="Disability Details"
+          value={selected.disability_details || selected.disabilityDetails || "-"}
+        />
+      )}
+
+      <div style={{ marginTop: "5px" }}>
+        <div style={labelItemStyle}>Remarks</div>
+        <div style={{ background: "#f3f4f6", padding: "10px", borderRadius: "6px", fontSize: "0.85rem", fontStyle: "italic", color: "#374151" }}>
+          "{selected.remarks || "No remarks."}"
+        </div>
+      </div>
+    </>
+  )}
+</div>
 
       </div>
     </div>
@@ -3095,6 +3595,32 @@ const purchasePrice = getAnyValue(selected, [
 }
 
 // Logic & Helpers
+function parseFlexibleDate(value) {
+  if (!value) return null;
+
+  if (value instanceof Date && !isNaN(value.getTime())) return value;
+
+  const s = String(value).trim();
+  if (!s || s === "-") return null;
+
+  const dateOnly = s.split(" ")[0];
+
+  // dd/mm/yyyy or dd-mm-yyyy
+  const dmY = dateOnly.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmY) {
+    return new Date(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1]));
+  }
+
+  // yyyy-mm-dd
+  const ymD = dateOnly.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymD) {
+    return new Date(Number(ymD[1]), Number(ymD[2]) - 1, Number(ymD[3]));
+  }
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function formatAgeFromMonths(totalMonths) {
   const n = Number(String(totalMonths || "").replace(/[^0-9]/g, ""));
   if (!n) return "-";
@@ -3116,6 +3642,30 @@ function getAdmissionAgeMonths(row) {
   );
 }
 
+function getCategoryOptionsForEdit(gender) {
+  const g = String(gender || "").toLowerCase();
+
+  if (g === "male") {
+    return ["Male Calf", "Bull", "Ox / Bullock"];
+  }
+
+  if (g === "female") {
+    return ["Female Calf", "Heifer", "Cow", "Milking Cow", "Dry Cow"];
+  }
+
+  return [
+    "Calf",
+    "Male Calf",
+    "Female Calf",
+    "Heifer",
+    "Cow",
+    "Milking Cow",
+    "Dry Cow",
+    "Bull",
+    "Ox / Bullock",
+  ];
+}
+
 function isBornAtGoshalaType(row) {
   const type = String(
     row.admissionType || row.admission_type || row.type_of_admission || ""
@@ -3126,37 +3676,66 @@ function isBornAtGoshalaType(row) {
 
 function calculateSmartAge(dob, admissionDate, admissionAgeRaw) {
   const now = new Date();
-  if (dob && dob !== "-" && dob !== "") {
-    const d = new Date(dob);
-    if (!isNaN(d.getTime())) {
-      const diffMs = now - d;
-      const ageDate = new Date(diffMs);
-      const years = Math.abs(ageDate.getUTCFullYear() - 1970);
-      const months = ageDate.getUTCMonth();
-      return years > 0 ? `${years} yr ${months} mo` : `${months} months`;
-    }
+
+  const birthDate = parseFlexibleDate(dob);
+  if (birthDate) {
+    return calculateAgeBetweenDates(birthDate, now);
   }
-  if (admissionDate && admissionAgeRaw) {
-    const startAge = parseInt(String(admissionAgeRaw).replace(/[^0-9]/g, ''), 10);
-    if (!isNaN(startAge)) {
-       let admDate = new Date(admissionDate);
-       if (isNaN(admDate.getTime()) || String(admissionDate).includes("/")) {
-         const parts = String(admissionDate).split(/[-/]/);
-         if (parts.length === 3 && parts[2].length === 4) admDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-       }
-       if (!isNaN(admDate.getTime())) {
-         const monthsSince = (now.getFullYear() - admDate.getFullYear()) * 12 + (now.getMonth() - admDate.getMonth());
-         const totalMonths = startAge + monthsSince;
-         if (totalMonths > 0) {
-           const years = Math.floor(totalMonths / 12);
-           const months = totalMonths % 12;
-           return years > 0 ? `${years} yr ${months} mo (Est)` : `${months} months (Est)`;
-         }
-       }
-    }
+
+  const admDate = parseFlexibleDate(admissionDate);
+  const startAgeMonths = Number(String(admissionAgeRaw || "").replace(/[^0-9]/g, ""));
+
+  if (admDate && startAgeMonths > 0) {
+    const monthsSinceAdmission =
+      (now.getFullYear() - admDate.getFullYear()) * 12 +
+      (now.getMonth() - admDate.getMonth());
+
+    return formatAgeFromMonths(startAgeMonths + monthsSinceAdmission) + " (Est)";
   }
+
   return "Unknown";
 }
+
+function calculateAgeBetweenDates(fromDate, toDate) {
+  if (!fromDate || !toDate) return "-";
+
+  let months =
+    (toDate.getFullYear() - fromDate.getFullYear()) * 12 +
+    (toDate.getMonth() - fromDate.getMonth());
+
+  if (toDate.getDate() < fromDate.getDate()) {
+    months -= 1;
+  }
+
+  return formatAgeFromMonths(months);
+}
+
+function calculateAgeAtDate(dob, targetDate, admissionDate, admissionAgeRaw) {
+  const target = parseFlexibleDate(targetDate);
+  if (!target) return "-";
+
+  const birthDate = parseFlexibleDate(dob);
+  if (birthDate) {
+    return calculateAgeBetweenDates(birthDate, target);
+  }
+
+  const admDate = parseFlexibleDate(admissionDate);
+  const startAgeMonths = Number(String(admissionAgeRaw || "").replace(/[^0-9]/g, ""));
+
+  if (admDate && startAgeMonths > 0) {
+    const monthsSinceAdmission =
+      (target.getFullYear() - admDate.getFullYear()) * 12 +
+      (target.getMonth() - admDate.getMonth());
+
+    return formatAgeFromMonths(startAgeMonths + monthsSinceAdmission);
+  }
+
+  return "-";
+}
+
+
+
+
 
 const EditInput = ({ label, name, value, onChange, type="text", options=[], placeholder="" }) => (
   <div>
