@@ -124,3 +124,29 @@ Features:
 * Milk Reports
 
 ---
+
+Version v2.0-newborn-workflow
+
+New Features
+------------
+• New Birth recording
+• Parentage tracking
+• Father source management
+• Father breed recording
+• Automatic calf breed calculation
+• Mother eligibility validation
+• 21-day registration rule
+• Overdue registration alerts
+• Search and filters
+• KPI dashboard
+• Pagination
+• Action menu
+• Edit birth records
+• Photo upload
+
+Backend
+-------
+• Improved birth_log reading
+• Removed blank row issues
+• Standardized validation
+• Improved data mapping

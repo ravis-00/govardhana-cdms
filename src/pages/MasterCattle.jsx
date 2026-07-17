@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { fetchCattle, updateCattle, getCattleExitLog, reactivateCattle } from "../api/masterApi";
+import {
+  fetchCattle,
+  updateCattle,
+  getCattleExitLog,
+  reactivateCattle,
+  getBirthDetailsById,
+} from "../api/masterApi";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import rashtrotthanaLogo from "../assets/Logo.png";
@@ -298,40 +304,75 @@ const [searchText, setSearchText] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
 const [actionMenuId, setActionMenuId] = useState(null);
 const [reactivationRow, setReactivationRow] = useState(null);
+const loadRequestIdRef = useRef(0);
   const loadData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await fetchCattle();
-if (Array.isArray(res)) setRows(res);
-else if (res && res.data) setRows(res.data);
-else setRows([]);
+  const requestId = ++loadRequestIdRef.current;
 
-const exitRes = await getCattleExitLog();
-console.log("EXIT LOG RESPONSE:", exitRes);
+  try {
+    setLoading(true);
+    setError("");
 
-const exitData = Array.isArray(exitRes)
-  ? exitRes
-  : Array.isArray(exitRes?.data)
-    ? exitRes.data
-    : [];
+    // These requests are independent, so load them in parallel.
+    const [cattleResult, exitLogResult] = await Promise.allSettled([
+      fetchCattle(),
+      getCattleExitLog(),
+    ]);
 
-console.log("EXIT LOG DATA COUNT:", exitData.length);
-console.log("FIRST EXIT LOG ROW:", exitData[0]);
-console.log("FULL EXIT RESPONSE:", JSON.stringify(exitRes));
+    // Ignore an older request if a newer refresh has already started.
+    if (requestId !== loadRequestIdRef.current) {
+      return;
+    }
 
-console.log("EXIT LOG SAMPLE:", exitData.slice(0, 5));
-setExitLogs(exitData);
+    // Cattle data is essential for this page.
+    if (cattleResult.status === "rejected") {
+      throw cattleResult.reason;
+    }
 
+    const cattleResponse = cattleResult.value;
 
-setExitLogs(exitData);
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "Failed to load data");
-    } finally {
+    const cattleData = Array.isArray(cattleResponse)
+      ? cattleResponse
+      : Array.isArray(cattleResponse?.data)
+        ? cattleResponse.data
+        : [];
+
+    setRows(cattleData);
+
+    // Exit log is supplementary.
+    // If it fails, keep Master Cattle usable with an empty log list.
+    if (exitLogResult.status === "fulfilled") {
+      const exitResponse = exitLogResult.value;
+
+      const exitData = Array.isArray(exitResponse)
+        ? exitResponse
+        : Array.isArray(exitResponse?.data)
+          ? exitResponse.data
+          : [];
+
+      setExitLogs(exitData);
+    } else {
+      console.warn(
+        "Exit log could not be loaded. Master cattle data remains available.",
+        exitLogResult.reason
+      );
+
+      setExitLogs([]);
+    }
+  } catch (err) {
+    if (requestId !== loadRequestIdRef.current) {
+      return;
+    }
+
+    console.error("Master cattle load failed:", err);
+    setRows([]);
+    setExitLogs([]);
+    setError(err?.message || "Failed to load cattle data");
+  } finally {
+    if (requestId === loadRequestIdRef.current) {
       setLoading(false);
     }
-  };
+  }
+};
 
   useEffect(() => { loadData(); }, []);
 
@@ -2756,6 +2797,9 @@ function CattleDetailsPanel({
   const [formData, setFormData] = useState({});
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [birthDetails, setBirthDetails] = useState(null);
+const [birthDetailsLoading, setBirthDetailsLoading] = useState(false);
+const [birthDetailsError, setBirthDetailsError] = useState("");
   const [toast, setToast] = useState({
   open: false,
   type: "info",
@@ -2764,6 +2808,73 @@ function CattleDetailsPanel({
   const fileInputRef = useRef(null); 
 
   useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  const linkedId =
+    selected?.linkedBirthId ||
+    selected?.linked_birth_id ||
+    "";
+
+  const admissionTypeValue = String(
+    selected?.admissionType ||
+    selected?.admission_type ||
+    selected?.type_of_admission ||
+    ""
+  ).toLowerCase();
+
+  const isBirthRecord =
+    admissionTypeValue.includes("born") ||
+    admissionTypeValue.includes("birth");
+
+  if (!isBirthRecord || !linkedId) {
+    setBirthDetails(null);
+    setBirthDetailsError("");
+    setBirthDetailsLoading(false);
+    return () => {
+      cancelled = true;
+    };
+  }
+
+  const loadBirthDetails = async () => {
+    try {
+      setBirthDetailsLoading(true);
+      setBirthDetailsError("");
+
+      const response = await getBirthDetailsById(linkedId);
+
+      if (cancelled) return;
+
+      const details = response?.data || response || null;
+      setBirthDetails(details);
+    } catch (err) {
+      if (cancelled) return;
+
+      console.error("Birth details load failed:", err);
+      setBirthDetails(null);
+      setBirthDetailsError(
+        err?.message || "Unable to load birth details"
+      );
+    } finally {
+      if (!cancelled) {
+        setBirthDetailsLoading(false);
+      }
+    }
+  };
+
+  loadBirthDetails();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  selected?.linkedBirthId,
+  selected?.linked_birth_id,
+  selected?.admissionType,
+  selected?.admission_type,
+  selected?.type_of_admission,
+]);
 
   
 
@@ -3008,9 +3119,17 @@ const purchasePrice = getAnyValue(selected, [
 ]);
 
 const linkedBirthId = getAnyValue(selected, ["linkedBirthId", "linked_birth_id"]);
-const birthTime = getAnyValue(selected, ["birthTime", "birth_time"]);
-const birthStatus = getAnyValue(selected, ["birthStatus", "birth_status"]);
-const deliveryType = getAnyValue(selected, ["deliveryType", "delivery_type"]);
+const birthTime =
+  birthDetails?.birthTime ||
+  getAnyValue(selected, ["birthTime", "birth_time"]);
+
+const birthStatus =
+  birthDetails?.birthStatus ||
+  getAnyValue(selected, ["birthStatus", "birth_status"]);
+
+const deliveryType =
+  birthDetails?.deliveryType ||
+  getAnyValue(selected, ["deliveryType", "delivery_type"]);
 
 const disabledValue = String(
   getAnyValue(selected, [
@@ -3345,15 +3464,60 @@ const displayId = getRowId(selected);
     <>
       {isBornAtGoshala ? (
   <>
-    <DetailItem label="Registration / Tagging Date" value={formatDate(admissionDate)} />
-    <DetailItem label="Type" value={displayAdmissionType || "-"} />
-    <DetailItem label="Date of Birth" value={formatDate(selected.dob)} />
-    <DetailItem label="Birth Weight" value={birthWeight ? `${birthWeight} Kg` : "-"} />
-    <DetailItem label="Birth Log ID" value={linkedBirthId || "-"} />
-    <DetailItem label="Delivery Type" value={deliveryType || "-"} />
-    <DetailItem label="Birth Status" value={birthStatus || "-"} />
-    <DetailItem label="Birth Time" value={birthTime || "-"} />
-  </>
+  <DetailItem
+    label="Registration / Tagging Date"
+    value={formatDate(admissionDate)}
+  />
+
+  <DetailItem
+    label="Type"
+    value={displayAdmissionType || "-"}
+  />
+
+  <DetailItem
+    label="Date of Birth"
+    value={formatDate(selected.dob)}
+  />
+
+  <DetailItem
+    label="Birth Weight"
+    value={birthWeight ? `${birthWeight} Kg` : "-"}
+  />
+
+  <DetailItem
+    label="Birth Log ID"
+    value={linkedBirthId || "-"}
+  />
+
+  {birthDetailsLoading ? (
+    <DetailItem
+      label="Birth Details"
+      value="Loading..."
+    />
+  ) : birthDetailsError ? (
+    <DetailItem
+      label="Birth Details"
+      value={birthDetailsError}
+    />
+  ) : (
+    <>
+      <DetailItem
+        label="Delivery Type"
+        value={deliveryType || "-"}
+      />
+
+      <DetailItem
+        label="Birth Status"
+        value={birthStatus || "-"}
+      />
+
+      <DetailItem
+        label="Birth Time"
+        value={birthTime || "-"}
+      />
+    </>
+  )}
+</>
 ) : (
   <>
     <DetailItem label="Admission Date" value={formatDate(admissionDate)} />

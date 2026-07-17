@@ -43,7 +43,11 @@ async function handleResponse(res) {
   const json = await res.json().catch(() => {
     throw new Error("Invalid JSON response from server");
   });
-  return json; 
+  if (json && json.success === false) {
+  throw new Error(json.error || json.message || "Server returned success:false");
+}
+
+return json;
 }
 
 async function getRequest(action, params) {
@@ -96,11 +100,25 @@ export async function getCattleExitLog(params = {}) { return getRequest("getCatt
 export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
 
 // 2. NEW BORN & BREEDING
-export async function getNewBorn() { return getRequest("getNewBorn"); }
-export async function addNewBorn(payload) { return postRequest("addNewBorn", payload); }
-export async function updateNewBorn(payload) { return postRequest("updateNewBorn", payload); }
-export async function getUnregisteredBirths() { return getRequest("getUnregisteredBirths"); }
+export async function getNewBorn() {
+  return getRequest("getNewBorn");
+}
 
+export async function addNewBorn(payload) {
+  return postRequest("addNewBorn", payload);
+}
+
+export async function updateNewBorn(payload) {
+  return postRequest("updateNewBorn", payload);
+}
+
+export async function getUnregisteredBirths() {
+  return getRequest("getUnregisteredBirths");
+}
+
+export async function getBirthDetailsById(birthId) {
+  return getRequest("getBirthDetailsById", { birthId });
+}
 // 3. MILK PRODUCTION & DISTRIBUTION
 export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
 export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }

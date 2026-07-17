@@ -1,5 +1,39 @@
 # Govardhana CDMS - Current State
 
+# Govardhana CDMS
+
+## Current Version
+v2.0-newborn-workflow
+
+## Status
+Stable Development Release
+
+## Completed Modules
+
+### Core
+- Login & Role Management
+- Dashboard
+- Master Cattle
+- Tag Management
+- Certificates
+- Reactivation
+- Multiple Tag History
+
+### New Born Module
+- Birth Recording
+- Parentage Tracking
+- Father Source Management
+- Father Breed Management
+- Automatic Calf Breed Calculation
+- Mother Eligibility Validation
+- Photo Upload
+- Edit Birth Record
+- Search & Filters
+- KPI Dashboard
+- Pagination
+- Registration Eligibility (21 Days)
+- Overdue Registration Tracking
+
 Current Version:
 v1.9-tag-history
 
@@ -164,3 +198,35 @@ Google Sheets is operational database.
 
 007:
 Apps Script serves API layer.
+
+Current Version:
+v2.0-newborn-workflow
+
+Milestone achieved
+Version
+
+v2.0-newborn-workflow
+
+Completed
+✅ New Birth recording
+✅ Parentage capture
+✅ Father source (Own / Borrowed / Unknown)
+✅ Father breed management
+✅ Auto calf breed calculation
+✅ Mother validation
+Female
+Active
+Minimum age
+270-day calving gap
+✅ Workflow automation
+✅ Registration eligibility (21 days)
+✅ Overdue registration identification
+✅ Search
+✅ Filters
+✅ KPI cards
+✅ Pagination
+✅ Action menu
+✅ Edit birth record
+✅ Photo upload
+✅ Backend cleanup
+✅ Removal of debug logs
