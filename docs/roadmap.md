@@ -166,3 +166,46 @@ Completed:
 
 Status:
 Completed and tested successfully.
+
+### Sprint 2.2.1 – Clinical Records Modernization — Completed
+
+- [x] Standard page header
+- [x] Summary cards
+- [x] From/To date filters
+- [x] Search, disease and doctor filters
+- [x] Standardized table
+- [x] Row-click Details modal
+- [x] Modern Add/Edit modal
+- [x] Cattle validation using Master Cattle
+- [x] Cattle summary in Add/Edit and Details
+- [x] Searchable disease/symptom selection
+- [x] Searchable medicine selection
+- [x] Saving, success and error toasts
+- [x] Sequential MED transaction IDs
+- [x] Leading-zero protection for cattle IDs
+
+### Sprint 2.2.2 – Preventive Care — Next
+
+Planned:
+
+- Vaccination records
+- Deworming records
+- Preventive treatment categories
+- Due and overdue schedules
+- Cattle validation and summary
+- Add/Edit/View workflow standardization
+- Date-range and status filters
+- Upcoming and overdue metrics
+- Preventive-care history by cattle
+- Standard saving and success notifications
+
+### Future – Clinical Workflow Enhancement
+
+- Separate symptoms and diagnosis
+- Clinical examination findings
+- Medicine dosage and frequency
+- Treatment status
+- Follow-up date
+- Outcome
+- Attachments
+- Health timeline integration
