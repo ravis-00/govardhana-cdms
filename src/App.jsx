@@ -30,6 +30,7 @@ import Rates from "./pages/config/Rates";
 import Weight from "./pages/config/Weight";
 import Symptoms from "./pages/config/Symptoms";
 import ShedConfig from "./pages/config/ShedConfig";
+import PreventiveCareMaster from "./pages/config/PreventiveCareMaster";
 
 // 🔥 IMPORT PEDIGREE VIEWER
 import PedigreeViewer from "./pages/PedigreeViewer.jsx";
@@ -114,6 +115,14 @@ export default function App() {
           {/* --- MASTER CONFIGURATION --- */}
           <Route path="/config/breeds" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Breeds /></ProtectedRoute>} />
           <Route path="/config/medicines" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Medicines /></ProtectedRoute>} />
+          <Route
+  path="/config/preventive-care"
+  element={
+    <ProtectedRoute allowedRoles={["Admin", "Super Admin"]}>
+      <PreventiveCareMaster />
+    </ProtectedRoute>
+  }
+/>
           <Route path="/config/rates" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Rates /></ProtectedRoute>} />
           <Route path="/config/weight" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Weight /></ProtectedRoute>} />
           <Route path="/config/symptoms" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Symptoms /></ProtectedRoute>} />

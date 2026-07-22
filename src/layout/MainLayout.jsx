@@ -74,6 +74,12 @@ export default function MainLayout() {
       items: [
         { name: "Breeds", path: "/config/breeds", icon: Icons.config, restricted: !isAdmin },
         { name: "Medicines", path: "/config/medicines", icon: Icons.config, restricted: !isAdmin },
+        {
+  name: "Preventive Care Master",
+  path: "/config/preventive-care",
+  icon: Icons.config,
+  restricted: !isAdmin,
+},
         { name: "Rates", path: "/config/rates", icon: Icons.config, restricted: !isAdmin },
         { name: "Weight Stds", path: "/config/weight", icon: Icons.config, restricted: !isAdmin },
         { name: "Symptoms", path: "/config/symptoms", icon: Icons.config, restricted: !isAdmin },

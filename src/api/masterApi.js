@@ -139,16 +139,53 @@ export async function addFeeding(payload) { return postRequest("addFeeding", pay
 export async function updateFeeding(payload) { return postRequest("updateFeeding", payload); }
 
 // 6. MEDICAL & VET
-export async function getVaccine() { return getRequest("getVaccine"); }
-export async function addVaccine(payload) { return postRequest("addVaccine", payload); }
-export async function updateVaccine(payload) { return postRequest("updateVaccine", payload); }
 
-export async function getTreatments() { return getRequest("getTreatments"); }
-export async function addTreatment(payload) { return postRequest("addTreatment", payload); }
-export async function updateTreatment(payload) { return postRequest("updateTreatment", payload); }
+// Preventive Care Transactions
+export async function getVaccine() {
+  return getRequest("getVaccine");
+}
 
-export async function getDeathRecords(fromDate = "", toDate = "") { return getRequest("getDeathRecords", { fromDate, toDate }); }
-export async function getMedicines() { return getRequest("getMedicines"); }
+export async function addVaccine(payload) {
+  return postRequest("addVaccine", payload);
+}
+
+export async function updateVaccine(payload) {
+  return postRequest("updateVaccine", payload);
+}
+
+// Preventive Care Types Master
+export async function getPreventiveCareTypes() {
+  return getRequest("getPreventiveCareTypes");
+}
+
+export async function addPreventiveCareType(payload) {
+  return postRequest("addPreventiveCareType", payload);
+}
+
+export async function updatePreventiveCareType(payload) {
+  return postRequest("updatePreventiveCareType", payload);
+}
+
+// Clinical Treatment Records
+export async function getTreatments() {
+  return getRequest("getTreatments");
+}
+
+export async function addTreatment(payload) {
+  return postRequest("addTreatment", payload);
+}
+
+export async function updateTreatment(payload) {
+  return postRequest("updateTreatment", payload);
+}
+
+export async function getDeathRecords(fromDate = "", toDate = "") {
+  return getRequest("getDeathRecords", { fromDate, toDate });
+}
+
+export async function getMedicines() {
+  return getRequest("getMedicines");
+}
 
 // 7. FINANCE (DATTU YOJANA)
 export async function getDattuYojana() { return getRequest("getDattuYojana"); }
