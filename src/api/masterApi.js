@@ -140,18 +140,24 @@ export async function updateFeeding(payload) { return postRequest("updateFeeding
 
 // 6. MEDICAL & VET
 
+
 // Preventive Care Transactions
-export async function getVaccine() {
-  return getRequest("getVaccine");
+export async function getPreventiveCareLog(params = {}) {
+  return getRequest("getPreventiveCareLog", params);
 }
 
-export async function addVaccine(payload) {
-  return postRequest("addVaccine", payload);
+export async function addPreventiveCare(payload) {
+  return postRequest("addPreventiveCare", payload);
 }
 
-export async function updateVaccine(payload) {
-  return postRequest("updateVaccine", payload);
+export async function updatePreventiveCare(payload) {
+  return postRequest("updatePreventiveCare", payload);
 }
+
+// Temporary aliases until Vaccine.jsx is fully migrated
+export const getVaccine = getPreventiveCareLog;
+export const addVaccine = addPreventiveCare;
+export const updateVaccine = updatePreventiveCare;
 
 // Preventive Care Types Master
 export async function getPreventiveCareTypes() {
@@ -255,7 +261,8 @@ export const addMilkYield = addMilkProduction;
 export const updateMilkYieldAlias = updateMilkProduction;
 export const fetchBioWaste = getBioWaste;
 export const fetchFeeding = getFeeding;
-export const fetchVaccine = getVaccine;
+export const fetchPreventiveCareLog = getPreventiveCareLog;
+export const fetchVaccine = getPreventiveCareLog;
 export const fetchTreatments = getTreatments;
 export const fetchNewBorn = getNewBorn;
 export const fetchDattuYojana = getDattuYojana;

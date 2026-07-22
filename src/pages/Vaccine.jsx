@@ -1,28 +1,132 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  getVaccine,
-  addVaccine,
-  updateVaccine,
+  getPreventiveCareLog,
+  addPreventiveCare,
+  updatePreventiveCare,
+  getPreventiveCareTypes,
+  getMedicines,
 } from "../api/masterApi";
+
 import PageHeader from "../components/common/PageHeader";
 import MetricCard from "../components/common/MetricCard";
 import SectionCard from "../components/common/SectionCard";
 
 // =============================================================================
-// HELPERS
+// CONSTANTS
+// =============================================================================
+
+const DOSAGE_UNITS = [
+  "ml",
+  "mg",
+  "gm",
+  "kg",
+  "tablet",
+  "capsule",
+  "dose",
+  "sachet",
+  "drop",
+  "other",
+];
+
+const ADMINISTRATION_ROUTES = [
+  "Oral",
+  "Intramuscular",
+  "Subcutaneous",
+  "Intravenous",
+  "Topical Spray",
+  "Topical Application",
+  "Nasal",
+  "In Feed",
+  "In Water",
+  "Other",
+];
+
+const STATUS_OPTIONS = [
+  "Draft",
+  "Completed",
+  "Cancelled",
+];
+
+const DEFAULT_PAGE_SIZE = 10;
+
+// =============================================================================
+// DATE HELPERS
 // =============================================================================
 
 function toIsoDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
+
   return `${year}-${month}-${day}`;
 }
 
+function normaliseIsoDate(value) {
+  if (!value) return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return toIsoDate(value);
+  }
+
+  const text = String(value).trim();
+
+  const isoMatch = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})/
+  );
+
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  const displayMatch = text.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/
+  );
+
+  if (displayMatch) {
+    return [
+      displayMatch[3],
+      String(displayMatch[2]).padStart(2, "0"),
+      String(displayMatch[1]).padStart(2, "0"),
+    ].join("-");
+  }
+
+  const parsed = new Date(text);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return toIsoDate(parsed);
+}
+
+function formatDisplayDate(value) {
+  const isoDate = normaliseIsoDate(value);
+
+  if (!isoDate) return "-";
+
+  const [year, month, day] = isoDate.split("-");
+
+  return `${day}-${month}-${year}`;
+}
+
 function getCurrentMonthDateRange() {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const today = new Date();
+
+  const firstDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    1
+  );
+
+  const lastDay = new Date(
+    today.getFullYear(),
+    today.getMonth() + 1,
+    0
+  );
 
   return {
     fromDate: toIsoDate(firstDay),
@@ -30,99 +134,439 @@ function getCurrentMonthDateRange() {
   };
 }
 
-function formatDisplayDate(value) {
-  if (!value) return "";
+function getDueStatus(nextDueDate, recordStatus) {
+  const status = String(
+    recordStatus || ""
+  )
+    .trim()
+    .toLowerCase();
 
-  const text = String(value).trim();
-
-  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return `${day}-${month}-${year}`;
-  }
-
-  const displayMatch = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (displayMatch) return text;
-
-  const parsed = new Date(text);
-  if (!Number.isNaN(parsed.getTime())) {
-    return `${String(parsed.getDate()).padStart(2, "0")}-${String(
-      parsed.getMonth() + 1
-    ).padStart(2, "0")}-${parsed.getFullYear()}`;
-  }
-
-  return text;
-}
-
-function normaliseIsoDate(value) {
-  if (!value) return "";
-
-  const text = String(value).trim();
-  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  }
-
-  const displayMatch = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-
-  if (displayMatch) {
-    return `${displayMatch[3]}-${displayMatch[2]}-${displayMatch[1]}`;
-  }
-
-  const parsed = new Date(text);
-
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  return toIsoDate(parsed);
-}
-
-function getDueStatus(nextDueDate) {
-  const dueDate = normaliseIsoDate(nextDueDate);
-
-  if (!dueDate) {
+  if (status === "cancelled") {
     return {
-      label: "Not Scheduled",
-      key: "not-scheduled",
+      key: "cancelled",
+      label: "Cancelled",
     };
   }
 
-  const today = toIsoDate(new Date());
+  if (status === "draft") {
+    return {
+      key: "draft",
+      label: "Not Finalised",
+    };
+  }
+
+  const dueDate =
+    normaliseIsoDate(nextDueDate);
+
+  if (!dueDate) {
+    return {
+      key: "not-scheduled",
+      label: "Not Scheduled",
+    };
+  }
+
+  const today =
+    toIsoDate(new Date());
 
   if (dueDate === today) {
     return {
-      label: "Due Today",
       key: "due-today",
+      label: "Due Today",
     };
   }
 
   if (dueDate < today) {
     return {
-      label: "Overdue",
       key: "overdue",
+      label: "Next Dose Overdue",
     };
   }
 
   return {
-    label: "Upcoming",
     key: "upcoming",
+    label: "Next Due",
+  };
+}
+
+// =============================================================================
+// GENERAL HELPERS
+// =============================================================================
+
+function getLoggedInUser() {
+  try {
+    const storedUser =
+      localStorage.getItem("user") ||
+      localStorage.getItem("loggedInUser");
+
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+
+      return (
+        parsed?.email ||
+        parsed?.name ||
+        parsed?.username ||
+        "System"
+      );
+    }
+
+    return (
+      localStorage.getItem("userEmail") ||
+      localStorage.getItem("email") ||
+      "System"
+    );
+  } catch {
+    return "System";
+  }
+}
+
+function toSafeNumber(value, fallback = 0) {
+  if (
+    value === "" ||
+    value === null ||
+    value === undefined
+  ) {
+    return fallback;
+  }
+
+  const numberValue = Number(value);
+
+  return Number.isNaN(numberValue)
+    ? fallback
+    : numberValue;
+}
+
+function getExcludedCount(
+  eligibleCount,
+  administeredCount
+) {
+  const eligible =
+    toSafeNumber(eligibleCount, 0);
+
+  const administered =
+    toSafeNumber(administeredCount, 0);
+
+  return Math.max(
+    eligible - administered,
+    0
+  );
+}
+
+function normaliseCareType(raw) {
+  return {
+    careTypeId: String(
+      raw?.care_type_id ||
+      raw?.careTypeId ||
+      raw?.id ||
+      ""
+    ).trim(),
+
+    careTypeName: String(
+      raw?.care_type_name ||
+      raw?.careTypeName ||
+      raw?.name ||
+      ""
+    ).trim(),
+
+    description: String(
+      raw?.description || ""
+    ).trim(),
+
+    displayOrder:
+      raw?.display_order ??
+      raw?.displayOrder ??
+      "",
+
+    isActive: String(
+      raw?.is_active ||
+      raw?.isActive ||
+      "Yes"
+    ).trim(),
+  };
+}
+
+function normaliseMedicine(raw, index) {
+  if (typeof raw === "string") {
+    return {
+      medicineId: "",
+      medicineName: raw.trim(),
+      key: `medicine-${index}-${raw}`,
+    };
+  }
+
+  return {
+    medicineId: String(
+      raw?.medicine_id ||
+      raw?.medicineId ||
+      raw?.id ||
+      ""
+    ).trim(),
+
+    medicineName: String(
+      raw?.medicine_name ||
+      raw?.medicineName ||
+      raw?.name ||
+      raw?.medicine ||
+      ""
+    ).trim(),
+
+    key:
+      String(
+        raw?.medicine_id ||
+        raw?.medicineId ||
+        raw?.id ||
+        ""
+      ).trim() ||
+      `medicine-${index}`,
+  };
+}
+
+function normalisePreventiveCareRow(raw) {
+  const eventId = String(
+    raw?.event_id ||
+    raw?.eventId ||
+    raw?.id ||
+    ""
+  ).trim();
+
+  const eventDate =
+    normaliseIsoDate(
+      raw?.event_date ||
+      raw?.eventDate ||
+      raw?.date
+    );
+
+  const careTypeId = String(
+    raw?.care_type_id ||
+    raw?.careTypeId ||
+    ""
+  ).trim();
+
+  const careTypeName = String(
+    raw?.care_type_name ||
+    raw?.careTypeName ||
+    raw?.category ||
+    ""
+  ).trim();
+
+  const medicineId = String(
+    raw?.medicine_id ||
+    raw?.medicineId ||
+    ""
+  ).trim();
+
+  const medicineName = String(
+    raw?.medicine_name ||
+    raw?.medicineName ||
+    raw?.medicine ||
+    ""
+  ).trim();
+
+  const nextDueDate =
+    normaliseIsoDate(
+      raw?.next_due_date ||
+      raw?.nextDueDate
+    );
+
+  const status = String(
+    raw?.status || "Completed"
+  ).trim();
+
+  return {
+    eventId,
+    eventDate,
+
+    careTypeId,
+    careTypeName,
+
+    medicineId,
+    medicineName,
+
+    medicineBatchNo: String(
+      raw?.medicine_batch_no ||
+      raw?.medicineBatchNo ||
+      ""
+    ).trim(),
+
+    medicineExpiryDate:
+      normaliseIsoDate(
+        raw?.medicine_expiry_date ||
+        raw?.medicineExpiryDate
+      ),
+
+    dosage:
+      raw?.dosage ?? "",
+
+    dosageUnit: String(
+      raw?.dosage_unit ||
+      raw?.dosageUnit ||
+      ""
+    ).trim(),
+
+    administrationRoute: String(
+      raw?.administration_route ||
+      raw?.administrationRoute ||
+      ""
+    ).trim(),
+
+    targetGroup: String(
+      raw?.target_group ||
+      raw?.targetGroup ||
+      ""
+    ).trim(),
+
+    eligibleCount:
+      toSafeNumber(
+        raw?.eligible_count ??
+        raw?.eligibleCount,
+        0
+      ),
+
+    administeredCount:
+      toSafeNumber(
+        raw?.administered_count ??
+        raw?.administeredCount,
+        0
+      ),
+
+    excludedCount:
+      toSafeNumber(
+        raw?.excluded_count ??
+        raw?.excludedCount,
+        0
+      ),
+
+    nextDueDate,
+
+    doctorName: String(
+      raw?.doctor_name ||
+      raw?.doctorName ||
+      ""
+    ).trim(),
+
+    status,
+
+    remarks: String(
+      raw?.remarks || ""
+    ).trim(),
+
+    createdBy: String(
+      raw?.created_by ||
+      raw?.createdBy ||
+      ""
+    ).trim(),
+
+    createdAt: String(
+      raw?.created_at ||
+      raw?.createdAt ||
+      ""
+    ).trim(),
+
+    updatedBy: String(
+      raw?.updated_by ||
+      raw?.updatedBy ||
+      ""
+    ).trim(),
+
+    updatedAt: String(
+      raw?.updated_at ||
+      raw?.updatedAt ||
+      ""
+    ).trim(),
+
+    dueStatus: getDueStatus(
+      nextDueDate,
+      status
+    ),
   };
 }
 
 function getEmptyForm() {
   return {
-    id: "",
-    category: "",
-    date: toIsoDate(new Date()),
-    vaccineType: "",
-    medicine: "",
-    targetGroup: "",
-    cowsCount: "",
+    eventId: "",
+    eventDate: toIsoDate(new Date()),
+
+    careTypeId: "",
+    careTypeName: "",
+
+    medicineId: "",
+    medicineName: "",
+
+    medicineBatchNo: "",
+    medicineExpiryDate: "",
+
     dosage: "",
+    dosageUnit: "ml",
+
+    administrationRoute: "",
+
+    targetGroup: "",
+
+    eligibleCount: "",
+    administeredCount: "",
+    excludedCount: 0,
+
     nextDueDate: "",
     doctorName: "",
+
+    status: "Completed",
     remarks: "",
   };
+}
+
+function buildPayload(form, mode) {
+  const user = getLoggedInUser();
+
+  const payload = {
+    event_id: form.eventId,
+    event_date: form.eventDate,
+
+    care_type_id: form.careTypeId,
+    care_type_name: form.careTypeName,
+
+    medicine_id: form.medicineId,
+    medicine_name: form.medicineName,
+
+    medicine_batch_no:
+      form.medicineBatchNo,
+
+    medicine_expiry_date:
+      form.medicineExpiryDate,
+
+    dosage: form.dosage,
+    dosage_unit: form.dosageUnit,
+
+    administration_route:
+      form.administrationRoute,
+
+    target_group: form.targetGroup,
+
+    eligible_count:
+      Number(form.eligibleCount || 0),
+
+    administered_count:
+      Number(form.administeredCount || 0),
+
+    excluded_count:
+      getExcludedCount(
+        form.eligibleCount,
+        form.administeredCount
+      ),
+
+    next_due_date: form.nextDueDate,
+
+    doctor_name: form.doctorName,
+
+    status: form.status,
+    remarks: form.remarks,
+  };
+
+  if (mode === "add") {
+    payload.created_by = user;
+  } else {
+    payload.updated_by = user;
+  }
+
+  return payload;
 }
 
 // =============================================================================
@@ -130,202 +574,377 @@ function getEmptyForm() {
 // =============================================================================
 
 export default function Vaccine() {
-  const initialDateRange = getCurrentMonthDateRange();
+  const initialRange =
+    getCurrentMonthDateRange();
 
-  const [fromDate, setFromDate] = useState(initialDateRange.fromDate);
-  const [toDate, setToDate] = useState(initialDateRange.toDate);
+  const [rows, setRows] =
+    useState([]);
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [careTypes, setCareTypes] =
+    useState([]);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [dueStatusFilter, setDueStatusFilter] = useState("");
+  const [medicines, setMedicines] =
+    useState([]);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] =
+    useState(false);
 
-  const [showForm, setShowForm] = useState(false);
-  const [mode, setMode] = useState("add");
-  const [form, setForm] = useState(getEmptyForm());
-  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [toast, setToast] = useState({
-    visible: false,
-    type: "info",
-    message: "",
-  });
+  const [error, setError] =
+    useState("");
+
+  const [fromDate, setFromDate] =
+    useState(initialRange.fromDate);
+
+  const [toDate, setToDate] =
+    useState(initialRange.toDate);
+
+  const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [
+    careTypeFilter,
+    setCareTypeFilter,
+  ] = useState("");
+
+  const [
+    medicineFilter,
+    setMedicineFilter,
+  ] = useState("");
+
+  const [
+    recordStatusFilter,
+    setRecordStatusFilter,
+  ] = useState("");
+
+  const [
+    dueStatusFilter,
+    setDueStatusFilter,
+  ] = useState("");
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
+
+  const [pageSize, setPageSize] =
+    useState(DEFAULT_PAGE_SIZE);
+
+  const [showForm, setShowForm] =
+    useState(false);
+
+  const [mode, setMode] =
+    useState("add");
+
+  const [form, setForm] =
+    useState(getEmptyForm());
+
+  const [
+    selectedEntry,
+    setSelectedEntry,
+  ] = useState(null);
+
+  const [toast, setToast] =
+    useState({
+      visible: false,
+      type: "info",
+      message: "",
+    });
 
   useEffect(() => {
-    loadData();
+    loadPageData();
   }, []);
 
-  async function loadData() {
+  async function loadPageData() {
     try {
       setLoading(true);
       setError("");
 
-      const response = await getVaccine();
+      const [
+        preventiveCareResponse,
+        careTypeResponse,
+        medicineResponse,
+      ] = await Promise.all([
+        getPreventiveCareLog(),
+        getPreventiveCareTypes(),
+        getMedicines(),
+      ]);
 
-      const rawData = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.data)
-          ? response.data
-          : [];
+      const rawRecords =
+        Array.isArray(
+          preventiveCareResponse
+        )
+          ? preventiveCareResponse
+          : Array.isArray(
+                preventiveCareResponse?.data
+              )
+            ? preventiveCareResponse.data
+            : [];
 
-      const normalised = rawData.map((raw) => {
-        const nextDueDate =
-          raw.nextDueDate ||
-          raw.next_due_date ||
-          raw.next_due ||
-          "";
+      const rawCareTypes =
+        Array.isArray(careTypeResponse)
+          ? careTypeResponse
+          : Array.isArray(
+                careTypeResponse?.data
+              )
+            ? careTypeResponse.data
+            : [];
 
-        return {
-          id:
-            raw.id ||
-            raw.batch_id ||
-            raw.batchId ||
-            "",
+      const rawMedicines =
+        Array.isArray(medicineResponse)
+          ? medicineResponse
+          : Array.isArray(
+                medicineResponse?.data
+              )
+            ? medicineResponse.data
+            : [];
 
-          date:
-            raw.date ||
-            raw.event_date ||
-            "",
+      const normalisedRows =
+        rawRecords
+          .map(
+            normalisePreventiveCareRow
+          )
+          .sort((a, b) => {
+            if (
+              a.eventDate !==
+              b.eventDate
+            ) {
+              return b.eventDate.localeCompare(
+                a.eventDate
+              );
+            }
 
-          category:
-            raw.category ||
-            raw.type ||
-            raw.preventiveCareType ||
-            raw.preventive_care_type ||
-            "",
+            return b.eventId.localeCompare(
+              a.eventId
+            );
+          });
 
-          vaccineType:
-            raw.vaccineType ||
-            raw.disease_targeted ||
-            raw.disease ||
-            raw.treatmentName ||
-            raw.treatment_name ||
-            "",
+      const normalisedCareTypes =
+        rawCareTypes
+          .map(normaliseCareType)
+          .filter(
+            (careType) =>
+              careType.careTypeName &&
+              careType.isActive.toLowerCase() !==
+                "no"
+          )
+          .sort((a, b) => {
+            const orderA =
+              Number(
+                a.displayOrder || 999999
+              );
 
-          medicine:
-            raw.medicine ||
-            raw.medicine_brand ||
-            raw.medicineBrand ||
-            "",
+            const orderB =
+              Number(
+                b.displayOrder || 999999
+              );
 
-          targetGroup:
-            raw.targetGroup ||
-            raw.target_group ||
-            raw.target ||
-            "",
+            if (orderA !== orderB) {
+              return orderA - orderB;
+            }
 
-          cowsCount:
-            raw.cowsCount ??
-            raw.cows_count ??
-            raw.count ??
-            "",
+            return a.careTypeName.localeCompare(
+              b.careTypeName
+            );
+          });
 
-          dosage:
-            raw.dosage ||
-            raw.dosage_per_cow ||
-            raw.dose ||
-            "",
+      const normalisedMedicines =
+        rawMedicines
+          .map(normaliseMedicine)
+          .filter(
+            (medicine) =>
+              medicine.medicineName
+          )
+          .sort((a, b) =>
+            a.medicineName.localeCompare(
+              b.medicineName
+            )
+          );
 
-          nextDueDate,
-
-          doctorName:
-            raw.doctorName ||
-            raw.doctor_name ||
-            raw.doctor ||
-            raw.administeredBy ||
-            raw.administered_by ||
-            "",
-
-          remarks:
-            raw.remarks ||
-            raw.notes ||
-            "",
-
-          dueStatus: getDueStatus(nextDueDate),
-        };
-      });
-
-      normalised.sort((a, b) => {
-        const dateA = normaliseIsoDate(a.date) || "";
-        const dateB = normaliseIsoDate(b.date) || "";
-        return dateB.localeCompare(dateA);
-      });
-
-      setRows(normalised);
+      setRows(normalisedRows);
+      setCareTypes(
+        normalisedCareTypes
+      );
+      setMedicines(
+        normalisedMedicines
+      );
     } catch (err) {
-      console.error("Preventive care load failed:", err);
+      console.error(
+        "Preventive care load failed:",
+        err
+      );
+
       setRows([]);
-      setError(err?.message || "Unable to load preventive care records.");
+      setError(
+        err?.message ||
+          "Unable to load preventive care records."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  // ===========================================================================
+  // FILTERS
+  // ===========================================================================
+
   const dateRangeRows = useMemo(() => {
     return rows.filter((row) => {
-      const rowDate = normaliseIsoDate(row.date);
+      if (
+        fromDate &&
+        row.eventDate < fromDate
+      ) {
+        return false;
+      }
 
-      if (!rowDate) return false;
-      if (fromDate && rowDate < fromDate) return false;
-      if (toDate && rowDate > toDate) return false;
+      if (
+        toDate &&
+        row.eventDate > toDate
+      ) {
+        return false;
+      }
 
       return true;
     });
-  }, [rows, fromDate, toDate]);
+  }, [
+    rows,
+    fromDate,
+    toDate,
+  ]);
 
-  const categoryOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        rows
-          .map((row) => String(row.category || "").trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  const medicineOptions = useMemo(() => {
+  const medicineMap = new Map();
+
+  medicines.forEach((medicine) => {
+    const name = String(
+      medicine.medicineName || ""
+    ).trim();
+
+    if (!name) return;
+
+    medicineMap.set(name.toLowerCase(), {
+      medicineId: String(
+        medicine.medicineId || ""
+      ).trim(),
+      medicineName: name,
+      key:
+        medicine.key ||
+        medicine.medicineId ||
+        name,
+    });
+  });
+
+  rows.forEach((row) => {
+    const name = String(
+      row.medicineName || ""
+    ).trim();
+
+    if (!name) return;
+
+    const key = name.toLowerCase();
+    const existing = medicineMap.get(key);
+
+    medicineMap.set(key, {
+      medicineId:
+        existing?.medicineId ||
+        String(row.medicineId || "").trim(),
+
+      medicineName: name,
+
+      key:
+        existing?.key ||
+        row.medicineId ||
+        name,
+    });
+  });
+
+  return Array.from(
+    medicineMap.values()
+  ).sort((a, b) =>
+    a.medicineName.localeCompare(
+      b.medicineName
+    )
+  );
+}, [medicines, rows]);
 
   const filteredRows = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query =
+      searchTerm
+        .trim()
+        .toLowerCase();
 
-    return dateRangeRows.filter((row) => {
-      const searchableText = [
-        row.id,
-        row.category,
-        row.vaccineType,
-        row.medicine,
-        row.targetGroup,
-        row.cowsCount,
-        row.dosage,
-        row.doctorName,
-        row.remarks,
-      ]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ");
+    return dateRangeRows.filter(
+      (row) => {
+        const searchableText = [
+          row.eventId,
+          row.careTypeId,
+          row.careTypeName,
+          row.medicineId,
+          row.medicineName,
+          row.medicineBatchNo,
+          row.dosage,
+          row.dosageUnit,
+          row.administrationRoute,
+          row.targetGroup,
+          row.eligibleCount,
+          row.administeredCount,
+          row.excludedCount,
+          row.doctorName,
+          row.status,
+          row.remarks,
+        ]
+          .map((value) =>
+            String(
+              value ?? ""
+            ).toLowerCase()
+          )
+          .join(" ");
 
-      const matchesSearch =
-        !query || searchableText.includes(query);
+        const matchesSearch =
+          !query ||
+          searchableText.includes(
+            query
+          );
 
-      const matchesCategory =
-        !categoryFilter ||
-        String(row.category || "").toLowerCase() ===
-          categoryFilter.toLowerCase();
+       const matchesCareType =
+  !careTypeFilter ||
+  row.careTypeName
+    .trim()
+    .toLowerCase() ===
+    careTypeFilter
+      .trim()
+      .toLowerCase();
 
-      const matchesDueStatus =
-        !dueStatusFilter ||
-        row.dueStatus.key === dueStatusFilter;
+        const matchesMedicine =
+          !medicineFilter ||
+          row.medicineName ===
+            medicineFilter;
 
-      return matchesSearch && matchesCategory && matchesDueStatus;
-    });
+        const matchesRecordStatus =
+          !recordStatusFilter ||
+          row.status ===
+            recordStatusFilter;
+
+        const matchesDueStatus =
+          !dueStatusFilter ||
+          row.dueStatus.key ===
+            dueStatusFilter;
+
+        return (
+          matchesSearch &&
+          matchesCareType &&
+          matchesMedicine &&
+          matchesRecordStatus &&
+          matchesDueStatus
+        );
+      }
+    );
   }, [
     dateRangeRows,
     searchTerm,
-    categoryFilter,
+    careTypeFilter,
+    medicineFilter,
+    recordStatusFilter,
     dueStatusFilter,
   ]);
 
@@ -335,64 +954,131 @@ export default function Vaccine() {
     fromDate,
     toDate,
     searchTerm,
-    categoryFilter,
+    careTypeFilter,
+    medicineFilter,
+    recordStatusFilter,
     dueStatusFilter,
     pageSize,
   ]);
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredRows.length / pageSize)
+    Math.ceil(
+      filteredRows.length /
+        pageSize
+    )
   );
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+    if (
+      currentPage > totalPages
+    ) {
+      setCurrentPage(
+        totalPages
+      );
     }
-  }, [currentPage, totalPages]);
+  }, [
+    currentPage,
+    totalPages,
+  ]);
 
   const paginatedRows = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredRows.slice(startIndex, startIndex + pageSize);
-  }, [filteredRows, currentPage, pageSize]);
+    const startIndex =
+      (currentPage - 1) *
+      pageSize;
+
+    return filteredRows.slice(
+      startIndex,
+      startIndex + pageSize
+    );
+  }, [
+    filteredRows,
+    currentPage,
+    pageSize,
+  ]);
 
   const firstVisibleRecord =
     filteredRows.length === 0
       ? 0
-      : (currentPage - 1) * pageSize + 1;
+      : (currentPage - 1) *
+          pageSize +
+        1;
 
-  const lastVisibleRecord = Math.min(
-    currentPage * pageSize,
-    filteredRows.length
-  );
+  const lastVisibleRecord =
+    Math.min(
+      currentPage * pageSize,
+      filteredRows.length
+    );
+
+  // ===========================================================================
+  // METRICS
+  // ===========================================================================
 
   const metrics = useMemo(() => {
-    return {
-      total: rows.length,
-      selectedPeriod: dateRangeRows.length,
-      vaccinations: dateRangeRows.filter(
+    const countType = (
+      careTypeName
+    ) =>
+      dateRangeRows.filter(
         (row) =>
-          String(row.category || "").toLowerCase() ===
-          "vaccination"
-      ).length,
-      deworming: dateRangeRows.filter(
-        (row) =>
-          String(row.category || "").toLowerCase() ===
-          "deworming"
-      ).length,
-      upcoming: dateRangeRows.filter(
-        (row) => row.dueStatus.key === "upcoming"
-      ).length,
-      dueToday: dateRangeRows.filter(
-        (row) => row.dueStatus.key === "due-today"
-      ).length,
-      overdue: dateRangeRows.filter(
-        (row) => row.dueStatus.key === "overdue"
-      ).length,
-    };
-  }, [rows, dateRangeRows]);
+          row.careTypeName
+            .toLowerCase() ===
+          careTypeName.toLowerCase()
+      ).length;
 
-  function showToast(message, type = "info") {
+    return {
+      total:
+        rows.length,
+
+      selectedPeriod:
+        dateRangeRows.length,
+
+      vaccination:
+        countType(
+          "Vaccination"
+        ),
+
+      deworming:
+        countType(
+          "Deworming"
+        ),
+
+      vitamin:
+        countType(
+          "Vitamin Supplementation"
+        ),
+
+      mineral:
+        countType(
+          "Mineral Supplementation"
+        ),
+
+      upcoming:
+        dateRangeRows.filter(
+          (row) =>
+            row.dueStatus.key ===
+            "upcoming"
+        ).length,
+
+      overdue:
+        dateRangeRows.filter(
+          (row) =>
+            row.dueStatus.key ===
+            "overdue"
+        ).length,
+    };
+  }, [
+    rows,
+    dateRangeRows,
+  ]);
+
+  // ===========================================================================
+  // TOAST
+  // ===========================================================================
+
+  function showToast(
+    message,
+    type = "info"
+  ) {
     setToast({
       visible: true,
       type,
@@ -412,26 +1098,26 @@ export default function Vaccine() {
     type = "success",
     duration = 3500
   ) {
-    showToast(message, type);
+    showToast(
+      message,
+      type
+    );
 
-    window.setTimeout(() => {
-      hideToast();
-    }, duration);
+    window.setTimeout(
+      hideToast,
+      duration
+    );
   }
 
-  function clearFilters() {
-    const currentRange = getCurrentMonthDateRange();
-
-    setFromDate(currentRange.fromDate);
-    setToDate(currentRange.toDate);
-    setSearchTerm("");
-    setCategoryFilter("");
-    setDueStatusFilter("");
-  }
+  // ===========================================================================
+  // FORM HANDLERS
+  // ===========================================================================
 
   function openFormForAdd() {
     setMode("add");
-    setForm(getEmptyForm());
+    setForm(
+      getEmptyForm()
+    );
     setShowForm(true);
   }
 
@@ -439,70 +1125,286 @@ export default function Vaccine() {
     setMode("edit");
 
     setForm({
-      id: entry.id || "",
-      category: entry.category || "",
-      date: normaliseIsoDate(entry.date),
-      vaccineType: entry.vaccineType || "",
-      medicine: entry.medicine || "",
-      targetGroup: entry.targetGroup || "",
-      cowsCount: entry.cowsCount ?? "",
-      dosage: entry.dosage || "",
-      nextDueDate: normaliseIsoDate(entry.nextDueDate),
-      doctorName: entry.doctorName || "",
-      remarks: entry.remarks || "",
+      eventId:
+        entry.eventId,
+
+      eventDate:
+        entry.eventDate,
+
+      careTypeId:
+        entry.careTypeId,
+
+      careTypeName:
+        entry.careTypeName,
+
+      medicineId:
+        entry.medicineId,
+
+      medicineName:
+        entry.medicineName,
+
+      medicineBatchNo:
+        entry.medicineBatchNo,
+
+      medicineExpiryDate:
+        entry.medicineExpiryDate,
+
+      dosage:
+        entry.dosage,
+
+      dosageUnit:
+        entry.dosageUnit ||
+        "ml",
+
+      administrationRoute:
+        entry.administrationRoute,
+
+      targetGroup:
+        entry.targetGroup,
+
+      eligibleCount:
+        entry.eligibleCount,
+
+      administeredCount:
+        entry.administeredCount,
+
+      excludedCount:
+        entry.excludedCount,
+
+      nextDueDate:
+        entry.nextDueDate,
+
+      doctorName:
+        entry.doctorName,
+
+      status:
+        entry.status,
+
+      remarks:
+        entry.remarks,
     });
 
     setShowForm(true);
   }
 
+  function closeForm() {
+    if (saving) return;
+
+    setShowForm(false);
+  }
+
   function handleChange(event) {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
+
+    setForm((previous) => {
+      const updated = {
+        ...previous,
+        [name]: value,
+      };
+
+      if (
+        name ===
+        "eligibleCount" ||
+        name ===
+        "administeredCount"
+      ) {
+        updated.excludedCount =
+          getExcludedCount(
+            name ===
+              "eligibleCount"
+              ? value
+              : previous.eligibleCount,
+            name ===
+              "administeredCount"
+              ? value
+              : previous.administeredCount
+          );
+      }
+
+      return updated;
+    });
+  }
+
+  function handleCareTypeChange(
+    event
+  ) {
+    const careTypeId =
+      event.target.value;
+
+    const selectedCareType =
+      careTypes.find(
+        (item) =>
+          item.careTypeId ===
+          careTypeId
+      );
 
     setForm((previous) => ({
       ...previous,
-      [name]: value,
+      careTypeId,
+      careTypeName:
+        selectedCareType
+          ?.careTypeName || "",
     }));
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  function handleMedicineChange(event) {
+  const selectedValue =
+    event.target.value;
 
-    if (!form.category) {
-      showTemporaryToast(
-        "Please select a preventive care type.",
-        "error",
-        4000
-      );
-      return;
-    }
-
-    if (!form.date) {
-      showTemporaryToast(
-        "Administration date is required.",
-        "error",
-        4000
-      );
-      return;
-    }
-
-    setSaving(true);
-
-    showToast(
-      mode === "add"
-        ? "Please wait... Saving preventive care record."
-        : "Please wait... Updating preventive care record.",
-      "loading"
+  const selectedMedicine =
+    medicineOptions.find(
+      (item) =>
+        `${item.medicineId}||${item.medicineName}` ===
+        selectedValue
     );
 
+  setForm((previous) => ({
+    ...previous,
+
+    medicineId:
+      selectedMedicine?.medicineId || "",
+
+    medicineName:
+      selectedMedicine?.medicineName || "",
+  }));
+}
+
+  function validateForm() {
+    if (!form.eventDate) {
+      return "Administration Date is required.";
+    }
+
+    if (
+      !form.careTypeId ||
+      !form.careTypeName
+    ) {
+      return "Please select a Preventive Care Type.";
+    }
+
+    if (
+      !form.medicineName.trim()
+    ) {
+      return "Please select a Medicine.";
+    }
+
+    if (
+      !form.targetGroup.trim()
+    ) {
+      return "Target Group is required.";
+    }
+
+    const eligible =
+      Number(
+        form.eligibleCount
+      );
+
+    const administered =
+      Number(
+        form.administeredCount
+      );
+
+    if (
+      !Number.isInteger(
+        eligible
+      ) ||
+      eligible <= 0
+    ) {
+      return "Eligible Count must be greater than zero.";
+    }
+
+    if (
+      !Number.isInteger(
+        administered
+      ) ||
+      administered < 0
+    ) {
+      return "Administered Count must be zero or greater.";
+    }
+
+    if (
+      administered >
+      eligible
+    ) {
+      return "Administered Count cannot exceed Eligible Count.";
+    }
+
+    if (
+      form.dosage !== "" &&
+      Number(
+        form.dosage
+      ) <= 0
+    ) {
+      return "Dosage must be greater than zero.";
+    }
+
+    if (
+      form.nextDueDate &&
+      form.nextDueDate <
+        form.eventDate
+    ) {
+      return "Next Due Date cannot be earlier than Administration Date.";
+    }
+
+    if (
+      form.medicineExpiryDate &&
+      form.medicineExpiryDate <
+        form.eventDate
+    ) {
+      return "Medicine is expired on the Administration Date.";
+    }
+
+    return "";
+  }
+
+  async function handleSubmit(
+    event
+  ) {
+    event.preventDefault();
+
+    const validationError =
+      validateForm();
+
+    if (validationError) {
+      showTemporaryToast(
+        validationError,
+        "error",
+        4500
+      );
+      return;
+    }
+
     try {
+      setSaving(true);
+
+      showToast(
+        mode === "add"
+          ? "Please wait... Saving preventive care record."
+          : "Please wait... Updating preventive care record.",
+        "loading"
+      );
+
+      const payload =
+        buildPayload(
+          form,
+          mode
+        );
+
       if (mode === "add") {
-        await addVaccine(form);
+        await addPreventiveCare(
+          payload
+        );
       } else {
-        await updateVaccine(form);
+        await updatePreventiveCare(
+          payload
+        );
       }
 
       setShowForm(false);
-      await loadData();
+
+      await loadPageData();
 
       showTemporaryToast(
         mode === "add"
@@ -512,11 +1414,14 @@ export default function Vaccine() {
         3500
       );
     } catch (err) {
-      console.error("Preventive care save failed:", err);
+      console.error(
+        "Preventive care save failed:",
+        err
+      );
 
       showTemporaryToast(
         err?.message ||
-          "Unable to save the preventive care record.",
+          "Unable to save preventive care record.",
         "error",
         5000
       );
@@ -525,6 +1430,29 @@ export default function Vaccine() {
     }
   }
 
+  function clearFilters() {
+    const range =
+      getCurrentMonthDateRange();
+
+    setFromDate(
+      range.fromDate
+    );
+
+    setToDate(
+      range.toDate
+    );
+
+    setSearchTerm("");
+    setCareTypeFilter("");
+    setMedicineFilter("");
+    setRecordStatusFilter("");
+    setDueStatusFilter("");
+  }
+
+  // ===========================================================================
+  // RENDER
+  // ===========================================================================
+
   return (
     <div style={pageStyle}>
       {toast.visible && (
@@ -532,36 +1460,64 @@ export default function Vaccine() {
           className="preventive-toast-mobile"
           style={{
             ...toastStyle,
-            ...(toast.type === "success"
+
+            ...(toast.type ===
+            "success"
               ? toastSuccessStyle
-              : toast.type === "error"
+              : toast.type ===
+                  "error"
                 ? toastErrorStyle
-                : toast.type === "loading"
+                : toast.type ===
+                    "loading"
                   ? toastLoadingStyle
                   : toastInfoStyle),
           }}
           role="status"
           aria-live="polite"
         >
-          {toast.type === "loading" && (
-            <span style={toastSpinnerStyle} />
+          {toast.type ===
+            "loading" && (
+            <span
+              style={
+                toastSpinnerStyle
+              }
+            />
           )}
 
-          {toast.type === "success" && (
-            <span style={toastIconStyle}>✓</span>
+          {toast.type ===
+            "success" && (
+            <span
+              style={
+                toastIconStyle
+              }
+            >
+              ✓
+            </span>
           )}
 
-          {toast.type === "error" && (
-            <span style={toastIconStyle}>!</span>
+          {toast.type ===
+            "error" && (
+            <span
+              style={
+                toastIconStyle
+              }
+            >
+              !
+            </span>
           )}
 
-          <span>{toast.message}</span>
+          <span>
+            {toast.message}
+          </span>
 
-          {toast.type !== "loading" && (
+          {toast.type !==
+            "loading" && (
             <button
               type="button"
               onClick={hideToast}
-              style={toastCloseStyle}
+              style={
+                toastCloseStyle
+              }
               aria-label="Close notification"
             >
               ×
@@ -588,81 +1544,121 @@ export default function Vaccine() {
               right: 16px;
               min-width: 0;
             }
+
+            .preventive-modal-grid {
+              grid-template-columns: 1fr !important;
+            }
           }
         `}
       </style>
 
       <PageHeader
         title="Preventive Care"
-        description="Manage vaccinations, deworming and scheduled preventive treatments."
+        description="Manage vaccinations, deworming, supplementation and other preventive treatment events."
         countText={`Showing ${filteredRows.length} of ${rows.length} records`}
         action={
           <button
             type="button"
-            onClick={openFormForAdd}
+            onClick={
+              openFormForAdd
+            }
             className="btn btn-primary"
-            style={{ whiteSpace: "nowrap" }}
+            style={{
+              whiteSpace:
+                "nowrap",
+            }}
           >
             + Add Preventive Care
           </button>
         }
       />
 
-      <div style={metricsWrapperStyle}>
+      <div
+        style={
+          metricsWrapperStyle
+        }
+      >
         <MetricCard
-          label="Total Records"
+          label="Total Events"
           value={metrics.total}
           color="#2563eb"
         />
 
         <MetricCard
           label="Selected Period"
-          value={metrics.selectedPeriod}
+          value={
+            metrics.selectedPeriod
+          }
           color="#ea580c"
         />
 
         <MetricCard
-          label="Vaccinations"
-          value={metrics.vaccinations}
+          label="Vaccination"
+          value={
+            metrics.vaccination
+          }
           color="#16a34a"
         />
 
         <MetricCard
           label="Deworming"
-          value={metrics.deworming}
+          value={
+            metrics.deworming
+          }
           color="#7c3aed"
         />
 
         <MetricCard
-          label="Upcoming"
-          value={metrics.upcoming}
+          label="Vitamin"
+          value={
+            metrics.vitamin
+          }
           color="#0891b2"
         />
 
         <MetricCard
-          label="Due Today"
-          value={metrics.dueToday}
+          label="Mineral"
+          value={
+            metrics.mineral
+          }
+          color="#9333ea"
+        />
+
+        <MetricCard
+          label="Upcoming"
+          value={
+            metrics.upcoming
+          }
           color="#d97706"
         />
 
         <MetricCard
           label="Overdue"
-          value={metrics.overdue}
+          value={
+            metrics.overdue
+          }
           color="#dc2626"
         />
       </div>
 
       <SectionCard title="Search & Filters">
-        <div style={filtersGridStyle}>
+        <div
+          style={
+            filtersGridStyle
+          }
+        >
           <Field label="Search">
             <input
               type="text"
               value={searchTerm}
               onChange={(event) =>
-                setSearchTerm(event.target.value)
+                setSearchTerm(
+                  event.target
+                    .value
+                )
               }
               className="form-input"
-              placeholder="Disease, medicine, target group or doctor"
+              placeholder="Event, medicine, target group or doctor"
             />
           </Field>
 
@@ -671,10 +1667,16 @@ export default function Vaccine() {
               type="date"
               value={fromDate}
               onChange={(event) =>
-                setFromDate(event.target.value)
+                setFromDate(
+                  event.target
+                    .value
+                )
               }
               className="form-input"
-              max={toDate || undefined}
+              max={
+                toDate ||
+                undefined
+              }
             />
           </Field>
 
@@ -683,53 +1685,190 @@ export default function Vaccine() {
               type="date"
               value={toDate}
               onChange={(event) =>
-                setToDate(event.target.value)
+                setToDate(
+                  event.target
+                    .value
+                )
               }
               className="form-input"
-              min={fromDate || undefined}
+              min={
+                fromDate ||
+                undefined
+              }
             />
           </Field>
 
-          <Field label="Preventive Care Type">
+          <Field label="Care Type">
             <select
-              value={categoryFilter}
+              value={
+                careTypeFilter
+              }
               onChange={(event) =>
-                setCategoryFilter(event.target.value)
+                setCareTypeFilter(
+                  event.target
+                    .value
+                )
               }
               className="form-select"
             >
-              <option value="">All Types</option>
+              <option value="">
+                All Care Types
+              </option>
 
-              {categoryOptions.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
+              {careTypes.map((careType) => (
+  <option
+    key={
+      careType.careTypeId ||
+      careType.careTypeName
+    }
+    value={careType.careTypeName}
+  >
+    {careType.careTypeName}
+  </option>
+))}
+            </select>
+          </Field>
+
+          <Field label="Medicine">
+            <select
+              value={
+                medicineFilter
+              }
+              onChange={(event) =>
+                setMedicineFilter(
+                  event.target
+                    .value
+                )
+              }
+              className="form-select"
+            >
+              <option value="">
+                All Medicines
+              </option>
+
+              {medicineOptions.map(
+  (medicine, index) => (
+    <option
+      key={
+        medicine.key ||
+        `${medicine.medicineName}-${index}`
+      }
+      value={medicine.medicineName}
+    >
+      {medicine.medicineName}
+    </option>
+  )
+)}
+            </select>
+          </Field>
+
+          <Field label="Record Status">
+            <select
+              value={
+                recordStatusFilter
+              }
+              onChange={(event) =>
+                setRecordStatusFilter(
+                  event.target
+                    .value
+                )
+              }
+              className="form-select"
+            >
+              <option value="">
+                All Statuses
+              </option>
+
+              {STATUS_OPTIONS.map(
+                (status) => (
+                  <option
+                    key={status}
+                    value={status}
+                  >
+                    {status}
+                  </option>
+                )
+              )}
             </select>
           </Field>
 
           <Field label="Due Status">
             <select
-              value={dueStatusFilter}
+              value={
+                dueStatusFilter
+              }
               onChange={(event) =>
-                setDueStatusFilter(event.target.value)
+                setDueStatusFilter(
+                  event.target
+                    .value
+                )
               }
               className="form-select"
             >
-              <option value="">All Statuses</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="due-today">Due Today</option>
-              <option value="overdue">Overdue</option>
+              <option value="">
+                All Due Statuses
+              </option>
+
+              <option value="upcoming">
+                Upcoming
+              </option>
+
+              <option value="due-today">
+                Due Today
+              </option>
+
+              <option value="overdue">
+                Overdue
+              </option>
+
               <option value="not-scheduled">
                 Not Scheduled
               </option>
+
+              <option value="cancelled">
+                Cancelled
+              </option><option value="">
+  All Due Statuses
+</option>
+
+<option value="upcoming">
+  Next Due
+</option>
+
+<option value="due-today">
+  Due Today
+</option>
+
+<option value="overdue">
+  Next Dose Overdue
+</option>
+
+<option value="not-scheduled">
+  Not Scheduled
+</option>
+
+<option value="draft">
+  Not Finalised
+</option>
+
+<option value="cancelled">
+  Cancelled
+</option>
             </select>
           </Field>
 
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems:
+                "flex-end",
+            }}
+          >
             <button
               type="button"
-              onClick={clearFilters}
+              onClick={
+                clearFilters
+              }
               className="btn btn-secondary"
             >
               Clear Filters
@@ -739,38 +1878,86 @@ export default function Vaccine() {
       </SectionCard>
 
       {error && (
-        <div style={errorBannerStyle}>
+        <div
+          style={
+            errorBannerStyle
+          }
+        >
           {error}
         </div>
       )}
 
-      <div style={tableToolbarStyle}>
-        <div style={tableRecordCountStyle}>
-          Showing {firstVisibleRecord}-{lastVisibleRecord} of{" "}
-          {filteredRows.length} filtered records
-          {filteredRows.length !== rows.length && (
-            <span style={tableRecordTotalStyle}>
+      <div
+        style={
+          tableToolbarStyle
+        }
+      >
+        <div
+          style={
+            tableRecordCountStyle
+          }
+        >
+          Showing{" "}
+          {firstVisibleRecord}-
+          {lastVisibleRecord} of{" "}
+          {filteredRows.length}{" "}
+          filtered records
+
+          {filteredRows.length !==
+            rows.length && (
+            <span
+              style={
+                tableRecordTotalStyle
+              }
+            >
               {" "}
               ({rows.length} total)
             </span>
           )}
         </div>
 
-        <div style={paginationControlsStyle}>
-          <label style={pageSizeLabelStyle}>
+        <div
+          style={
+            paginationControlsStyle
+          }
+        >
+          <label
+            style={
+              pageSizeLabelStyle
+            }
+          >
             Rows per page
+
             <select
               value={pageSize}
               onChange={(event) =>
-                setPageSize(Number(event.target.value))
+                setPageSize(
+                  Number(
+                    event.target
+                      .value
+                  )
+                )
               }
               className="form-select"
-              style={pageSizeSelectStyle}
+              style={
+                pageSizeSelectStyle
+              }
             >
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
+              <option value={10}>
+                10
+              </option>
+
+              <option value={15}>
+                15
+              </option>
+
+              <option value={25}>
+                25
+              </option>
+
+              <option value={50}>
+                50
+              </option>
             </select>
           </label>
 
@@ -778,53 +1965,152 @@ export default function Vaccine() {
             type="button"
             className="btn btn-secondary"
             onClick={() =>
-              setCurrentPage((page) => Math.max(1, page - 1))
+              setCurrentPage(
+                (page) =>
+                  Math.max(
+                    1,
+                    page - 1
+                  )
+              )
             }
-            disabled={currentPage <= 1}
-            style={paginationButtonStyle}
+            disabled={
+              currentPage <= 1
+            }
+            style={
+              paginationButtonStyle
+            }
           >
             Previous
           </button>
 
-          <span style={pageIndicatorStyle}>
-            Page {filteredRows.length === 0 ? 0 : currentPage} of{" "}
-            {filteredRows.length === 0 ? 0 : totalPages}
+          <span
+            style={
+              pageIndicatorStyle
+            }
+          >
+            Page{" "}
+            {filteredRows.length ===
+            0
+              ? 0
+              : currentPage}{" "}
+            of{" "}
+            {filteredRows.length ===
+            0
+              ? 0
+              : totalPages}
           </span>
 
           <button
             type="button"
             className="btn btn-secondary"
             onClick={() =>
-              setCurrentPage((page) =>
-                Math.min(totalPages, page + 1)
+              setCurrentPage(
+                (page) =>
+                  Math.min(
+                    totalPages,
+                    page + 1
+                  )
               )
             }
             disabled={
-              filteredRows.length === 0 ||
-              currentPage >= totalPages
+              filteredRows.length ===
+                0 ||
+              currentPage >=
+                totalPages
             }
-            style={paginationButtonStyle}
+            style={
+              paginationButtonStyle
+            }
           >
             Next
           </button>
         </div>
       </div>
 
-      <div style={tableCardStyle} className="card">
-        <div style={tableScrollStyle}>
-          <table style={tableStyle}>
-            <thead style={tableHeadStyle}>
+      <div
+        style={tableCardStyle}
+        className="card"
+      >
+        <div
+          style={
+            tableScrollStyle
+          }
+        >
+          <table
+            style={tableStyle}
+          >
+            <thead
+              style={
+                tableHeadStyle
+              }
+            >
               <tr>
-                <th style={{ ...thStyle, ...dateColumnHeaderStyle }}>
+                <th
+                  style={{
+                    ...thStyle,
+                    ...dateColumnHeaderStyle,
+                  }}
+                >
                   Date
                 </th>
-                <th style={thStyle}>Care Type</th>
-                <th style={thStyle}>Disease / Vaccine</th>
-                <th style={thStyle}>Medicine</th>
-                <th style={thStyle}>Target Group</th>
-                <th style={thStyle}>Next Due</th>
-                <th style={thStyle}>Due Status</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>
+
+                <th style={thStyle}>
+                  Care Type
+                </th>
+
+                <th style={thStyle}>
+                  Medicine
+                </th>
+
+                <th style={thStyle}>
+                  Target Group
+                </th>
+
+                <th
+                  style={{
+                    ...thStyle,
+                    textAlign:
+                      "center",
+                  }}
+                >
+                  Eligible
+                </th>
+
+                <th
+                  style={{
+                    ...thStyle,
+                    textAlign:
+                      "center",
+                  }}
+                >
+                  Administered
+                </th>
+
+                <th
+                  style={{
+                    ...thStyle,
+                    textAlign:
+                      "center",
+                  }}
+                >
+                  Excluded
+                </th>
+
+                <th style={thStyle}>
+  Next Schedule
+</th>
+
+<th style={thStyle}>
+  Event Status
+</th>
+
+                <th
+                  style={{
+                    ...thStyle,
+                    textAlign:
+                      "center",
+                  }}
+                >
                   Actions
                 </th>
               </tr>
@@ -833,98 +2119,269 @@ export default function Vaccine() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={emptyStateStyle}>
+                  <td
+                    colSpan={10}
+                    style={
+                      emptyStateStyle
+                    }
+                  >
                     Loading preventive care records...
                   </td>
                 </tr>
-              ) : filteredRows.length === 0 ? (
+              ) : filteredRows.length ===
+                0 ? (
                 <tr>
-                  <td colSpan={8} style={emptyStateStyle}>
-                    No preventive care records match the selected
-                    filters.
+                  <td
+                    colSpan={10}
+                    style={
+                      emptyStateStyle
+                    }
+                  >
+                    No preventive care records match the selected filters.
                   </td>
                 </tr>
               ) : (
-                paginatedRows.map((row, index) => (
-                  <tr
-                    key={
-                      row.id ||
-                      `${row.date}-${row.category}-${row.vaccineType}-${index}`
-                    }
-                    onClick={() => setSelectedEntry(row)}
-                    style={{
-                      borderBottom: "1px solid #f1f5f9",
-                      backgroundColor:
-                        index % 2 === 0
-                          ? "#ffffff"
-                          : "#f8fafc",
-                      cursor: "pointer",
-                    }}
-                    title="Click to view preventive care details"
-                  >
-                    <td style={{ ...tdStyle, ...dateColumnCellStyle }}>
-                      <strong style={{ color: "#0f172a" }}>
-                        {formatDisplayDate(row.date) || "-"}
-                      </strong>
-                    </td>
+                paginatedRows.map(
+                  (
+                    row,
+                    index
+                  ) => (
+                    <tr
+                      key={
+                        row.eventId ||
+                        `${row.eventDate}-${index}`
+                      }
+                      onClick={() =>
+                        setSelectedEntry(
+                          row
+                        )
+                      }
+                      style={{
+                        borderBottom:
+                          "1px solid #f1f5f9",
 
-                    <td style={tdStyle}>
-                      <CareTypeBadge value={row.category} />
-                    </td>
+                        backgroundColor:
+                          index % 2 ===
+                          0
+                            ? "#ffffff"
+                            : "#f8fafc",
 
-                    <td style={tdStyle}>
-                      <div style={primaryCellTextStyle}>
-                        {row.vaccineType || "-"}
-                      </div>
-                    </td>
+                        cursor:
+                          "pointer",
+                      }}
+                      title="Click to view preventive care details"
+                    >
+                      <td
+                        style={{
+                          ...tdStyle,
+                          ...dateColumnCellStyle,
+                        }}
+                      >
+                        <strong
+                          style={{
+                            color:
+                              "#0f172a",
+                          }}
+                        >
+                          {formatDisplayDate(
+                            row.eventDate
+                          )}
+                        </strong>
 
-                    <td style={tdStyle}>
-                      {row.medicine || "-"}
-                    </td>
+                        <div
+                          style={
+                            secondaryCellTextStyle
+                          }
+                        >
+                          {row.eventId}
+                        </div>
+                      </td>
 
-                    <td style={tdStyle}>
-                      <div style={primaryCellTextStyle}>
-                        {row.targetGroup || "-"}
-                      </div>
+                      <td
+                        style={
+                          tdStyle
+                        }
+                      >
+                        <CareTypeBadge
+                          value={
+                            row.careTypeName
+                          }
+                        />
+                      </td>
 
-                      {row.cowsCount !== "" &&
-                        row.cowsCount !== null &&
-                        row.cowsCount !== undefined && (
-                          <div style={secondaryCellTextStyle}>
-                            Cattle Count: {row.cowsCount}
+                      <td
+                        style={
+                          tdStyle
+                        }
+                      >
+                        <div
+                          style={
+                            primaryCellTextStyle
+                          }
+                        >
+                          {row.medicineName ||
+                            "-"}
+                        </div>
+
+                        {(row.dosage ||
+                          row.dosageUnit) && (
+                          <div
+                            style={
+                              secondaryCellTextStyle
+                            }
+                          >
+                            Dose:{" "}
+                            {row.dosage ||
+                              "-"}{" "}
+                            {row.dosageUnit ||
+                              ""}
                           </div>
                         )}
-                    </td>
 
-                    <td style={tdStyle}>
-                      {formatDisplayDate(row.nextDueDate) || "-"}
-                    </td>
+                        {row.medicineBatchNo && (
+                          <div
+                            style={
+                              secondaryCellTextStyle
+                            }
+                          >
+                            Batch:{" "}
+                            {
+                              row.medicineBatchNo
+                            }
+                          </div>
+                        )}
+                      </td>
 
-                    <td style={tdStyle}>
-                      <DueStatusBadge status={row.dueStatus} />
-                    </td>
-
-                    <td
-                      style={{
-                        ...tdStyle,
-                        textAlign: "center",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openFormForEdit(row);
-                        }}
-                        style={iconBtnStyle}
-                        title="Edit preventive care record"
-                        aria-label="Edit preventive care record"
+                      <td
+                        style={
+                          tdStyle
+                        }
                       >
-                        ✏️
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                        <div
+                          style={
+                            primaryCellTextStyle
+                          }
+                        >
+                          {row.targetGroup ||
+                            "-"}
+                        </div>
+
+                        {row.administrationRoute && (
+                          <div
+                            style={
+                              secondaryCellTextStyle
+                            }
+                          >
+                            {
+                              row.administrationRoute
+                            }
+                          </div>
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          textAlign:
+                            "center",
+                        }}
+                      >
+                        {
+                          row.eligibleCount
+                        }
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          textAlign:
+                            "center",
+                        }}
+                      >
+                        {
+                          row.administeredCount
+                        }
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          textAlign:
+                            "center",
+                        }}
+                      >
+                        <CountBadge
+                          value={
+                            row.excludedCount
+                          }
+                        />
+                      </td>
+
+                      <td
+                        style={
+                          tdStyle
+                        }
+                      >
+                        {formatDisplayDate(
+                          row.nextDueDate
+                        )}
+
+                        <div
+                          style={{
+                            marginTop:
+                              "0.3rem",
+                          }}
+                        >
+                          <DueStatusBadge
+                            status={
+                              row.dueStatus
+                            }
+                          />
+                        </div>
+                      </td>
+
+                      <td
+                        style={
+                          tdStyle
+                        }
+                      >
+                        <RecordStatusBadge
+                          value={
+                            row.status
+                          }
+                        />
+                      </td>
+
+                      <td
+                        style={{
+                          ...tdStyle,
+                          textAlign:
+                            "center",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={(
+                            event
+                          ) => {
+                            event.stopPropagation();
+
+                            openFormForEdit(
+                              row
+                            );
+                          }}
+                          style={
+                            iconBtnStyle
+                          }
+                          title="Edit preventive care record"
+                          aria-label="Edit preventive care record"
+                        >
+                          ✏️
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                )
               )}
             </tbody>
           </table>
@@ -935,36 +2392,56 @@ export default function Vaccine() {
       {showForm && (
         <div
           style={overlayStyle}
-          onClick={() => {
-            if (!saving) setShowForm(false);
-          }}
+          onClick={
+            closeForm
+          }
         >
           <div
             style={{
               ...modalStyle,
-              maxWidth: "760px",
+              maxWidth:
+                "900px",
             }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
-            <div style={modalHeaderStyle}>
+            <div
+              style={
+                modalHeaderStyle
+              }
+            >
               <div>
-                <h2 style={modalTitleStyle}>
+                <h2
+                  style={
+                    modalTitleStyle
+                  }
+                >
                   {mode === "add"
                     ? "Add Preventive Care"
                     : "Edit Preventive Care"}
                 </h2>
 
-                <p style={modalDescriptionStyle}>
-                  Record vaccination, deworming and follow-up
-                  information.
+                <p
+                  style={
+                    modalDescriptionStyle
+                  }
+                >
+                  Record preventive treatment, medicine, target group and follow-up information.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
-                style={closeButtonStyle}
-                disabled={saving}
+                onClick={
+                  closeForm
+                }
+                style={
+                  closeButtonStyle
+                }
+                disabled={
+                  saving
+                }
                 aria-label="Close preventive care form"
               >
                 &times;
@@ -972,122 +2449,410 @@ export default function Vaccine() {
             </div>
 
             <form
-              onSubmit={handleSubmit}
-              style={{ display: "grid", gap: "1rem" }}
+              onSubmit={
+                handleSubmit
+              }
+              style={{
+                display:
+                  "grid",
+                gap: "1rem",
+              }}
             >
-              <SectionCard title="Preventive Care Details">
-                <div style={twoColumnGridStyle}>
-                  <Field label="Preventive Care Type *">
-                    <select
-                      name="category"
-                      value={form.category}
-                      onChange={handleChange}
-                      className="form-select"
-                      required
-                      disabled={saving}
-                    >
-                      <option value="">Select Type</option>
-                      <option value="Vaccination">
-                        Vaccination
-                      </option>
-                      <option value="Deworming">
-                        Deworming
-                      </option>
-                    </select>
-                  </Field>
-
+              <SectionCard title="Event Details">
+                <div
+                  className="preventive-modal-grid"
+                  style={
+                    threeColumnGridStyle
+                  }
+                >
                   <Field label="Administration Date *">
                     <input
                       type="date"
-                      name="date"
-                      value={form.date}
-                      onChange={handleChange}
+                      name="eventDate"
+                      value={
+                        form.eventDate
+                      }
+                      onChange={
+                        handleChange
+                      }
                       className="form-input"
                       required
-                      disabled={saving}
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Disease Targeted / Vaccine Type">
-                  <input
-                    type="text"
-                    name="vaccineType"
-                    value={form.vaccineType}
-                    onChange={handleChange}
-                    className="form-input"
-                    placeholder="Example: FMD, Brucellosis or deworming treatment"
-                    disabled={saving}
-                  />
-                </Field>
-
-                <div style={twoColumnGridStyle}>
-                  <Field label="Medicine / Vaccine Brand">
-                    <input
-                      type="text"
-                      name="medicine"
-                      value={form.medicine}
-                      onChange={handleChange}
-                      className="form-input"
-                      placeholder="Example: Raksha-Ovac or Ivermectin"
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                     />
                   </Field>
 
-                  <Field label="Dosage Per Cow">
-                    <input
-                      type="text"
-                      name="dosage"
-                      value={form.dosage}
-                      onChange={handleChange}
-                      className="form-input"
-                      placeholder="Example: 5 ml"
-                      disabled={saving}
-                    />
+                  <Field label="Preventive Care Type *">
+                    <select
+                      name="careTypeId"
+                      value={
+                        form.careTypeId
+                      }
+                      onChange={
+                        handleCareTypeChange
+                      }
+                      className="form-select"
+                      required
+                      disabled={
+                        saving
+                      }
+                    >
+                      <option value="">
+                        Select Care Type
+                      </option>
+
+                      {careTypes.map(
+                        (
+                          careType
+                        ) => (
+                          <option
+                            key={
+                              careType.careTypeId
+                            }
+                            value={
+                              careType.careTypeId
+                            }
+                          >
+                            {
+                              careType.careTypeName
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </Field>
+
+                  <Field label="Status *">
+                    <select
+                      name="status"
+                      value={
+                        form.status
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-select"
+                      required
+                      disabled={
+                        saving
+                      }
+                    >
+                      {STATUS_OPTIONS.map(
+                        (
+                          status
+                        ) => (
+                          <option
+                            key={
+                              status
+                            }
+                            value={
+                              status
+                            }
+                          >
+                            {status}
+                          </option>
+                        )
+                      )}
+                    </select>
                   </Field>
                 </div>
               </SectionCard>
 
-              <SectionCard title="Target Group">
-                <div style={twoColumnGridStyle}>
-                  <Field label="Target Group">
+              <SectionCard title="Medicine & Administration">
+                <div
+                  className="preventive-modal-grid"
+                  style={
+                    twoColumnGridStyle
+                  }
+                >
+                  <Field label="Medicine *">
+                    <select
+                      value={`${form.medicineId}||${form.medicineName}`}
+                      onChange={
+                        handleMedicineChange
+                      }
+                      className="form-select"
+                      required
+                      disabled={
+                        saving
+                      }
+                    >
+                      <option value="||">
+                        Select Medicine
+                      </option>
+
+                      {medicineOptions.map(
+                        (
+                          medicine,
+                          index
+                        ) => (
+                          <option
+                            key={
+                              medicine.key ||
+                              index
+                            }
+                            value={`${medicine.medicineId}||${medicine.medicineName}`}
+                          >
+                            {
+                              medicine.medicineName
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </Field>
+
+                  <Field label="Medicine Batch Number">
                     <input
                       type="text"
-                      name="targetGroup"
-                      value={form.targetGroup}
-                      onChange={handleChange}
+                      name="medicineBatchNo"
+                      value={
+                        form.medicineBatchNo
+                      }
+                      onChange={
+                        handleChange
+                      }
                       className="form-input"
-                      placeholder="Example: All cows, calves or a named shed"
-                      disabled={saving}
+                      placeholder="Example: FMD250101"
+                      disabled={
+                        saving
+                      }
                     />
                   </Field>
 
-                  <Field label="Cattle Count">
+                  <Field label="Medicine Expiry Date">
+                    <input
+                      type="date"
+                      name="medicineExpiryDate"
+                      value={
+                        form.medicineExpiryDate
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-input"
+                      min={
+                        form.eventDate ||
+                        undefined
+                      }
+                      disabled={
+                        saving
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Administration Route">
+                    <select
+                      name="administrationRoute"
+                      value={
+                        form.administrationRoute
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-select"
+                      disabled={
+                        saving
+                      }
+                    >
+                      <option value="">
+                        Select Route
+                      </option>
+
+                      {ADMINISTRATION_ROUTES.map(
+                        (
+                          route
+                        ) => (
+                          <option
+                            key={
+                              route
+                            }
+                            value={
+                              route
+                            }
+                          >
+                            {route}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </Field>
+
+                  <Field label="Dosage">
                     <input
                       type="number"
                       min="0"
-                      name="cowsCount"
-                      value={form.cowsCount}
-                      onChange={handleChange}
+                      step="0.01"
+                      name="dosage"
+                      value={
+                        form.dosage
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-input"
+                      placeholder="Example: 2"
+                      disabled={
+                        saving
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Dosage Unit">
+                    <select
+                      name="dosageUnit"
+                      value={
+                        form.dosageUnit
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-select"
+                      disabled={
+                        saving
+                      }
+                    >
+                      <option value="">
+                        Select Unit
+                      </option>
+
+                      {DOSAGE_UNITS.map(
+                        (
+                          unit
+                        ) => (
+                          <option
+                            key={
+                              unit
+                            }
+                            value={
+                              unit
+                            }
+                          >
+                            {unit}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </Field>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Target Group & Coverage">
+                <Field label="Target Group *">
+                  <input
+                    type="text"
+                    name="targetGroup"
+                    value={
+                      form.targetGroup
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    className="form-input"
+                    placeholder="Example: All Adult Cattle, Calves 0–12 Months or Shed 2"
+                    required
+                    disabled={
+                      saving
+                    }
+                  />
+                </Field>
+
+                <div
+                  className="preventive-modal-grid"
+                  style={
+                    threeColumnGridStyle
+                  }
+                >
+                  <Field label="Eligible Count *">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      name="eligibleCount"
+                      value={
+                        form.eligibleCount
+                      }
+                      onChange={
+                        handleChange
+                      }
                       className="form-input"
                       placeholder="0"
-                      disabled={saving}
+                      required
+                      disabled={
+                        saving
+                      }
                     />
+                  </Field>
+
+                  <Field label="Administered Count *">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      name="administeredCount"
+                      value={
+                        form.administeredCount
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      className="form-input"
+                      placeholder="0"
+                      required
+                      disabled={
+                        saving
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Excluded Count">
+                    <input
+                      type="number"
+                      value={
+                        form.excludedCount
+                      }
+                      className="form-input"
+                      disabled
+                      readOnly
+                    />
+
+                    <div
+                      style={
+                        helperTextStyle
+                      }
+                    >
+                      Automatically calculated as Eligible minus Administered.
+                    </div>
                   </Field>
                 </div>
               </SectionCard>
 
               <SectionCard title="Follow-up & Notes">
-                <div style={twoColumnGridStyle}>
+                <div
+                  className="preventive-modal-grid"
+                  style={
+                    twoColumnGridStyle
+                  }
+                >
                   <Field label="Next Due Date">
                     <input
                       type="date"
                       name="nextDueDate"
-                      value={form.nextDueDate}
-                      onChange={handleChange}
+                      value={
+                        form.nextDueDate
+                      }
+                      onChange={
+                        handleChange
+                      }
                       className="form-input"
-                      min={form.date || undefined}
-                      disabled={saving}
+                      min={
+                        form.eventDate ||
+                        undefined
+                      }
+                      disabled={
+                        saving
+                      }
                     />
                   </Field>
 
@@ -1095,11 +2860,17 @@ export default function Vaccine() {
                     <input
                       type="text"
                       name="doctorName"
-                      value={form.doctorName}
-                      onChange={handleChange}
+                      value={
+                        form.doctorName
+                      }
+                      onChange={
+                        handleChange
+                      }
                       className="form-input"
                       placeholder="Enter doctor or staff name"
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                     />
                   </Field>
                 </div>
@@ -1107,26 +2878,42 @@ export default function Vaccine() {
                 <Field label="Remarks">
                   <textarea
                     name="remarks"
-                    value={form.remarks}
-                    onChange={handleChange}
+                    value={
+                      form.remarks
+                    }
+                    onChange={
+                      handleChange
+                    }
                     className="form-input"
                     rows={4}
-                    placeholder="Enter observations, instructions or follow-up notes"
-                    disabled={saving}
+                    placeholder="Enter observations, exclusions, instructions or follow-up notes"
+                    disabled={
+                      saving
+                    }
                     style={{
-                      resize: "vertical",
-                      minHeight: "90px",
+                      resize:
+                        "vertical",
+                      minHeight:
+                        "90px",
                     }}
                   />
                 </Field>
               </SectionCard>
 
-              <div style={modalActionsStyle}>
+              <div
+                style={
+                  modalActionsStyle
+                }
+              >
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={
+                    closeForm
+                  }
                   className="btn btn-secondary btn-full-mobile"
-                  disabled={saving}
+                  disabled={
+                    saving
+                  }
                 >
                   Cancel
                 </button>
@@ -1134,9 +2921,7 @@ export default function Vaccine() {
                 <button
                   type="submit"
                   disabled={
-                    saving ||
-                    !form.category ||
-                    !form.date
+                    saving
                   }
                   className="btn btn-primary btn-full-mobile"
                 >
@@ -1158,92 +2943,207 @@ export default function Vaccine() {
       {selectedEntry && (
         <div
           style={overlayStyle}
-          onClick={() => setSelectedEntry(null)}
+          onClick={() =>
+            setSelectedEntry(
+              null
+            )
+          }
         >
           <div
             style={{
               ...modalStyle,
-              maxWidth: "760px",
+              maxWidth:
+                "900px",
             }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
-            <div style={modalHeaderStyle}>
+            <div
+              style={
+                modalHeaderStyle
+              }
+            >
               <div>
-                <h2 style={modalTitleStyle}>
+                <h2
+                  style={
+                    modalTitleStyle
+                  }
+                >
                   Preventive Care Details
                 </h2>
 
-                <p style={modalDescriptionStyle}>
-                  Transaction ID:{" "}
-                  <strong style={{ color: "#0f172a" }}>
-                    {selectedEntry.id || "-"}
+                <p
+                  style={
+                    modalDescriptionStyle
+                  }
+                >
+                  Event ID:{" "}
+                  <strong
+                    style={{
+                      color:
+                        "#0f172a",
+                    }}
+                  >
+                    {selectedEntry.eventId ||
+                      "-"}
                   </strong>
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setSelectedEntry(null)}
-                style={closeButtonStyle}
+                onClick={() =>
+                  setSelectedEntry(
+                    null
+                  )
+                }
+                style={
+                  closeButtonStyle
+                }
                 aria-label="Close preventive care details"
               >
                 &times;
               </button>
             </div>
 
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <SectionCard title="Administration">
-                <div style={detailGridStyle}>
+            <div
+              style={{
+                display:
+                  "grid",
+                gap: "1rem",
+              }}
+            >
+              <SectionCard title="Event Details">
+                <div
+                  style={
+                    detailGridStyle
+                  }
+                >
                   <DetailItem
                     label="Administration Date"
                     value={formatDisplayDate(
-                      selectedEntry.date
+                      selectedEntry.eventDate
                     )}
                   />
 
                   <DetailItem
-                    label="Preventive Care Type"
-                    value={selectedEntry.category}
+                    label="Care Type"
+                    value={
+                      selectedEntry.careTypeName
+                    }
                   />
 
                   <DetailItem
-                    label="Disease / Vaccine"
-                    value={selectedEntry.vaccineType}
-                  />
-
-                  <DetailItem
-                    label="Medicine / Brand"
-                    value={selectedEntry.medicine}
-                  />
-
-                  <DetailItem
-                    label="Dosage Per Cow"
-                    value={selectedEntry.dosage}
+                    label="Status"
+                    value={
+                      selectedEntry.status
+                    }
                   />
 
                   <DetailItem
                     label="Doctor / Administered By"
-                    value={selectedEntry.doctorName}
+                    value={
+                      selectedEntry.doctorName
+                    }
                   />
                 </div>
               </SectionCard>
 
-              <SectionCard title="Target Group">
-                <div style={detailGridStyle}>
+              <SectionCard title="Medicine & Administration">
+                <div
+                  style={
+                    detailGridStyle
+                  }
+                >
                   <DetailItem
-                    label="Target Group"
-                    value={selectedEntry.targetGroup}
+                    label="Medicine"
+                    value={
+                      selectedEntry.medicineName
+                    }
                   />
 
                   <DetailItem
-                    label="Cattle Count"
-                    value={selectedEntry.cowsCount}
+                    label="Medicine ID"
+                    value={
+                      selectedEntry.medicineId
+                    }
+                  />
+
+                  <DetailItem
+                    label="Batch Number"
+                    value={
+                      selectedEntry.medicineBatchNo
+                    }
+                  />
+
+                  <DetailItem
+                    label="Expiry Date"
+                    value={formatDisplayDate(
+                      selectedEntry.medicineExpiryDate
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Dosage"
+                    value={
+                      selectedEntry.dosage
+                        ? `${selectedEntry.dosage} ${selectedEntry.dosageUnit || ""}`
+                        : "-"
+                    }
+                  />
+
+                  <DetailItem
+                    label="Administration Route"
+                    value={
+                      selectedEntry.administrationRoute
+                    }
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Target Group & Coverage">
+                <div
+                  style={
+                    detailGridStyle
+                  }
+                >
+                  <DetailItem
+                    label="Target Group"
+                    value={
+                      selectedEntry.targetGroup
+                    }
+                  />
+
+                  <DetailItem
+                    label="Eligible Count"
+                    value={
+                      selectedEntry.eligibleCount
+                    }
+                  />
+
+                  <DetailItem
+                    label="Administered Count"
+                    value={
+                      selectedEntry.administeredCount
+                    }
+                  />
+
+                  <DetailItem
+                    label="Excluded Count"
+                    value={
+                      selectedEntry.excludedCount
+                    }
                   />
                 </div>
               </SectionCard>
 
               <SectionCard title="Follow-up">
-                <div style={detailGridStyle}>
+                <div
+                  style={
+                    detailGridStyle
+                  }
+                >
                   <DetailItem
                     label="Next Due Date"
                     value={formatDisplayDate(
@@ -1252,12 +3152,24 @@ export default function Vaccine() {
                   />
 
                   <div>
-                    <div style={detailLabelStyle}>
+                    <div
+                      style={
+                        detailLabelStyle
+                      }
+                    >
                       Due Status
                     </div>
-                    <div style={{ marginTop: "0.3rem" }}>
+
+                    <div
+                      style={{
+                        marginTop:
+                          "0.3rem",
+                      }}
+                    >
                       <DueStatusBadge
-                        status={selectedEntry.dueStatus}
+                        status={
+                          selectedEntry.dueStatus
+                        }
                       />
                     </div>
                   </div>
@@ -1267,18 +3179,67 @@ export default function Vaccine() {
               <SectionCard title="Remarks">
                 <DetailItem
                   label="Remarks"
-                  value={selectedEntry.remarks}
+                  value={
+                    selectedEntry.remarks
+                  }
                 />
+              </SectionCard>
+
+              <SectionCard title="Audit Information">
+                <div
+                  style={
+                    detailGridStyle
+                  }
+                >
+                  <DetailItem
+                    label="Created By"
+                    value={
+                      selectedEntry.createdBy
+                    }
+                  />
+
+                  <DetailItem
+                    label="Created At"
+                    value={
+                      selectedEntry.createdAt
+                    }
+                  />
+
+                  <DetailItem
+                    label="Updated By"
+                    value={
+                      selectedEntry.updatedBy
+                    }
+                  />
+
+                  <DetailItem
+                    label="Updated At"
+                    value={
+                      selectedEntry.updatedAt
+                    }
+                  />
+                </div>
               </SectionCard>
             </div>
 
-            <div style={modalActionsStyle}>
+            <div
+              style={
+                modalActionsStyle
+              }
+            >
               <button
                 type="button"
                 onClick={() => {
-                  const entryToEdit = selectedEntry;
-                  setSelectedEntry(null);
-                  openFormForEdit(entryToEdit);
+                  const entry =
+                    selectedEntry;
+
+                  setSelectedEntry(
+                    null
+                  );
+
+                  openFormForEdit(
+                    entry
+                  );
                 }}
                 className="btn btn-primary"
               >
@@ -1287,7 +3248,11 @@ export default function Vaccine() {
 
               <button
                 type="button"
-                onClick={() => setSelectedEntry(null)}
+                onClick={() =>
+                  setSelectedEntry(
+                    null
+                  )
+                }
                 className="btn btn-secondary"
               >
                 Close
@@ -1304,62 +3269,200 @@ export default function Vaccine() {
 // SMALL COMPONENTS
 // =============================================================================
 
-function Field({ label, children }) {
+function Field({
+  label,
+  children,
+}) {
   return (
-    <div style={{ marginBottom: "0.5rem" }}>
-      <label style={fieldLabelStyle}>
+    <div
+      style={{
+        marginBottom:
+          "0.5rem",
+      }}
+    >
+      <label
+        style={
+          fieldLabelStyle
+        }
+      >
         {label}
       </label>
+
       {children}
     </div>
   );
 }
 
-function DetailItem({ label, value }) {
+function DetailItem({
+  label,
+  value,
+}) {
+  const displayValue =
+    value === 0
+      ? 0
+      : value || "-";
+
   return (
-    <div style={detailItemStyle}>
-      <div style={detailLabelStyle}>{label}</div>
-      <div style={detailValueStyle}>{value || "-"}</div>
+    <div
+      style={
+        detailItemStyle
+      }
+    >
+      <div
+        style={
+          detailLabelStyle
+        }
+      >
+        {label}
+      </div>
+
+      <div
+        style={
+          detailValueStyle
+        }
+      >
+        {displayValue}
+      </div>
     </div>
   );
 }
 
-function CareTypeBadge({ value }) {
-  const category = String(value || "").toLowerCase();
+function CareTypeBadge({
+  value,
+}) {
+  const key = String(
+    value || ""
+  ).toLowerCase();
 
-  const style =
-    category === "vaccination"
-      ? careTypeVaccinationStyle
-      : category === "deworming"
-        ? careTypeDewormingStyle
-        : careTypeDefaultStyle;
+  let style =
+    careTypeDefaultStyle;
+
+  if (
+    key === "vaccination"
+  ) {
+    style =
+      careTypeVaccinationStyle;
+  } else if (
+    key === "deworming"
+  ) {
+    style =
+      careTypeDewormingStyle;
+  } else if (
+    key.includes("vitamin")
+  ) {
+    style =
+      careTypeVitaminStyle;
+  } else if (
+    key.includes("mineral")
+  ) {
+    style =
+      careTypeMineralStyle;
+  } else if (
+    key.includes("other")
+  ) {
+    style =
+      careTypeOtherStyle;
+  }
 
   return (
-    <span style={{ ...badgeBaseStyle, ...style }}>
-      {value || "Not Recorded"}
+    <span
+      style={{
+        ...badgeBaseStyle,
+        ...style,
+      }}
+    >
+      {value ||
+        "Not Recorded"}
     </span>
   );
 }
 
-function DueStatusBadge({ status }) {
+function RecordStatusBadge({
+  value,
+}) {
+  const key = String(
+    value || ""
+  ).toLowerCase();
+
+  const style =
+    key === "completed"
+      ? recordCompletedStyle
+      : key === "draft"
+        ? recordDraftStyle
+        : key === "cancelled"
+          ? recordCancelledStyle
+          : recordDefaultStyle;
+
+  return (
+    <span
+      style={{
+        ...badgeBaseStyle,
+        ...style,
+      }}
+    >
+      {value ||
+        "Not Recorded"}
+    </span>
+  );
+}
+
+function DueStatusBadge({
+  status,
+}) {
   const safeStatus =
     status || {
-      label: "Not Scheduled",
-      key: "not-scheduled",
+      key:
+        "not-scheduled",
+      label:
+        "Not Scheduled",
     };
 
   const style =
-    safeStatus.key === "upcoming"
+    safeStatus.key ===
+    "upcoming"
       ? dueUpcomingStyle
-      : safeStatus.key === "due-today"
+      : safeStatus.key ===
+          "due-today"
         ? dueTodayStyle
-        : safeStatus.key === "overdue"
+        : safeStatus.key ===
+            "overdue"
           ? dueOverdueStyle
-          : dueNotScheduledStyle;
+          : safeStatus.key ===
+              "cancelled"
+            ? dueCancelledStyle
+            : dueNotScheduledStyle;
 
   return (
-    <span style={{ ...badgeBaseStyle, ...style }}>
+    <span
+      style={{
+        ...badgeBaseStyle,
+        ...style,
+      }}
+    >
       {safeStatus.label}
+    </span>
+  );
+}
+
+function CountBadge({
+  value,
+}) {
+  const numericValue =
+    Number(value || 0);
+
+  const style =
+    numericValue > 0
+      ? excludedCountStyle
+      : zeroCountStyle;
+
+  return (
+    <span
+      style={{
+        ...countBadgeBaseStyle,
+        ...style,
+      }}
+    >
+      {numericValue}
     </span>
   );
 }
@@ -1370,7 +3473,7 @@ function DueStatusBadge({ status }) {
 
 const pageStyle = {
   padding: "1.5rem",
-  maxWidth: "1200px",
+  maxWidth: "1400px",
   margin: "0 auto",
   width: "100%",
   boxSizing: "border-box",
@@ -1386,7 +3489,7 @@ const metricsWrapperStyle = {
 const filtersGridStyle = {
   display: "grid",
   gridTemplateColumns:
-    "repeat(auto-fit, minmax(180px, 1fr))",
+    "repeat(auto-fit, minmax(175px, 1fr))",
   gap: "0.85rem",
   alignItems: "end",
 };
@@ -1394,7 +3497,14 @@ const filtersGridStyle = {
 const twoColumnGridStyle = {
   display: "grid",
   gridTemplateColumns:
-    "repeat(auto-fit, minmax(220px, 1fr))",
+    "repeat(2, minmax(0, 1fr))",
+  gap: "1rem",
+};
+
+const threeColumnGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(3, minmax(0, 1fr))",
   gap: "1rem",
 };
 
@@ -1460,7 +3570,7 @@ const tableCardStyle = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  minHeight: "380px",
+  minHeight: "390px",
   maxHeight: "calc(100vh - 410px)",
 };
 
@@ -1473,8 +3583,8 @@ const tableScrollStyle = {
 const tableStyle = {
   width: "100%",
   borderCollapse: "collapse",
-  fontSize: "0.9rem",
-  minWidth: "1120px",
+  fontSize: "0.88rem",
+  minWidth: "1320px",
 };
 
 const tableHeadStyle = {
@@ -1485,43 +3595,45 @@ const tableHeadStyle = {
   zIndex: 10,
 };
 
-const dateColumnHeaderStyle = {
-  width: "112px",
-  minWidth: "112px",
-  whiteSpace: "nowrap",
-};
-
-const dateColumnCellStyle = {
-  width: "112px",
-  minWidth: "112px",
-  whiteSpace: "nowrap",
-};
-
 const thStyle = {
-  padding: "0.8rem 1rem",
+  padding: "0.8rem 0.85rem",
   textAlign: "left",
   fontWeight: 700,
-  fontSize: "0.72rem",
+  fontSize: "0.7rem",
   color: "#475569",
   textTransform: "uppercase",
   letterSpacing: "0.03em",
+  whiteSpace: "nowrap",
 };
 
 const tdStyle = {
-  padding: "0.75rem 1rem",
+  padding: "0.75rem 0.85rem",
   borderBottom: "1px solid #f1f5f9",
   color: "#1f2937",
   verticalAlign: "top",
 };
 
+const dateColumnHeaderStyle = {
+  width: "120px",
+  minWidth: "120px",
+};
+
+const dateColumnCellStyle = {
+  width: "120px",
+  minWidth: "120px",
+  whiteSpace: "nowrap",
+};
+
 const primaryCellTextStyle = {
-  maxWidth: "280px",
+  maxWidth: "250px",
   lineHeight: 1.4,
+  fontWeight: 600,
+  color: "#0f172a",
 };
 
 const secondaryCellTextStyle = {
   marginTop: "0.25rem",
-  fontSize: "0.78rem",
+  fontSize: "0.76rem",
   color: "#64748b",
 };
 
@@ -1553,7 +3665,7 @@ const errorBannerStyle = {
 const overlayStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.5)",
+  background: "rgba(15, 23, 42, 0.55)",
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
@@ -1562,14 +3674,13 @@ const overlayStyle = {
 };
 
 const modalStyle = {
-  background: "white",
+  background: "#ffffff",
   padding: "1.25rem",
   borderRadius: "12px",
   width: "100%",
-  maxWidth: "600px",
-  maxHeight: "90vh",
+  maxHeight: "92vh",
   overflowY: "auto",
-  boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+  boxShadow: "0 18px 45px rgba(15, 23, 42, 0.28)",
 };
 
 const modalHeaderStyle = {
@@ -1611,6 +3722,21 @@ const closeButtonStyle = {
   cursor: "pointer",
 };
 
+const fieldLabelStyle = {
+  display: "block",
+  fontSize: "0.8rem",
+  color: "#374151",
+  marginBottom: "0.3rem",
+  fontWeight: 600,
+};
+
+const helperTextStyle = {
+  marginTop: "0.3rem",
+  fontSize: "0.72rem",
+  color: "#64748b",
+  lineHeight: 1.35,
+};
+
 const detailGridStyle = {
   display: "grid",
   gridTemplateColumns:
@@ -1639,20 +3765,12 @@ const detailValueStyle = {
   lineHeight: 1.45,
 };
 
-const fieldLabelStyle = {
-  display: "block",
-  fontSize: "0.8rem",
-  color: "#374151",
-  marginBottom: "0.3rem",
-  fontWeight: 600,
-};
-
 const badgeBaseStyle = {
   display: "inline-flex",
   alignItems: "center",
   borderRadius: "999px",
   padding: "0.24rem 0.55rem",
-  fontSize: "0.72rem",
+  fontSize: "0.71rem",
   fontWeight: 800,
   whiteSpace: "nowrap",
 };
@@ -1669,7 +3787,49 @@ const careTypeDewormingStyle = {
   color: "#c2410c",
 };
 
+const careTypeVitaminStyle = {
+  background: "#ecfeff",
+  border: "1px solid #67e8f9",
+  color: "#0e7490",
+};
+
+const careTypeMineralStyle = {
+  background: "#faf5ff",
+  border: "1px solid #d8b4fe",
+  color: "#7e22ce",
+};
+
+const careTypeOtherStyle = {
+  background: "#fefce8",
+  border: "1px solid #fde047",
+  color: "#a16207",
+};
+
 const careTypeDefaultStyle = {
+  background: "#f1f5f9",
+  border: "1px solid #cbd5e1",
+  color: "#475569",
+};
+
+const recordCompletedStyle = {
+  background: "#ecfdf5",
+  border: "1px solid #86efac",
+  color: "#047857",
+};
+
+const recordDraftStyle = {
+  background: "#eff6ff",
+  border: "1px solid #93c5fd",
+  color: "#1d4ed8",
+};
+
+const recordCancelledStyle = {
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  color: "#b91c1c",
+};
+
+const recordDefaultStyle = {
   background: "#f1f5f9",
   border: "1px solid #cbd5e1",
   color: "#475569",
@@ -1693,10 +3853,38 @@ const dueOverdueStyle = {
   color: "#b91c1c",
 };
 
+const dueCancelledStyle = {
+  background: "#f1f5f9",
+  border: "1px solid #cbd5e1",
+  color: "#64748b",
+};
+
 const dueNotScheduledStyle = {
   background: "#f8fafc",
   border: "1px solid #cbd5e1",
   color: "#64748b",
+};
+
+const countBadgeBaseStyle = {
+  display: "inline-flex",
+  minWidth: "30px",
+  justifyContent: "center",
+  borderRadius: "999px",
+  padding: "0.18rem 0.45rem",
+  fontSize: "0.75rem",
+  fontWeight: 800,
+};
+
+const excludedCountStyle = {
+  background: "#fef2f2",
+  border: "1px solid #fca5a5",
+  color: "#b91c1c",
+};
+
+const zeroCountStyle = {
+  background: "#f0fdf4",
+  border: "1px solid #86efac",
+  color: "#166534",
 };
 
 const toastStyle = {
@@ -1771,4 +3959,4 @@ const toastCloseStyle = {
   fontSize: "1.2rem",
   lineHeight: 1,
   padding: 0,
-  };
+};
