@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   fetchCattle,
   updateCattle,
+  updateDeathRecord,
   getCattleExitLog,
   reactivateCattle,
   getBirthDetailsById,
@@ -38,6 +39,23 @@ const COLOUR_OPTIONS = [
 ];
 
 const SHED_OPTIONS = ["Punyakoti", "Samrakshana", "Kaveri", "Nandini", "Others"];
+
+const DEATH_CAUSE_OPTIONS = [
+  "Disease / Illness",
+  "Old Age",
+  "Accident",
+  "Natural Calamity",
+  "Complication during Delivery",
+  "Unknown",
+  "Other",
+];
+
+const PREGNANCY_STATUS_OPTIONS = [
+  "Not Applicable",
+  "Not Pregnant",
+  "Pregnant",
+  "Unknown",
+];
 
 // --- HELPER: Get Robust ID ---
 function getRowId(row) {
@@ -162,6 +180,16 @@ function getLatestLifecycleLogForCattle(row, exitLogs = []) {
 
 function getExitLogForCattle(row, exitLogs = []) {
   return getLatestExitLogForCattle(row, exitLogs);
+}
+
+function getDeathExitLogForCattle(row, exitLogs = []) {
+  const matches = getExitLogsForCattle(row, exitLogs).filter((log) => {
+    return getLogExitType(log).includes("death");
+  });
+
+  if (!matches.length) return null;
+
+  return matches[matches.length - 1];
 }
 
 function getExitTypeForCattle(row, exitLogs = []) {
@@ -2795,7 +2823,22 @@ function CattleDetailsPanel({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
-  const [uploading, setUploading] = useState(false);
+
+const [deathForm, setDeathForm] = useState({
+  exit_id: "",
+  exit_date: "",
+  exit_time: "",
+  category: "",
+  cause_details: "",
+  party_name: "",
+  teeth_details: "",
+  teeth_age: "",
+  preganancy_status: "",
+  market_value: "",
+  remarks: "",
+});
+
+const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [birthDetails, setBirthDetails] = useState(null);
 const [birthDetailsLoading, setBirthDetailsLoading] = useState(false);
@@ -2807,7 +2850,96 @@ const [birthDetailsError, setBirthDetailsError] = useState("");
 });
   const fileInputRef = useRef(null); 
 
-  useEffect(() => { if (isEditing) setFormData({ ...selected }); }, [isEditing, selected]);
+  useEffect(() => {
+  if (!isEditing) return;
+
+  setFormData({ ...selected });
+
+  const deathLog = getDeathExitLogForCattle(selected, exitLogs);
+
+  if (!deathLog) {
+    setDeathForm({
+      exit_id: "",
+      exit_date: "",
+      exit_time: "",
+      category: "",
+      cause_details: "",
+      party_name: "",
+      teeth_details: "",
+      teeth_age: "",
+      preganancy_status: "",
+      market_value: "",
+      remarks: "",
+    });
+
+    return;
+  }
+
+  setDeathForm({
+    exit_id:
+      deathLog.exit_id ||
+      deathLog.exitId ||
+      deathLog.id ||
+      "",
+
+    exit_date:
+      deathLog.exit_date ||
+      deathLog.exitDate ||
+      deathLog.date ||
+      "",
+
+    exit_time:
+      deathLog.exit_time ||
+      deathLog.exitTime ||
+      deathLog.time ||
+      "",
+
+    category:
+      deathLog.category ||
+      deathLog.causeCategory ||
+      "",
+
+    cause_details:
+      deathLog.cause_details ||
+      deathLog.causeDetails ||
+      "",
+
+    party_name:
+      deathLog.party_name ||
+      deathLog.partyName ||
+      deathLog.doctorName ||
+      deathLog.doctor ||
+      "",
+
+    teeth_details:
+      deathLog.teeth_details ||
+      deathLog.teethDetails ||
+      deathLog.teeth ||
+      "",
+
+    teeth_age:
+      deathLog.teeth_age ||
+      deathLog.teethAge ||
+      deathLog.age ||
+      "",
+
+    preganancy_status:
+      deathLog.preganancy_status ||
+      deathLog.pregnancy_status ||
+      deathLog.pregnancyStatus ||
+      deathLog.pregnancy ||
+      "",
+
+    market_value:
+      deathLog.market_value ||
+      deathLog.marketValue ||
+      "",
+
+    remarks:
+      deathLog.remarks ||
+      "",
+  });
+}, [isEditing, selected, exitLogs]);
 
   useEffect(() => {
   let cancelled = false;
@@ -2897,29 +3029,154 @@ const [birthDetailsError, setBirthDetailsError] = useState("");
   });
 };
 
+const handleDeathChange = (e) => {
+  const { name, value } = e.target;
+
+  setDeathForm((prev) => ({
+    ...prev,
+    [name]: value,
+  }));
+};
+
   const handleSave = async () => {
-  const idToUpdate = formData.internalId || formData.id || formData.internal_id;
+  const idToUpdate =
+    formData.internalId ||
+    formData.id ||
+    formData.internal_id;
 
   if (!idToUpdate) {
-    alert("Error: Missing Internal ID for this record. Cannot update.");
+    setToast({
+      open: true,
+      type: "error",
+      message:
+        "Missing Internal ID. This record cannot be updated.",
+    });
+
     return;
+  }
+
+  const selectedDeathLog = getDeathExitLogForCattle(
+    selected,
+    exitLogs
+  );
+
+  const shouldUpdateDeathRecord =
+    Boolean(selectedDeathLog) &&
+    getLogExitType(selectedDeathLog).includes("death");
+
+  if (shouldUpdateDeathRecord) {
+    if (!deathForm.exit_id) {
+      setToast({
+        open: true,
+        type: "error",
+        message:
+          "Missing Exit ID. The linked Death record cannot be updated.",
+      });
+
+      return;
+    }
+
+    if (!deathForm.exit_date) {
+      setToast({
+        open: true,
+        type: "error",
+        message: "Date of Death is required.",
+      });
+
+      return;
+    }
+
+    if (!deathForm.category.trim()) {
+      setToast({
+        open: true,
+        type: "error",
+        message: "Cause Category is required.",
+      });
+
+      return;
+    }
+
+    if (!deathForm.cause_details.trim()) {
+      setToast({
+        open: true,
+        type: "error",
+        message: "Specific Cause of Death is required.",
+      });
+
+      return;
+    }
   }
 
   try {
     setSaving(true);
-    setToast({
-  open: true,
-  type: "info",
-  message: "Please wait... Updating cattle details.",
-});
 
+    setToast({
+      open: true,
+      type: "info",
+      message: shouldUpdateDeathRecord
+        ? "Please wait... Updating cattle and Death details."
+        : "Please wait... Updating cattle details.",
+    });
+
+    /*
+     * STEP 1:
+     * Update the existing cattle_exit_log Death row.
+     *
+     * This does not create a new lifecycle entry and does not
+     * change cattle status.
+     */
+    if (shouldUpdateDeathRecord) {
+      const deathResult = await updateDeathRecord({
+        exit_id: deathForm.exit_id,
+
+        internal_id: idToUpdate,
+
+        tag_number:
+          formData.tag ||
+          formData.tag_number ||
+          selected.tag ||
+          "",
+
+        exit_date: deathForm.exit_date,
+        exit_time: deathForm.exit_time,
+        category: deathForm.category,
+        cause_details: deathForm.cause_details,
+
+        // Existing cattle_exit_log uses party_name for doctor/certified by.
+        party_name: deathForm.party_name,
+
+        teeth_details: deathForm.teeth_details,
+        teeth_age: deathForm.teeth_age,
+
+        // Current Google Sheet header spelling retained.
+        preganancy_status: isFemaleCattle
+          ? deathForm.preganancy_status
+          : "Not Applicable",
+
+        market_value: deathForm.market_value,
+        remarks: deathForm.remarks,
+      });
+
+      if (!deathResult?.success) {
+        throw new Error(
+          deathResult?.error ||
+            "Failed to update the linked Death record."
+        );
+      }
+    }
+
+    /*
+     * STEP 2:
+     * Update cattle_master and cattle_origins through the
+     * existing workflow.
+     */
     const photoValue =
       formData.photo ||
       formData.photoUrl ||
       formData.photo_url ||
       "";
 
-    const res = await updateCattle({
+    const cattleResult = await updateCattle({
       id: idToUpdate,
       ...formData,
       photo: photoValue,
@@ -2927,34 +3184,39 @@ const [birthDetailsError, setBirthDetailsError] = useState("");
       photo_url: photoValue,
     });
 
-    if (res && res.success) {
-      setToast({
-  open: true,
-  type: "success",
-  message: "Cattle details updated successfully.",
-});
-
-setIsEditing(false);
-
-// Give user time to see the success toast
-setTimeout(async () => {
-  await refreshData();
-  onClose();
-}, 1800);
-    } else {
-      setToast({
-  open: true,
-  type: "error",
-  message: res?.error || "Update failed.",
-});
+    if (!cattleResult?.success) {
+      throw new Error(
+        cattleResult?.error ||
+          "Failed to update cattle details."
+      );
     }
-  } catch (err) {
-    console.error(err);
+
     setToast({
-  open: true,
-  type: "error",
-  message: err.message || String(err),
-});
+      open: true,
+      type: "success",
+      message: shouldUpdateDeathRecord
+        ? "Cattle and Death details updated successfully."
+        : "Cattle details updated successfully.",
+    });
+
+    setIsEditing(false);
+
+    setTimeout(async () => {
+      await refreshData();
+      onClose();
+    }, 1800);
+
+  } catch (err) {
+    console.error("Master cattle update failed:", err);
+
+    setToast({
+      open: true,
+      type: "error",
+      message:
+        err?.message ||
+        "Unable to update the record.",
+    });
+
   } finally {
     setSaving(false);
   }
@@ -2997,8 +3259,27 @@ alert(fileData?.error?.message || "Upload failed. Check console.");
     }
   };
 
-  const isActive = String(selected.status || "").toLowerCase() === "active";
+ const isActive =
+  String(selected.status || "").toLowerCase() === "active";
+
 const isBornAtGoshala = isBornAtGoshalaType(selected);
+
+const deathExitLog = getDeathExitLogForCattle(
+  selected,
+  exitLogs
+);
+
+const selectedExitType = getLogExitType(deathExitLog);
+
+const isDeathRecord =
+  Boolean(deathExitLog) &&
+  selectedExitType.includes("death");
+
+const isFemaleCattle = String(
+  selected.gender || ""
+)
+  .toLowerCase()
+  .startsWith("f");
 
 
 
@@ -3590,6 +3871,357 @@ const displayId = getRowId(selected);
     }
   />
 </div>
+  </>
+)}
+
+{/* DEATH / HERD EXIT DETAILS */}
+{isDeathRecord && (
+  <>
+    <SectionTitle>Death / Herd Exit Details</SectionTitle>
+
+    <div
+      style={{
+        background: "#fff7f7",
+        border: "1px solid #fecaca",
+        borderRadius: "10px",
+        padding: "1rem",
+        marginBottom: "1.5rem",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.78rem",
+          color: "#991b1b",
+          marginBottom: "1rem",
+          lineHeight: 1.5,
+        }}
+      >
+        This section updates the existing Death entry in{" "}
+        <strong>cattle_exit_log</strong>. It does not create another
+        exit record or change the cattle lifecycle status.
+      </div>
+
+      <div style={gridStyle}>
+        {isEditing ? (
+          <>
+            <div>
+              <label style={labelStyle}>Exit ID</label>
+              <input
+                type="text"
+                value={deathForm.exit_id || ""}
+                readOnly
+                style={{
+                  ...inputStyle,
+                  background: "#f1f5f9",
+                  color: "#64748b",
+                  cursor: "not-allowed",
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Date of Death *
+              </label>
+
+              <input
+                type="date"
+                name="exit_date"
+                value={deathForm.exit_date || ""}
+                onChange={handleDeathChange}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Time of Death
+              </label>
+
+              <input
+                type="time"
+                name="exit_time"
+                value={deathForm.exit_time || ""}
+                onChange={handleDeathChange}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Cause Category *
+              </label>
+
+              <select
+                name="category"
+                value={deathForm.category || ""}
+                onChange={handleDeathChange}
+                style={inputStyle}
+              >
+                <option value="">
+                  Select Cause Category
+                </option>
+
+                {DEATH_CAUSE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>
+                Specific Cause of Death *
+              </label>
+
+              <textarea
+                name="cause_details"
+                value={deathForm.cause_details || ""}
+                onChange={handleDeathChange}
+                placeholder="Enter disease, condition, incident or other specific cause"
+                style={{
+                  ...inputStyle,
+                  minHeight: "75px",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Veterinary Doctor / Certified By
+              </label>
+
+              <input
+                type="text"
+                name="party_name"
+                value={deathForm.party_name || ""}
+                onChange={handleDeathChange}
+                placeholder="Doctor or certifying authority"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Teeth Details
+              </label>
+
+              <input
+                type="text"
+                name="teeth_details"
+                value={deathForm.teeth_details || ""}
+                onChange={handleDeathChange}
+                placeholder="Example: 8 permanent teeth"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Age by Teeth
+              </label>
+
+              <input
+                type="text"
+                name="teeth_age"
+                value={deathForm.teeth_age || ""}
+                onChange={handleDeathChange}
+                placeholder="Example: Approximately 8 years"
+                style={inputStyle}
+              />
+            </div>
+
+            {isFemaleCattle && (
+              <div>
+                <label style={labelStyle}>
+                  Pregnancy Status
+                </label>
+
+                <select
+                  name="preganancy_status"
+                  value={
+                    deathForm.preganancy_status || ""
+                  }
+                  onChange={handleDeathChange}
+                  style={inputStyle}
+                >
+                  <option value="">
+                    Select Pregnancy Status
+                  </option>
+
+                  {PREGNANCY_STATUS_OPTIONS.map(
+                    (option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label style={labelStyle}>
+                Market Value
+              </label>
+
+              <input
+                type="number"
+                name="market_value"
+                value={deathForm.market_value || ""}
+                onChange={handleDeathChange}
+                min="0"
+                placeholder="Estimated value"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>
+                Death Record Remarks / Veterinary Observation
+              </label>
+
+              <textarea
+                name="remarks"
+                value={deathForm.remarks || ""}
+                onChange={handleDeathChange}
+                placeholder="Enter veterinary observations or additional details"
+                style={{
+                  ...inputStyle,
+                  minHeight: "80px",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <DetailItem
+              label="Exit ID"
+              value={
+                deathExitLog?.exit_id ||
+                deathExitLog?.exitId ||
+                deathExitLog?.id ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Date of Death"
+              value={formatDate(
+                deathExitLog?.exit_date ||
+                  deathExitLog?.exitDate ||
+                  deathExitLog?.date
+              )}
+            />
+
+            <DetailItem
+              label="Time of Death"
+              value={
+                deathExitLog?.exit_time ||
+                deathExitLog?.exitTime ||
+                deathExitLog?.time ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Cause Category"
+              value={
+                deathExitLog?.category ||
+                deathExitLog?.causeCategory ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Specific Cause"
+              value={
+                deathExitLog?.cause_details ||
+                deathExitLog?.causeDetails ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Veterinary Doctor / Certified By"
+              value={
+                deathExitLog?.party_name ||
+                deathExitLog?.partyName ||
+                deathExitLog?.doctorName ||
+                deathExitLog?.doctor ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Teeth Details"
+              value={
+                deathExitLog?.teeth_details ||
+                deathExitLog?.teethDetails ||
+                deathExitLog?.teeth ||
+                "Not recorded"
+              }
+            />
+
+            <DetailItem
+              label="Age by Teeth"
+              value={
+                deathExitLog?.teeth_age ||
+                deathExitLog?.teethAge ||
+                deathExitLog?.age ||
+                "Not recorded"
+              }
+            />
+
+            {isFemaleCattle && (
+              <DetailItem
+                label="Pregnancy Status"
+                value={
+                  deathExitLog?.preganancy_status ||
+                  deathExitLog?.pregnancy_status ||
+                  deathExitLog?.pregnancyStatus ||
+                  deathExitLog?.pregnancy ||
+                  "Not recorded"
+                }
+              />
+            )}
+
+            <DetailItem
+              label="Market Value"
+              value={
+                deathExitLog?.market_value ||
+                deathExitLog?.marketValue ||
+                "Not recorded"
+              }
+            />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={labelItemStyle}>
+                Death Record Remarks
+              </div>
+
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #fecaca",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                  color: "#374151",
+                  marginTop: "4px",
+                }}
+              >
+                {deathExitLog?.remarks ||
+                  "No death record remarks available."}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   </>
 )}
 

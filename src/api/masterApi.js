@@ -189,6 +189,10 @@ export async function getDeathRecords(fromDate = "", toDate = "") {
   return getRequest("getDeathRecords", { fromDate, toDate });
 }
 
+export async function updateDeathRecord(payload) {
+  return postRequest("updateDeathRecord", payload);
+}
+
 export async function getMedicines() {
   return getRequest("getMedicines");
 }
