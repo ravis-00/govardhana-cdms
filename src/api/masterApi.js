@@ -125,6 +125,12 @@ export async function addMilkProduction(payload) { return postRequest("addMilkPr
 export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); } 
 
 export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
+export async function calculateMilkOutPass(params = {}) {
+  return getRequest(
+    "calculateMilkOutPass",
+    params
+  );
+}
 export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
 export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
 
