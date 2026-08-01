@@ -56,15 +56,26 @@ async function getRequest(action, params) {
   return handleResponse(res);
 }
 
-async function postRequest(action, body) {
+async function postRequest(
+  action,
+  body,
+  timeoutMs = 45000
+) {
   const url = buildUrl(action);
   const payload = { action, ...body };
-  
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload ?? {}),
-  });
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload ?? {}),
+    },
+    timeoutMs
+  );
+
   return handleResponse(res);
 }
 
@@ -203,10 +214,34 @@ export async function getMedicines() {
   return getRequest("getMedicines");
 }
 
-// 7. FINANCE (DATTU YOJANA)
-export async function getDattuYojana() { return getRequest("getDattuYojana"); }
-export async function addDattuYojana(payload) { return postRequest("addDattuYojana", payload); }
-export async function updateDattuYojana(payload) { return postRequest("updateDattuYojana", payload); }
+// 7. FINANCE / SPONSORSHIP MANAGEMENT
+
+// Sponsor Profiles
+export async function getSponsors() {
+  return getRequest("getSponsors");
+}
+
+export async function addSponsor(payload) {
+  return postRequest("addSponsor", payload);
+}
+
+export async function updateSponsor(payload) {
+  return postRequest("updateSponsor", payload);
+}
+
+// Legacy Dattu Yojana APIs
+// Keep temporarily until the old workflow is fully retired.
+export async function getDattuYojana() {
+  return getRequest("getDattuYojana");
+}
+
+export async function addDattuYojana(payload) {
+  return postRequest("addDattuYojana", payload);
+}
+
+export async function updateDattuYojana(payload) {
+  return postRequest("updateDattuYojana", payload);
+}
 
 // 8. AUTH & USERS
 export async function loginUser(email, password) { return postRequest("login", { email, password }); }
@@ -254,6 +289,49 @@ export const deleteShed = async (data) => { return postRequest("deleteShed", dat
 export const reactivateCattle = (payload) => {
   return postRequest("reactivateCattle", payload);
 };
+
+// Sponsorship Register
+export async function getSponsorships() {
+  return getRequest("getSponsorships");
+}
+
+export async function addSponsorship(payload) {
+  return postRequest(
+    "addSponsorship",
+    payload,
+    90000
+  );
+}
+
+export async function updateSponsorship(payload) {
+  return postRequest(
+    "updateSponsorship",
+    payload,
+    90000
+  );
+}
+
+export async function cancelSponsorship(payload) {
+  return postRequest(
+    "cancelSponsorship",
+    payload,
+    90000
+  );
+}
+
+// Sponsorship Payments
+export async function getSponsorshipPayments() {
+  return getRequest("getSponsorshipPayments");
+}
+
+export async function addSponsorshipPayment(payload) {
+  return postRequest("addSponsorshipPayment", payload);
+}
+
+export async function updateSponsorshipPayment(payload) {
+  return postRequest("updateSponsorshipPayment", payload);
+}
+
 
 // =========================================================================
 // ALIASES (For backward compatibility)
