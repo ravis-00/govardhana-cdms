@@ -270,9 +270,20 @@ export async function addMaster(type, data) {
   return postRequest(`add${properType}Master`, data); 
 }
 
-export async function updateMaster(type, id, data) { 
+export async function updateMaster(
+  type,
+  id,
+  data = {}
+) {
   const properType = formatType(type);
-  return postRequest(`update${properType}Master`, { id, ...data }); 
+
+  return postRequest(
+    `update${properType}Master`,
+    {
+      ...data,
+      id,
+    }
+  );
 }
 
 export async function deleteMaster(type, id) { 
