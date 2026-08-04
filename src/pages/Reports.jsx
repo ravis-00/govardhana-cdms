@@ -1,397 +1,3140 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { getReportData } from "../api/masterApi"; 
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-// --- 1. CONFIGURATION ---
-const REPORT_TYPES = [
-  { 
-    id: "birth", 
-    label: "Birth Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Time", key: "time" },
-      { label: "Name", key: "name" },
-      { label: "Breed", key: "breed" },
-      { label: "Gender", key: "gender" },
-      { label: "Color", key: "color" },
-      { label: "Mother Breed", key: "momBreed" },
-      { label: "Mother Tag", key: "momTag" },
-      { label: "Father Breed", key: "dadBreed" },
-      { label: "Father Tag", key: "dadTag" },
-      { label: "Status", key: "status" }
-    ] 
+import { getReportData } from "../api/masterApi";
+
+/*
+ * ============================================================
+ * REPORT CATALOG
+ * ============================================================
+ *
+ * Existing backend report IDs are retained:
+ * birth, death, sales, incoming, dattu, milk, govardhana
+ *
+ * New reports will be added to this catalog later.
+ */
+
+const REPORT_CATEGORIES = [
+  {
+    id: "cattle",
+    label: "Cattle Management",
+    description:
+      "Birth, admission, herd exit and mortality reports.",
   },
-  { 
-    id: "death", 
-    label: "Death Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Time", key: "time" },
-      { label: "Name", key: "name" },
-      { label: "Tag No", key: "tag" },
-      { label: "Age", key: "age" },
-      { label: "Gender", key: "gender" },
-      { label: "Reason", key: "reason" }
-    ] 
+  {
+    id: "operations",
+    label: "Daily Operations",
+    description:
+      "Milk, feeding and waste-management reports.",
   },
-  { 
-    id: "sales", 
-    label: "Sales Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Cattle Name", key: "name" },
-      { label: "Tag No", key: "tag" },
-      { label: "Buyer Name", key: "partyName" },
-      { label: "Contact", key: "partyPhone" },
-      { label: "Receipt No", key: "receipt" },
-      { label: "Amount", key: "amount" }
-    ] 
+  {
+    id: "sponsorship",
+    label: "Sponsorship & Finance",
+    description:
+      "Sponsor, sponsorship and payment-related reports.",
   },
-  { 
-    id: "incoming", 
-    label: "Incoming Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Tag No", key: "tag" },
-      { label: "Cattle Name", key: "name" },
-      { label: "Breed", key: "breed" },
-      { label: "Gender", key: "gender" },
-      { label: "Source", key: "partyName" }
-    ] 
+  {
+    id: "management",
+    label: "Management",
+    description:
+      "Consolidated operational and financial summaries.",
   },
-  { 
-    id: "dattu", 
-    label: "Dattu Yojana Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Donor Name", key: "donor" },
-      { label: "Mobile", key: "contact" },
-      { label: "Cattle Name", key: "name" },
-      { label: "Tag No", key: "tag" },
-      { label: "Scheme", key: "scheme" },
-      { label: "Receipt", key: "receipt" },
-      { label: "Expiry", key: "expiry" },
-      { label: "Amount", key: "amount" }
-    ] 
-  },
-  { 
-    id: "milk", 
-    label: "Daily Milk Report", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      // AM
-      { label: "AM Yield", key: "amYield" },
-      { label: "AM Good", key: "amGood" },
-      { label: "AM Colostrum", key: "amCol" },
-      // PM
-      { label: "PM Yield", key: "pmYield" },
-      { label: "PM Good", key: "pmGood" },
-      { label: "PM Colostrum", key: "pmCol" },
-      // Distribution
-      { label: "Temple", key: "temple" },
-      { label: "Workers", key: "workers" },
-      { label: "Calves/Bulls", key: "bulls" },
-      // Totals
-      { label: "Total Yield", key: "totalYield" },
-      { label: "Total Dist", key: "totalLeftByProd" } // Mapped conceptually
-    ] 
-  },
-  { 
-    id: "govardhana", 
-    label: "Govardhana Outgoing", 
-    columns: [
-      { label: "Sl.No", key: "slno" },
-      { label: "Date", key: "date" },
-      { label: "Invoice", key: "invoice" },
-      { label: "Sector", key: "sector" },
-      { label: "Milk (Kg)", key: "milkQty" },
-      { label: "Milk (Rs)", key: "milkRs" },
-      { label: "Dung (Kg)", key: "dungQty" },
-      { label: "Dung (Rs)", key: "dungRs" },
-      { label: "Urine (L)", key: "urineQty" },
-      { label: "Urine (Rs)", key: "urineRs" },
-      { label: "Total (Rs)", key: "totalAmount" }
-    ] 
-  }
 ];
 
-// Reports that show a Total Row
-const REPORTS_WITH_TOTALS = ["sales", "dattu", "milk", "govardhana"];
+const REPORT_TYPES = [
+  {
+    id: "cattle-register",
+    label: "Cattle Register",
+    shortLabel: "Cattle",
+    category: "cattle",
+    description:
+      "Complete cattle register with identity and admission details.",
+    dateRequired: true,
+    searchEnabled: false,
+
+    filters: [
+      {
+        id: "status",
+        label: "Status",
+        rowKey: "status",
+        allLabel: "All Statuses",
+      },
+      {
+        id: "shed",
+        label: "Shed",
+        rowKey: "shed",
+        allLabel: "All Sheds",
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        rowKey: "gender",
+        allLabel: "All Genders",
+      },
+      {
+        id: "category",
+        label: "Category",
+        rowKey: "category",
+        allLabel: "All Categories",
+      },
+      {
+        id: "breed",
+        label: "Breed",
+        rowKey: "breed",
+        allLabel: "All Breeds",
+      },
+      {
+        id: "admissionType",
+        label: "Admission Type",
+        rowKey: "admissionType",
+        allLabel: "All Admission Types",
+      },
+    ],
+
+    columns: [
+      { label: "Sl.No", key: "slno" },
+      { label: "Internal ID", key: "internalId" },
+      { label: "Tag Number", key: "tagNumber" },
+      {
+  label: "Name ",
+  key: "name",
+},
+      { label: "Gender", key: "gender" },
+      { label: "Category", key: "category" },
+      { label: "Breed", key: "breed" },
+      { label: "Shed", key: "shed" },
+      { label: "Status", key: "status" },
+      { label: "Admission Date", key: "admissionDate" },
+      { label: "Admission Type", key: "admissionType" },
+      { label: "Admission Age", key: "admissionAge" },
+    ],
+  },
+
+  {
+    id: "birth",
+    label: "Birth Report",
+    shortLabel: "Births",
+    category: "cattle",
+    description:
+      "Birth records with calf, mother and father details.",
+    dateRequired: true,
+
+filters: [
+  {
+    id: "gender",
+    label: "Gender",
+    rowKey: "gender",
+    allLabel: "All Genders",
+  },
+  {
+    id: "breed",
+    label: "Breed",
+    rowKey: "breed",
+    allLabel: "All Breeds",
+  },
+  {
+    id: "status",
+    label: "Status",
+    rowKey: "status",
+    allLabel: "All Statuses",
+  },
+],
+
+columns: [
+      {
+        label: "Sl.No",
+        key: "slno",
+      },
+      {
+        label: "Date",
+        key: "date",
+      },
+      {
+        label: "Time",
+        key: "time",
+      },
+      {
+        label: "Name",
+        key: "name",
+      },
+      {
+        label: "Breed",
+        key: "breed",
+      },
+      {
+        label: "Gender",
+        key: "gender",
+      },
+      {
+        label: "Color",
+        key: "color",
+      },
+      {
+        label: "Mother Breed",
+        key: "momBreed",
+      },
+      {
+        label: "Mother Tag",
+        key: "momTag",
+      },
+      {
+        label: "Father Breed",
+        key: "dadBreed",
+      },
+      {
+        label: "Father Tag",
+        key: "dadTag",
+      },
+      {
+        label: "Status",
+        key: "status",
+      },
+    ],
+  },
+  {
+  id: "death",
+  label: "Death Report",
+  shortLabel: "Deaths",
+  category: "cattle",
+  description:
+    "Mortality records with cattle identity and cause details.",
+  dateRequired: true,
+
+  filters: [
+    {
+      id: "gender",
+      label: "Gender",
+      rowKey: "gender",
+      allLabel: "All Genders",
+    },
+    {
+      id: "breed",
+      label: "Breed",
+      rowKey: "breed",
+      allLabel: "All Breeds",
+    },
+    {
+      id: "shed",
+      label: "Shed",
+      rowKey: "shed",
+      allLabel: "All Sheds",
+    },
+    {
+      id: "causeCategory",
+      label: "Cause Category",
+      rowKey: "causeCategory",
+      allLabel: "All Cause Categories",
+    },
+  ],
+
+  columns: [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Date",
+      key: "date",
+    },
+    {
+      label: "Time",
+      key: "time",
+    },
+    {
+      label: "Internal ID",
+      key: "internalId",
+    },
+    {
+      label: "Tag Number",
+      key: "tagNumber",
+    },
+    {
+      label: "Name",
+      key: "name",
+    },
+    {
+      label: "Breed",
+      key: "breed",
+    },
+    {
+      label: "Gender",
+      key: "gender",
+    },
+    {
+      label: "Shed",
+      key: "shed",
+    },
+    {
+      label: "Cause Category",
+      key: "causeCategory",
+    },
+    {
+      label: "Specific Cause",
+      key: "causeDetails",
+    },
+    {
+      label: "Age",
+      key: "age",
+    },
+    {
+      label: "Certified By",
+      key: "doctor",
+    },
+    {
+      label: "Remarks",
+      key: "remarks",
+    },
+  ],
+},
+  {
+  id: "sales",
+  label: "Sales Report",
+  shortLabel: "Sales",
+  category: "cattle",
+  description:
+    "Cattle sale records with buyer and transaction details.",
+  dateRequired: true,
+  searchEnabled: true,
+
+  filters: [
+    {
+      id: "gender",
+      label: "Gender",
+      rowKey: "gender",
+      allLabel: "All Genders",
+    },
+    {
+      id: "category",
+      label: "Category",
+      rowKey: "category",
+      allLabel: "All Categories",
+    },
+    {
+      id: "breed",
+      label: "Breed",
+      rowKey: "breed",
+      allLabel: "All Breeds",
+    },
+    {
+      id: "shed",
+      label: "Shed",
+      rowKey: "shed",
+      allLabel: "All Sheds",
+    },
+  ],
+
+  columns: [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Sale Date",
+      key: "saleDate",
+    },
+    {
+      label: "Time",
+      key: "time",
+    },
+    {
+      label: "Internal ID",
+      key: "internalId",
+    },
+    {
+      label: "Tag Number",
+      key: "tagNumber",
+    },
+    {
+      label: "Name",
+      key: "name",
+    },
+    {
+      label: "Gender",
+      key: "gender",
+    },
+    {
+      label: "Category",
+      key: "category",
+    },
+    {
+      label: "Breed",
+      key: "breed",
+    },
+    {
+      label: "Shed",
+      key: "shed",
+    },
+    {
+      label: "Buyer Name",
+      key: "buyerName",
+    },
+    {
+      label: "Contact",
+      key: "buyerContact",
+    },
+    {
+      label: "Receipt No",
+      key: "receiptNumber",
+    },
+    {
+      label: "Gate Pass",
+      key: "gatePass",
+    },
+    {
+      label: "Reference No",
+      key: "referenceNumber",
+    },
+    {
+      label: "Amount",
+      key: "amount",
+      numeric: true,
+    },
+    {
+      label: "Remarks",
+      key: "remarks",
+    },
+  ],
+},
+  {
+  id: "incoming",
+  label: "Incoming Report",
+  shortLabel: "Admissions",
+  category: "cattle",
+  description:
+    "Incoming cattle and admission-source details.",
+  dateRequired: true,
+  searchEnabled: false,
+
+  filters: [
+    {
+      id: "admissionType",
+      label: "Admission Type",
+      rowKey: "admissionType",
+      allLabel: "All Admission Types",
+    },
+    {
+      id: "shed",
+      label: "Shed",
+      rowKey: "shed",
+      allLabel: "All Sheds",
+    },
+    {
+      id: "gender",
+      label: "Gender",
+      rowKey: "gender",
+      allLabel: "All Genders",
+    },
+    {
+      id: "category",
+      label: "Category",
+      rowKey: "category",
+      allLabel: "All Categories",
+    },
+    {
+      id: "breed",
+      label: "Breed",
+      rowKey: "breed",
+      allLabel: "All Breeds",
+    },
+    {
+      id: "status",
+      label: "Status",
+      rowKey: "status",
+      allLabel: "All Statuses",
+    },
+  ],
+
+  columns: [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Admission Date",
+      key: "admissionDate",
+    },
+    {
+      label: "Internal ID",
+      key: "internalId",
+    },
+    {
+      label: "Tag Number",
+      key: "tagNumber",
+    },
+    {
+      label: "Name",
+      key: "name",
+    },
+    {
+      label: "Gender",
+      key: "gender",
+    },
+    {
+      label: "Category",
+      key: "category",
+    },
+    {
+      label: "Breed",
+      key: "breed",
+    },
+    {
+      label: "Shed",
+      key: "shed",
+    },
+    {
+      label: "Status",
+      key: "status",
+    },
+    {
+      label: "Admission Type",
+      key: "admissionType",
+    },
+    {
+      label: "Admission Age",
+      key: "admissionAge",
+    },
+    {
+      label: "Source Name",
+      key: "sourceName",
+    },
+    {
+      label: "Source Mobile",
+      key: "sourceMobile",
+    },
+    {
+      label: "Admission Weight",
+      key: "admissionWeight",
+    },
+    {
+      label: "Purchase Price",
+      key: "purchasePrice",
+      numeric: true,
+    },
+    {
+      label: "Remarks",
+      key: "remarks",
+    },
+  ],
+},
+  {
+    id: "milk",
+    label: "Daily Milk Report",
+    shortLabel: "Milk",
+    category: "operations",
+    description:
+      "Daily milk production and distribution summary.",
+    dateRequired: true,
+    filters: [],
+    columns: [
+      {
+        label: "Sl.No",
+        key: "slno",
+      },
+      {
+        label: "Date",
+        key: "date",
+      },
+      {
+        label: "AM Yield",
+        key: "amYield",
+        numeric: true,
+      },
+      {
+        label: "AM Good",
+        key: "amGood",
+        numeric: true,
+      },
+      {
+        label: "AM Colostrum",
+        key: "amCol",
+        numeric: true,
+      },
+      {
+        label: "PM Yield",
+        key: "pmYield",
+        numeric: true,
+      },
+      {
+        label: "PM Good",
+        key: "pmGood",
+        numeric: true,
+      },
+      {
+        label: "PM Colostrum",
+        key: "pmCol",
+        numeric: true,
+      },
+      {
+        label: "Temple",
+        key: "temple",
+        numeric: true,
+      },
+      {
+        label: "Workers",
+        key: "workers",
+        numeric: true,
+      },
+      {
+        label: "Calves/Bulls",
+        key: "bulls",
+        numeric: true,
+      },
+      {
+        label: "Total Yield",
+        key: "totalYield",
+        numeric: true,
+      },
+      {
+        label: "Total Dist",
+        key: "totalLeftByProd",
+        numeric: true,
+      },
+    ],
+  },
+  {
+    id: "govardhana",
+    label: "Govardhana Outgoing",
+    shortLabel: "Outgoing",
+    category: "operations",
+    description:
+      "Milk and by-product quantities and calculated values.",
+    dateRequired: true,
+
+filters: [
+  {
+    id: "sector",
+    label: "Sector",
+    rowKey: "sector",
+    allLabel: "All Sectors",
+  },
+],
+
+columns: [
+      {
+        label: "Sl.No",
+        key: "slno",
+      },
+      {
+        label: "Date",
+        key: "date",
+      },
+      {
+        label: "Invoice",
+        key: "invoice",
+      },
+      {
+        label: "Sector",
+        key: "sector",
+      },
+      {
+        label: "Milk (Kg)",
+        key: "milkQty",
+        numeric: true,
+      },
+      {
+        label: "Milk (Rs)",
+        key: "milkRs",
+        numeric: true,
+      },
+      {
+        label: "Dung (Kg)",
+        key: "dungQty",
+        numeric: true,
+      },
+      {
+        label: "Dung (Rs)",
+        key: "dungRs",
+        numeric: true,
+      },
+      {
+        label: "Urine (L)",
+        key: "urineQty",
+        numeric: true,
+      },
+      {
+        label: "Urine (Rs)",
+        key: "urineRs",
+        numeric: true,
+      },
+      {
+        label: "Total (Rs)",
+        key: "totalAmount",
+        numeric: true,
+      },
+    ],
+  },
+  {
+  id: "dattu",
+  label: "Sponsorship Report",
+  shortLabel: "Sponsorships",
+  category: "sponsorship",
+  description:
+    "Sponsorship commitments, receipts, balances and current status.",
+  dateRequired: true,
+  searchEnabled: true,
+
+  filters: [
+    {
+      id: "category",
+      label: "Category",
+      rowKey: "category",
+      allLabel: "All Categories",
+    },
+    {
+      id: "schemeName",
+      label: "Scheme",
+      rowKey: "schemeName",
+      allLabel: "All Schemes",
+    },
+    {
+      id: "displayStatus",
+      label: "Status",
+      rowKey: "displayStatus",
+      allLabel: "All Statuses",
+    },
+  ],
+
+  columns: [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Start Date",
+      key: "startDate",
+    },
+    {
+      label: "Sponsorship ID",
+      key: "sponsorshipId",
+    },
+    {
+      label: "Sponsor",
+      key: "donorName",
+    },
+    {
+      label: "Category",
+      key: "category",
+    },
+    {
+      label: "Scheme",
+      key: "schemeName",
+    },
+    {
+      label: "Cattle ID",
+      key: "cattleInternalId",
+    },
+    {
+      label: "End Date",
+      key: "endDate",
+    },
+    {
+      label: "Committed",
+      key: "committedAmount",
+      numeric: true,
+    },
+    {
+      label: "Received",
+      key: "receivedAmount",
+      numeric: true,
+    },
+    {
+      label: "Balance",
+      key: "balanceAmount",
+      numeric: true,
+    },
+    {
+      label: "Payments",
+      key: "paymentCount",
+      numeric: true,
+    },
+    {
+      label: "Last Payment",
+      key: "lastPaymentDate",
+    },
+    {
+      label: "Status",
+      key: "displayStatus",
+    },
+  ],
+},
+];
+
+const REPORTS_WITH_TOTALS = [
+  "sales",
+  "dattu",
+  "milk",
+  "govardhana",
+];
+
+const DEFAULT_ROWS_PER_PAGE = 10;
+
+/*
+ * ============================================================
+ * DATE HELPERS
+ * ============================================================
+ */
+
+function getLocalIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+  const day = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getDefaultDates() {
+  const today = new Date();
+
+  const firstDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    1,
+  );
+
+  return {
+    fromDate: getLocalIsoDate(firstDay),
+    toDate: getLocalIsoDate(today),
+  };
+}
+
+function formatDateForDisplay(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const text = String(value).trim();
+
+  const isoMatch = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})$/,
+  );
+
+  if (isoMatch) {
+    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
+  }
+
+  return text;
+}
+
+/*
+ * ============================================================
+ * VALUE HELPERS
+ * ============================================================
+ */
+
+function safeCellValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "-";
+  }
+
+  return value;
+}
+
+function escapeCsvValue(value) {
+  const text =
+    value === null ||
+    value === undefined
+      ? ""
+      : String(value);
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function escapeHtml(value) {
+  return String(
+    value === null ||
+      value === undefined
+      ? ""
+      : value,
+  )
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/*
+ * ============================================================
+ * COMPONENT
+ * ============================================================
+ */
 
 export default function Reports() {
-  const [activeReport, setActiveReport] = useState(REPORT_TYPES[0]);
+  const defaultDates = useMemo(
+    () => getDefaultDates(),
+    [],
+  );
+
+  const [activeCategory, setActiveCategory] =
+    useState("all");
+
+ const [activeReportId, setActiveReportId] =
+  useState("cattle-register");
+
+  const [reportSearch, setReportSearch] =
+    useState("");
+
+  const [tableSearch, setTableSearch] =
+    useState("");
+    const [
+  reportFilters,
+  setReportFilters,
+] = useState({});
+
+  const [fromDate, setFromDate] = useState(
+    defaultDates.fromDate,
+  );
+
+  const [toDate, setToDate] = useState(
+    defaultDates.toDate,
+  );
+
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isSidebarOpen, setSidebarOpen] = useState(false); // For mobile menu toggle
-  
-  // Default Date Range: Current Month
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
-  const currentDay = today.toISOString().slice(0,10);
-  
-  const [fromDate, setFromDate] = useState(firstDay);
-  const [toDate, setToDate] = useState(currentDay);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] = useState("");
+
+  const [hasGenerated, setHasGenerated] =
+    useState(false);
+
+  const [
+    lastGeneratedOn,
+    setLastGeneratedOn,
+  ] = useState(null);
+
+  const [
+    rowsPerPage,
+    setRowsPerPage,
+  ] = useState(DEFAULT_ROWS_PER_PAGE);
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
+
+  const activeReport = useMemo(() => {
+    return (
+      REPORT_TYPES.find(
+        (report) =>
+          report.id === activeReportId,
+      ) || REPORT_TYPES[0]
+    );
+  }, [activeReportId]);
+
+  const visibleReports = useMemo(() => {
+    const searchText = reportSearch
+      .trim()
+      .toLowerCase();
+
+    return REPORT_TYPES.filter(
+      (report) => {
+        const matchesCategory =
+          activeCategory === "all" ||
+          report.category ===
+            activeCategory;
+
+        const matchesSearch =
+          !searchText ||
+          report.label
+            .toLowerCase()
+            .includes(searchText) ||
+          report.description
+            .toLowerCase()
+            .includes(searchText);
+
+        return (
+          matchesCategory &&
+          matchesSearch
+        );
+      },
+    );
+  }, [
+    activeCategory,
+    reportSearch,
+  ]);
+
+  const dynamicFilterOptions =
+  useMemo(() => {
+    const result = {};
+
+    const filterDefinitions =
+      activeReport.filters || [];
+
+    filterDefinitions.forEach(
+      (filterDefinition) => {
+        const values = rows
+          .map((row) =>
+            String(
+              row[
+                filterDefinition.rowKey
+              ] ?? "",
+            ).trim(),
+          )
+          .filter(
+            (value) =>
+              value &&
+              value !== "-",
+          );
+
+        result[
+          filterDefinition.id
+        ] = Array.from(
+          new Set(values),
+        ).sort((first, second) =>
+          first.localeCompare(
+            second,
+            undefined,
+            {
+              numeric: true,
+              sensitivity: "base",
+            },
+          ),
+        );
+      },
+    );
+
+    return result;
+  }, [rows, activeReport]);
+
+  const filteredRows = useMemo(() => {
+  const searchText = tableSearch
+    .trim()
+    .toLowerCase();
+
+  const filterDefinitions =
+    activeReport.filters || [];
+
+  return rows.filter((row) => {
+    const matchesSearch =
+      !searchText ||
+      activeReport.columns.some(
+        (column) =>
+          String(
+            row[column.key] ?? "",
+          )
+            .toLowerCase()
+            .includes(searchText),
+      );
+
+    if (!matchesSearch) {
+      return false;
+    }
+
+    const matchesDynamicFilters =
+      filterDefinitions.every(
+        (filterDefinition) => {
+          const selectedValue =
+            String(
+              reportFilters[
+                filterDefinition.id
+              ] ?? "",
+            ).trim();
+
+          if (!selectedValue) {
+            return true;
+          }
+
+          const rowValue = String(
+            row[
+              filterDefinition.rowKey
+            ] ?? "",
+          ).trim();
+
+          return (
+            rowValue.toLowerCase() ===
+            selectedValue.toLowerCase()
+          );
+        },
+      );
+
+    return matchesDynamicFilters;
+  });
+}, [
+  rows,
+  tableSearch,
+  activeReport,
+  reportFilters,
+]);
+
+  const totals = useMemo(() => {
+    if (
+      !filteredRows.length ||
+      !REPORTS_WITH_TOTALS.includes(
+        activeReport.id,
+      )
+    ) {
+      return {};
+    }
+
+    const sums = {};
+
+    activeReport.columns.forEach(
+      (column) => {
+        if (!column.numeric) {
+          return;
+        }
+
+        const total =
+          filteredRows.reduce(
+            (sum, row) => {
+              const value = Number(
+                row[column.key],
+              );
+
+              return (
+                sum +
+                (Number.isFinite(value)
+                  ? value
+                  : 0)
+              );
+            },
+            0,
+          );
+
+        sums[column.key] =
+          Math.round(total * 100) /
+          100;
+      },
+    );
+
+    return sums;
+  }, [
+    filteredRows,
+    activeReport,
+  ]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredRows.length /
+        rowsPerPage,
+    ),
+  );
+
+  const paginatedRows = useMemo(() => {
+    const startIndex =
+      (currentPage - 1) *
+      rowsPerPage;
+
+    return filteredRows.slice(
+      startIndex,
+      startIndex + rowsPerPage,
+    );
+  }, [
+    filteredRows,
+    currentPage,
+    rowsPerPage,
+  ]);
+
+  const reportStatistics = useMemo(() => {
+    const availableReports =
+      REPORT_TYPES.length;
+
+    const categories =
+      REPORT_CATEGORIES.filter(
+        (category) =>
+          REPORT_TYPES.some(
+            (report) =>
+              report.category ===
+              category.id,
+          ),
+      ).length;
+
+    const currentRecords =
+      filteredRows.length;
+
+    return {
+      availableReports,
+      categories,
+      currentRecords,
+      generated:
+        hasGenerated &&
+        rows.length >= 0
+          ? 1
+          : 0,
+    };
+  }, [
+    filteredRows.length,
+    hasGenerated,
+    rows.length,
+  ]);
+
+  const pageStart =
+    filteredRows.length === 0
+      ? 0
+      : (currentPage - 1) *
+          rowsPerPage +
+        1;
+
+  const pageEnd = Math.min(
+    currentPage * rowsPerPage,
+    filteredRows.length,
+  );
 
   useEffect(() => {
-    setRows([]); 
-    loadReport();
-    setSidebarOpen(false); // Close sidebar on mobile when report changes
-  }, [activeReport]); 
+  setCurrentPage(1);
+}, [
+  tableSearch,
+  reportFilters,
+  rowsPerPage,
+  activeReportId,
+]);
 
-  const loadReport = async () => {
+ useEffect(() => {
+  setRows([]);
+  setTableSearch("");
+  setReportFilters({});
+  setError("");
+  setHasGenerated(false);
+  setLastGeneratedOn(null);
+  setCurrentPage(1);
+}, [activeReportId]);
+
+  async function loadReport() {
+    if (
+      activeReport.dateRequired &&
+      fromDate &&
+      toDate &&
+      fromDate > toDate
+    ) {
+      setError(
+        "From Date cannot be later than To Date.",
+      );
+      return;
+    }
+
     setLoading(true);
+    setError("");
+
     try {
-      const res = await getReportData(activeReport.id, fromDate, toDate);
-      
-      // 🔥 FIX: Handle API Wrapper
+      const response =
+        await getReportData(
+          activeReport.id,
+          fromDate,
+          toDate,
+        );
+
       let rawData = [];
-      if (res && res.data && Array.isArray(res.data)) {
-          rawData = res.data;
-      } else if (Array.isArray(res)) {
-          rawData = res;
+
+      if (
+        response &&
+        response.data &&
+        Array.isArray(response.data)
+      ) {
+        rawData = response.data;
+      } else if (
+        Array.isArray(response)
+      ) {
+        rawData = response;
       }
 
-      const processed = rawData.map((row, index) => ({
-        ...row,
-        slno: index + 1
-      }));
-      setRows(processed);
-    } catch (err) {
-      console.error("Report Error:", err);
+      const processedRows =
+        rawData.map(
+          (row, index) => ({
+            ...row,
+            slno: index + 1,
+          }),
+        );
+
+      setRows(processedRows);
+      setHasGenerated(true);
+      setLastGeneratedOn(
+        new Date(),
+      );
+      setCurrentPage(1);
+    } catch (loadError) {
+      console.error(
+        "Report Error:",
+        loadError,
+      );
+
+      setRows([]);
+      setHasGenerated(true);
+
+      setError(
+        loadError?.message ||
+          "Unable to generate the report. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // CALCULATE TOTALS
-  const totals = useMemo(() => {
-    if (!rows.length || !REPORTS_WITH_TOTALS.includes(activeReport.id)) return {};
-    
-    const summableKeys = [
-      "milkQty", "milkRs", "dungQty", "dungRs", 
-      "urineQty", "urineRs", "slurryQty", "slurryRs", "totalAmount",
-      "amount",
-      "amYield", "amByProd", "amGood", "amCol", "temple", 
-      "pmYield", "pmByProd", "pmGood", "pmCol", 
-      "bulls", "workers", 
-      "totalYield", "totalColostrum", "totalFree", "totalLeftByProd"
-    ];
+  function handleSelectReport(
+  reportId,
+) {
+  setActiveReportId(reportId);
+  setTableSearch("");
+  setReportFilters({});
+  setCurrentPage(1);
+  setError("");
+}
 
-    const sums = {};
-    activeReport.columns.forEach(col => {
-      if (summableKeys.includes(col.key)) {
-        const sum = rows.reduce((acc, row) => {
-          const val = parseFloat(row[col.key]);
-          return acc + (isNaN(val) ? 0 : val);
-        }, 0);
-        sums[col.key] = Math.round(sum * 100) / 100;
-      }
-    });
-    return sums;
-  }, [rows, activeReport]);
+function handleReportFilterChange(
+  filterId,
+  value,
+) {
+  setReportFilters(
+    (currentFilters) => ({
+      ...currentFilters,
+      [filterId]: value,
+    }),
+  );
 
-  const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
-    const fmtDate = (d) => d ? d.split('-').reverse().join('-') : ""; 
-    const uniqueTitle = `${activeReport.label} (${fmtDate(fromDate)} to ${fmtDate(toDate)})`;
+  setCurrentPage(1);
+  setError("");
+}
 
-    const rowsHtml = rows.map(r => `
-      <tr>
-        ${activeReport.columns.map(col => `<td>${r[col.key] || "-"}</td>`).join("")}
-      </tr>
-    `).join("");
+  function handleClearFilters() {
+  setFromDate("");
+  setToDate("");
+  setTableSearch("");
+  setReportFilters({});
 
-    let totalRowHtml = "";
-    if (REPORTS_WITH_TOTALS.includes(activeReport.id)) {
-      totalRowHtml = `
-        <tr class="total-row">
-          ${activeReport.columns.map(col => {
-            if (col.key === "slno") return "<td>Total</td>";
-            if (totals[col.key] !== undefined) return `<td>${totals[col.key]}</td>`;
-            return "<td></td>";
-          }).join("")}
-        </tr>
-      `;
+  setRows([]);
+  setHasGenerated(false);
+  setLastGeneratedOn(null);
+
+  setError("");
+  setCurrentPage(1);
+}
+
+  function handleExportCsv() {
+    if (!filteredRows.length) {
+      setError(
+        "Generate a report before exporting CSV.",
+      );
+      return;
     }
 
-    const html = `
-      <html>
-        <head>
-          <title>${uniqueTitle}</title> 
-          <style>
-            body { font-family: "Calibri", sans-serif; padding: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .main-title { font-size: 20px; font-weight: bold; text-transform: uppercase; text-decoration: underline; }
-            .sub-title { font-size: 14px; margin-top: 5px; font-weight: bold; }
-            table { width: 100%; border-collapse: collapse; font-size: 9px; margin-top: 20px; }
-            th, td { border: 1px solid #000; padding: 4px; text-align: center; word-wrap: break-word; }
-            th { background-color: #f0f0f0; font-weight: bold; }
-            .total-row td { background-color: #e5e7eb; font-weight: bold; border-top: 2px solid #000; }
-            .footer { display: flex; justify-content: space-between; margin-top: 60px; padding: 0 40px; }
-            .signature-block { text-align: center; width: 200px; }
-            .signature-line { border-top: 1px solid #000; padding-top: 5px; font-weight: bold; font-size: 12px; }
-            @media print { @page { size: landscape; margin: 10mm; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="main-title">Madhava Srusti Rashtrotthana Goshala</div>
-            <div class="sub-title">${activeReport.label} (Period: ${fmtDate(fromDate)} to ${fmtDate(toDate)})</div>
-          </div>
-          <table>
-            <thead>
-              <tr>${activeReport.columns.map(c => `<th>${c.label}</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-              ${totalRowHtml} 
-            </tbody>
-          </table>
-          <div class="footer">
-            <div class="signature-block"><div class="signature-line">Supervisor Signature</div></div>
-            <div class="signature-block"><div class="signature-line">Project Manager Signature</div></div>
-          </div>
-          <script>setTimeout(() => { window.print(); }, 500);</script>
-        </body>
-      </html>
+    setError("");
+
+    const headers =
+      activeReport.columns.map(
+        (column) =>
+          escapeCsvValue(
+            column.label,
+          ),
+      );
+
+    const dataRows =
+      filteredRows.map((row) =>
+        activeReport.columns
+          .map((column) =>
+            escapeCsvValue(
+              row[column.key] ?? "",
+            ),
+          )
+          .join(","),
+      );
+
+    const csvContent = [
+      headers.join(","),
+      ...dataRows,
+    ].join("\n");
+
+    const blob = new Blob(
+      [csvContent],
+      {
+        type:
+          "text/csv;charset=utf-8;",
+      },
+    );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const anchor =
+      document.createElement("a");
+
+    anchor.href = url;
+
+    anchor.download = `${
+      activeReport.id
+    }-${fromDate || "all"}-${
+      toDate || "all"
+    }.csv`;
+
+    document.body.appendChild(
+      anchor,
+    );
+
+    anchor.click();
+    anchor.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function handlePrint() {
+  if (!filteredRows.length) {
+    setError(
+      "Generate a report before printing.",
+    );
+    return;
+  }
+
+  setError("");
+
+  const rowsHtml = filteredRows
+    .map(
+      (row) => `
+        <tr>
+          ${activeReport.columns
+            .map(
+              (column) =>
+                `<td>${escapeHtml(
+                  safeCellValue(
+                    row[column.key],
+                  ),
+                )}</td>`,
+            )
+            .join("")}
+        </tr>
+      `,
+    )
+    .join("");
+
+  let totalRowHtml = "";
+
+  if (
+    REPORTS_WITH_TOTALS.includes(
+      activeReport.id,
+    )
+  ) {
+    totalRowHtml = `
+      <tr class="total-row">
+        ${activeReport.columns
+          .map((column) => {
+            if (column.key === "slno") {
+              return "<td>Total</td>";
+            }
+
+            if (
+              totals[column.key] !==
+              undefined
+            ) {
+              return `<td>${escapeHtml(
+                totals[column.key],
+              )}</td>`;
+            }
+
+            return "<td></td>";
+          })
+          .join("")}
+      </tr>
     `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
+  }
+
+  const generatedText = lastGeneratedOn
+    ? lastGeneratedOn.toLocaleString(
+        "en-IN",
+      )
+    : new Date().toLocaleString(
+        "en-IN",
+      );
+
+      const reportFileName = [
+  activeReport.label
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, ""),
+
+  formatDateForDisplay(fromDate),
+  "to",
+  formatDateForDisplay(toDate),
+].join("_");
+
+const originalDocumentTitle =
+  document.title;
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+
+        <title>${escapeHtml(
+          activeReport.label,
+        )}</title>
+
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 20px;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+            color: #111827;
+            background: #ffffff;
+          }
+
+          .header {
+            text-align: center;
+            margin-bottom: 18px;
+          }
+
+          .organisation {
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+          }
+
+          .report-title {
+            margin-top: 6px;
+            font-size: 15px;
+            font-weight: 700;
+          }
+
+          .report-meta {
+            margin-top: 5px;
+            font-size: 10px;
+            color: #475569;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 9px;
+          }
+
+          th,
+          td {
+            border: 1px solid #94a3b8;
+            padding: 5px;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-word;
+          }
+
+          th {
+            background: #f1f5f9;
+            font-weight: 700;
+          }
+
+          .total-row td {
+            background: #e2e8f0;
+            font-weight: 700;
+            border-top: 2px solid #334155;
+          }
+
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 80px;
+            margin-top: 60px;
+          }
+
+          .signature {
+            width: 220px;
+            text-align: center;
+            border-top: 1px solid #111827;
+            padding-top: 6px;
+            font-size: 11px;
+            font-weight: 600;
+          }
+
+          @page {
+            size: landscape;
+            margin: 10mm;
+          }
+
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="header">
+          <div class="organisation">
+            Madhava Srusti Rashtrotthana Goshala
+          </div>
+
+          <div class="report-title">
+            ${escapeHtml(
+              activeReport.label,
+            )}
+          </div>
+
+          <div class="report-meta">
+            Period:
+            ${escapeHtml(
+              formatDateForDisplay(
+                fromDate,
+              ),
+            )}
+            to
+            ${escapeHtml(
+              formatDateForDisplay(
+                toDate,
+              ),
+            )}
+            |
+            Generated:
+            ${escapeHtml(
+              generatedText,
+            )}
+            |
+            Records:
+            ${filteredRows.length}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              ${activeReport.columns
+                .map(
+                  (column) =>
+                    `<th>${escapeHtml(
+                      column.label,
+                    )}</th>`,
+                )
+                .join("")}
+            </tr>
+          </thead>
+
+          <tbody>
+            ${rowsHtml}
+            ${totalRowHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div class="signature">
+            Supervisor Signature
+          </div>
+
+          <div class="signature">
+            Project Manager Signature
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const existingFrame =
+    document.getElementById(
+      "reports-print-frame",
+    );
+
+  if (existingFrame) {
+    existingFrame.remove();
+  }
+
+  const printFrame =
+    document.createElement("iframe");
+
+  printFrame.id =
+    "reports-print-frame";
+
+  printFrame.setAttribute(
+    "title",
+    "Report print preview",
+  );
+
+  printFrame.style.position =
+    "fixed";
+
+  printFrame.style.right = "0";
+  printFrame.style.bottom = "0";
+  printFrame.style.width = "0";
+  printFrame.style.height = "0";
+  printFrame.style.border = "0";
+  printFrame.style.visibility =
+    "hidden";
+
+  document.body.appendChild(
+    printFrame,
+  );
+
+  const frameWindow =
+    printFrame.contentWindow;
+
+  const frameDocument =
+    printFrame.contentDocument ||
+    frameWindow?.document;
+
+  if (
+    !frameWindow ||
+    !frameDocument
+  ) {
+    printFrame.remove();
+
+    setError(
+      "Unable to prepare the print view. Please try again.",
+    );
+
+    return;
+  }
+
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+  frameDocument.title =
+  reportFileName;
+
+  printFrame.onload = () => {
+  window.setTimeout(() => {
+    let cleanedUp = false;
+
+    const cleanupPrint = () => {
+      if (cleanedUp) {
+        return;
+      }
+
+      cleanedUp = true;
+
+      document.title =
+        originalDocumentTitle;
+
+      window.setTimeout(() => {
+        if (
+          printFrame &&
+          printFrame.parentNode
+        ) {
+          printFrame.remove();
+        }
+      }, 300);
+    };
+
+    try {
+      /*
+       * Chrome often uses the main browser-tab title
+       * as the suggested Save as PDF filename, even
+       * when an iframe is being printed.
+       */
+      document.title =
+        reportFileName;
+
+      frameWindow.document.title =
+        reportFileName;
+
+      frameWindow.addEventListener(
+        "afterprint",
+        cleanupPrint,
+        {
+          once: true,
+        },
+      );
+
+      frameWindow.focus();
+      frameWindow.print();
+
+      /*
+       * Fallback restoration in case the browser does
+       * not dispatch the afterprint event.
+       */
+      window.setTimeout(() => {
+        cleanupPrint();
+      }, 30000);
+    } catch (printError) {
+      console.error(
+        "Print Error:",
+        printError,
+      );
+
+      cleanupPrint();
+
+      setError(
+        "Unable to open the print dialog. Please try again.",
+      );
+    }
+  }, 300);
+};
+}
 
   return (
-    <div className="reports-container" style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f3f4f6" }}>
+    <div
+      style={styles.page}
+      className="reports-page"
+    >
+      <header style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.pageTitle}>
+            Reports & Analytics
+          </h1>
+
+          <p style={styles.pageSubtitle}>
+            Generate, review and
+            export operational,
+            veterinary, sponsorship and
+            management reports.
+          </p>
+        </div>
+      </header>
+
       
-      {/* 1. MOBILE REPORT SELECTOR (Horizontal Scroll) */}
-      <div className="mobile-report-menu" style={{ overflowX: "auto", whiteSpace: "nowrap", background: "white", padding: "10px", borderBottom: "1px solid #e5e7eb", display: "none" /* Handled by CSS media query in styling */ }}>
-         {REPORT_TYPES.map((rep) => (
+
+      <section style={styles.catalogCard}>
+  <div style={styles.compactCatalogHeader}>
+    <div>
+      <h2 style={styles.sectionTitle}>
+        Important Reports
+      </h2>
+
+      <p style={styles.sectionSubtitle}>
+        Select a report to view, download or print.
+      </p>
+    </div>
+
+    <div style={styles.reportSearchCompact}>
+      <label
+        style={styles.fieldLabel}
+        htmlFor="report-search"
+      >
+        Search Reports
+      </label>
+
+      <input
+        id="report-search"
+        type="search"
+        value={reportSearch}
+        onChange={(event) =>
+          setReportSearch(
+            event.target.value,
+          )
+        }
+        placeholder="Search reports..."
+        style={styles.input}
+      />
+    </div>
+  </div>
+
+  <div style={styles.compactSelectorRow}>
+    <span style={styles.selectorLabel}>
+      Categories
+    </span>
+
+    <div style={styles.categoryTabs}>
+      <CategoryButton
+        active={
+          activeCategory === "all"
+        }
+        label="All Reports"
+        onClick={() =>
+          setActiveCategory("all")
+        }
+      />
+
+      {REPORT_CATEGORIES.map(
+        (category) => (
+          <CategoryButton
+            key={category.id}
+            active={
+              activeCategory ===
+              category.id
+            }
+            label={category.label}
+            onClick={() =>
+              setActiveCategory(
+                category.id,
+              )
+            }
+          />
+        ),
+      )}
+    </div>
+  </div>
+
+  <div style={styles.compactSelectorRow}>
+    <span style={styles.selectorLabel}>
+      Reports
+    </span>
+
+    <div style={styles.reportButtonList}>
+      {visibleReports.length === 0 ? (
+        <span style={styles.noReportsCompact}>
+          No reports found.
+        </span>
+      ) : (
+        visibleReports.map((report) => (
+          <button
+            type="button"
+            key={report.id}
+            onClick={() =>
+              handleSelectReport(
+                report.id,
+              )
+            }
+            title={report.description}
+            style={{
+              ...styles.reportButton,
+              ...(activeReport.id ===
+              report.id
+                ? styles.reportButtonActive
+                : {}),
+            }}
+          >
+            {report.label}
+
+            {report.legacy && (
+              <span
+                style={
+                  styles.reportLegacyMark
+                }
+              >
+                Legacy
+              </span>
+            )}
+          </button>
+        ))
+      )}
+    </div>
+  </div>
+</section>
+
+      <section
+        style={styles.workspaceCard}
+      >
+        <div style={styles.workspaceHeader}>
+  <div style={styles.selectedReportRow}>
+    <span style={styles.selectedReportLabel}>
+      Selected Report
+    </span>
+
+    <h2 style={styles.workspaceTitle}>
+      {activeReport.label}
+    </h2>
+  </div>
+
+  <div style={styles.generatedStatus}>
+    {lastGeneratedOn
+      ? `Generated ${lastGeneratedOn.toLocaleTimeString(
+          "en-IN",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        )}`
+      : "Not generated"}
+  </div>
+</div>
+
+        <div style={styles.filterSection}>
+  <div style={styles.filterSectionHeader}>
+    SEARCH & FILTERS
+  </div>
+
+  <div style={styles.filterGrid}>
+  {activeReport.searchEnabled !== false && (
+  <div style={styles.fieldGroup}>
+    <label
+      style={styles.fieldLabel}
+      htmlFor="table-search"
+    >
+      Search Results
+    </label>
+
+    <input
+      id="table-search"
+      type="search"
+      value={tableSearch}
+      onChange={(event) =>
+        setTableSearch(
+          event.target.value,
+        )
+      }
+      placeholder="Search generated report..."
+      style={styles.input}
+      disabled={
+        !hasGenerated ||
+        loading
+      }
+    />
+  </div>
+)}
+
+  {activeReport.dateRequired && (
+    <>
+      <div style={styles.fieldGroup}>
+        <label
+          style={styles.fieldLabel}
+          htmlFor="from-date"
+        >
+          From Date
+        </label>
+
+        <input
+          id="from-date"
+          type="date"
+          value={fromDate}
+          onChange={(event) =>
+            setFromDate(
+              event.target.value,
+            )
+          }
+          style={styles.input}
+        />
+      </div>
+
+      <div style={styles.fieldGroup}>
+        <label
+          style={styles.fieldLabel}
+          htmlFor="to-date"
+        >
+          To Date
+        </label>
+
+        <input
+          id="to-date"
+          type="date"
+          value={toDate}
+          onChange={(event) =>
+            setToDate(
+              event.target.value,
+            )
+          }
+          style={styles.input}
+        />
+      </div>
+    </>
+  )}
+
+  {(activeReport.filters || []).map(
+    (filterDefinition) => (
+      <div
+        key={filterDefinition.id}
+        style={styles.fieldGroup}
+      >
+        <label
+          style={styles.fieldLabel}
+          htmlFor={`report-filter-${filterDefinition.id}`}
+        >
+          {filterDefinition.label}
+        </label>
+
+        <select
+          id={`report-filter-${filterDefinition.id}`}
+          value={
+            reportFilters[
+              filterDefinition.id
+            ] || ""
+          }
+          onChange={(event) =>
+            handleReportFilterChange(
+              filterDefinition.id,
+              event.target.value,
+            )
+          }
+          style={styles.input}
+          disabled={
+            !hasGenerated ||
+            loading
+          }
+        >
+          <option value="">
+            {filterDefinition.allLabel ||
+              `All ${filterDefinition.label}`}
+          </option>
+
+          {(
+            dynamicFilterOptions[
+              filterDefinition.id
+            ] || []
+          ).map((optionValue) => (
+            <option
+              key={optionValue}
+              value={optionValue}
+            >
+              {optionValue}
+            </option>
+          ))}
+        </select>
+      </div>
+    ),
+  )}
+</div>
+
+<div style={styles.actionRow}>
+  <div style={styles.primaryActions}>
+    <button
+      type="button"
+      onClick={loadReport}
+      disabled={loading}
+      style={{
+        ...styles.primaryButton,
+        ...(loading
+          ? styles.disabledButton
+          : {}),
+      }}
+    >
+      {loading
+        ? "Generating..."
+        : "Generate Report"}
+    </button>
+
+    <button
+      type="button"
+      onClick={handleClearFilters}
+      disabled={loading}
+      style={styles.secondaryButton}
+    >
+      Clear Filters
+    </button>
+  </div>
+
+  <div style={styles.exportActions}>
+    <button
+      type="button"
+      onClick={handleExportCsv}
+      disabled={
+        loading ||
+        !filteredRows.length
+      }
+      style={{
+        ...styles.secondaryButton,
+        ...(!filteredRows.length ||
+        loading
+          ? styles.disabledButton
+          : {}),
+      }}
+    >
+      Export CSV
+    </button>
+
+    <button
+      type="button"
+      onClick={handlePrint}
+      disabled={
+        loading ||
+        !filteredRows.length
+      }
+      style={{
+        ...styles.secondaryButton,
+        ...(!filteredRows.length ||
+        loading
+          ? styles.disabledButton
+          : {}),
+      }}
+    >
+      Print / PDF
+    </button>
+  </div>
+</div>
+
+{error && (
+  <div style={styles.errorBox}>
+    {error}
+  </div>
+)}
+</div>
+</section>
+
+<section style={styles.tableCard}>
+  <div style={styles.tableTopBar}>
+    <div>
+      <h3 style={styles.tableTitle}>
+        Report Results
+      </h3>
+
+      <p style={styles.tableSubtitle}>
+        {hasGenerated
+          ? `Showing ${pageStart}-${pageEnd} of ${filteredRows.length} filtered records`
+          : "Select filters and generate the report."}
+      </p>
+    </div>
+
+    <div style={styles.paginationControls}>
+      <label
+        htmlFor="rows-per-page"
+        style={styles.paginationLabel}
+      >
+        Rows per page
+      </label>
+
+      <select
+        id="rows-per-page"
+        value={rowsPerPage}
+        onChange={(event) =>
+          setRowsPerPage(
+            Number(event.target.value),
+          )
+        }
+        style={styles.select}
+      >
+        <option value={10}>10</option>
+        <option value={20}>20</option>
+        <option value={50}>50</option>
+        <option value={100}>100</option>
+      </select>
+    </div>
+  </div>
+
+  <div
+    style={
+      styles.tableScrollContainer
+    }
+  >
+    <table style={styles.table}>
+            <thead>
+              <tr>
+                {activeReport.columns.map(
+                  (column) => (
+                    <th
+                      key={column.key}
+                      style={styles.th}
+                    >
+                      {column.label}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={
+                      activeReport
+                        .columns.length
+                    }
+                    style={
+                      styles.stateCell
+                    }
+                  >
+                    Generating report...
+                  </td>
+                </tr>
+              ) : !hasGenerated ? (
+                <tr>
+                  <td
+                    colSpan={
+                      activeReport
+                        .columns.length
+                    }
+                    style={
+                      styles.stateCell
+                    }
+                  >
+                    Select the required
+                    report and filters,
+                    then click Generate
+                    Report.
+                  </td>
+                </tr>
+              ) : filteredRows.length ===
+                0 ? (
+                <tr>
+                  <td
+                    colSpan={
+                      activeReport
+                        .columns.length
+                    }
+                    style={
+                      styles.stateCell
+                    }
+                  >
+                    No records found for
+                    the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedRows.map(
+                  (row, rowIndex) => (
+                    <tr
+                      key={`${activeReport.id}-${row.slno}-${rowIndex}`}
+                      style={
+                        rowIndex % 2 ===
+                        0
+                          ? styles.evenRow
+                          : styles.oddRow
+                      }
+                    >
+                      {activeReport.columns.map(
+                        (column) => (
+                          <td
+                            key={
+                              column.key
+                            }
+                            style={{
+                              ...styles.td,
+                              ...(column.numeric
+                                ? styles.numericCell
+                                : {}),
+                            }}
+                          >
+                            {[
+  "date",
+  "admissionDate",
+  "dateOfBirth",
+  "expiry",
+].includes(column.key)
+  ? formatDateForDisplay(
+      row[column.key],
+    )
+  : safeCellValue(
+      row[column.key],
+    )}
+                          </td>
+                        ),
+                      )}
+                    </tr>
+                  ),
+                )
+              )}
+            </tbody>
+
+            {filteredRows.length >
+              0 &&
+              REPORTS_WITH_TOTALS.includes(
+                activeReport.id,
+              ) && (
+                <tfoot>
+                  <tr
+                    style={
+                      styles.totalRow
+                    }
+                  >
+                    {activeReport.columns.map(
+                      (column) => (
+                        <td
+                          key={
+                            column.key
+                          }
+                          style={{
+                            ...styles.totalCell,
+                            ...(column.numeric
+                              ? styles.numericCell
+                              : {}),
+                          }}
+                        >
+                          {column.key ===
+                          "slno"
+                            ? "Total"
+                            : totals[
+                                column
+                                  .key
+                              ] ??
+                              ""}
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                </tfoot>
+              )}
+          </table>
+        </div>
+
+        <div style={styles.tableFooter}>
+          <span style={styles.pageText}>
+            Page {currentPage} of{" "}
+            {totalPages}
+          </span>
+
+          <div
+            style={
+              styles.pageButtonGroup
+            }
+          >
             <button
-              key={rep.id}
-              onClick={() => setActiveReport(rep)}
+              type="button"
+              onClick={() =>
+                setCurrentPage(
+                  (page) =>
+                    Math.max(
+                      1,
+                      page - 1,
+                    ),
+                )
+              }
+              disabled={
+                currentPage === 1 ||
+                !filteredRows.length
+              }
               style={{
-                padding: "6px 12px",
-                marginRight: "8px",
-                borderRadius: "20px",
-                border: activeReport.id === rep.id ? "1px solid #2563eb" : "1px solid #e5e7eb",
-                background: activeReport.id === rep.id ? "#eff6ff" : "white",
-                color: activeReport.id === rep.id ? "#2563eb" : "#4b5563",
-                fontSize: "0.85rem",
-                cursor: "pointer"
+                ...styles.secondaryButton,
+                ...(currentPage === 1 ||
+                !filteredRows.length
+                  ? styles.disabledButton
+                  : {}),
               }}
             >
-              {rep.label}
+              Previous
             </button>
-         ))}
-      </div>
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        
-        {/* 2. DESKTOP SIDEBAR */}
-        <div className="desktop-sidebar" style={{ width: "260px", background: "white", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "1.5rem", borderBottom: "1px solid #e5e7eb" }}>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#1f2937" }}>📊 Reports</h2>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "1rem" }}>
-            {REPORT_TYPES.map((rep) => (
-              <button
-                key={rep.id}
-                onClick={() => setActiveReport(rep)}
-                style={{
-                  display: "block", width: "100%", textAlign: "left", padding: "12px 15px", marginBottom: "5px",
-                  borderRadius: "8px", border: "none", cursor: "pointer",
-                  background: activeReport.id === rep.id ? "#eff6ff" : "transparent",
-                  color: activeReport.id === rep.id ? "#2563eb" : "#4b5563",
-                  fontWeight: activeReport.id === rep.id ? "600" : "400",
-                  transition: "all 0.2s"
-                }}
-              >
-                {rep.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 3. MAIN CONTENT AREA */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          
-          {/* Top Bar: Title & Filters */}
-          <div style={{ background: "white", padding: "1rem", borderBottom: "1px solid #e5e7eb" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-               <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#111827" }}>{activeReport.label}</h2>
-               
-               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                    <span style={{fontSize:"0.8rem", color:"#666"}}>From:</span>
-                    <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                    <span style={{fontSize:"0.8rem", color:"#666"}}>To:</span>
-                    <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} style={inputStyle} />
-                  </div>
-                  <button onClick={loadReport} className="btn-primary" style={btnStyle}>Apply</button>
-                  <button onClick={handlePrint} className="btn-secondary" style={printBtnStyle}>🖨️ Print</button>
-               </div>
-            </div>
-          </div>
-
-          {/* Data Table Container */}
-          <div style={{ flex: 1, padding: "1rem", overflow: "hidden", display:"flex", flexDirection: "column" }}>
-            <div style={{ background: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", flex: 1, display: "flex", flexDirection: "column" }}>
-              <div style={{ overflow: "auto", flex: 1 }}> {/* 🔥 SCROLLABLE TABLE AREA */}
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", minWidth: "100%" }}>
-                  <thead style={{ background: "#f9fafb", textAlign: "left", position: "sticky", top: 0, zIndex: 10 }}>
-                    <tr>{activeReport.columns.map((col) => <th key={col.key} style={thStyle}>{col.label}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {loading ? <tr><td colSpan={activeReport.columns.length} style={{padding:"3rem", textAlign:"center", color:"#6b7280"}}>Loading data...</td></tr> : 
-                     rows.length === 0 ? <tr><td colSpan={activeReport.columns.length} style={{padding:"3rem", textAlign:"center", color:"#9ca3af"}}>No records found for this period.</td></tr> :
-                     rows.map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "white" : "#fafafa" }}>
-                        {activeReport.columns.map((col) => <td key={col.key} style={tdStyle}>{row[col.key] || "-"}</td>)}
-                      </tr>
-                     ))}
-                  </tbody>
-                  
-                  {/* Sticky Footer for Totals */}
-                  {rows.length > 0 && REPORTS_WITH_TOTALS.includes(activeReport.id) && (
-                    <tfoot style={{ background: "#f1f5f9", position: "sticky", bottom: 0, zIndex: 10, fontWeight: "bold", borderTop:"2px solid #e2e8f0" }}>
-                      <tr>
-                        {activeReport.columns.map((col) => (
-                          <td key={col.key} style={{ padding: "10px", whiteSpace: "nowrap", color: "#1e293b" }}>
-                            {col.key === "slno" ? "Total" : (totals[col.key] !== undefined ? totals[col.key] : "")}
-                          </td>
-                        ))}
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-            <div style={{marginTop:"10px", textAlign:"right", color:"#666", fontSize:"0.8rem"}}>Total Records: <strong>{rows.length}</strong></div>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage(
+                  (page) =>
+                    Math.min(
+                      totalPages,
+                      page + 1,
+                    ),
+                )
+              }
+              disabled={
+                currentPage >=
+                  totalPages ||
+                !filteredRows.length
+              }
+              style={{
+                ...styles.secondaryButton,
+                ...(currentPage >=
+                  totalPages ||
+                !filteredRows.length
+                  ? styles.disabledButton
+                  : {}),
+              }}
+            >
+              Next
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* RESPONSIVE CSS INJECTION (Or add to your index.css) */}
+      <section
+        style={styles.customReportCard}
+      >
+        <div>
+          <h2
+            style={
+              styles.customReportTitle
+            }
+          >
+            Custom Reports
+          </h2>
+
+          <p
+            style={
+              styles.customReportText
+            }
+          >
+            Custom column selection,
+            grouping and advanced filters
+            will be introduced after the
+            predefined reports are
+            completed and validated.
+          </p>
+        </div>
+
+        <span
+          style={
+            styles.comingSoonBadge
+          }
+        >
+          Planned
+        </span>
+      </section>
+
       <style>{`
-        @media (max-width: 768px) {
-          .desktop-sidebar { display: none !important; }
-          .mobile-report-menu { display: flex !important; }
-          .reports-container { height: auto !important; min-height: 100vh; }
+        @media (max-width: 1100px) {
+          .reports-page {
+            padding: 20px !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .reports-page {
+            padding: 16px !important;
+          }
+
+          .reports-page button,
+          .reports-page input,
+          .reports-page select {
+            min-height: 40px;
+          }
         }
       `}</style>
     </div>
   );
 }
 
-// --- STYLES ---
-const inputStyle = { padding: "6px", borderRadius: "4px", border: "1px solid #d1d5db", fontSize: "0.9rem" };
-const btnStyle = { padding: "6px 14px", background: "#2563eb", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "500" };
-const printBtnStyle = { padding: "6px 14px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "4px", cursor: "pointer", fontWeight: "500", color: "#374151" };
-const thStyle = { padding: "12px 10px", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap", fontWeight: "600", color: "#475569" };
-const tdStyle = { padding: "10px", whiteSpace: "nowrap", color: "#334155" };
+/*
+ * ============================================================
+ * SMALL PRESENTATIONAL COMPONENTS
+ * ============================================================
+ */
+
+
+
+function CategoryButton({
+  active,
+  label,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...styles.categoryButton,
+        ...(active
+          ? styles.categoryButtonActive
+          : {}),
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/*
+ * ============================================================
+ * STYLES
+ * ============================================================
+ */
+
+const styles = {
+  page: {
+  minHeight: "100%",
+  padding: "20px 28px 32px",
+  background: "#f3f4f6",
+  color: "#0f172a",
+},
+
+  pageHeader: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "20px",
+  marginBottom: "14px",
+},
+
+  pageTitle: {
+  margin: 0,
+  fontSize: "1.7rem",
+  lineHeight: 1.2,
+  fontWeight: 750,
+  color: "#0f172a",
+},
+
+  pageSubtitle: {
+  margin: "6px 0 0",
+  fontSize: "0.95rem",
+  lineHeight: 1.5,
+  color: "#64748b",
+},
+
+  kpiGrid: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: "14px",
+    marginBottom: "16px",
+  },
+
+  kpiCard: {
+    minHeight: "92px",
+    padding: "16px",
+    border: "1px solid #dbe3ee",
+    borderRadius: "10px",
+    background: "#ffffff",
+    boxShadow:
+      "0 1px 2px rgba(15, 23, 42, 0.04)",
+  },
+
+  kpiLabel: {
+    display: "block",
+    marginBottom: "8px",
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "#64748b",
+  },
+
+  kpiValue: {
+    display: "block",
+    fontSize: "1.35rem",
+    lineHeight: 1.1,
+    color: "#0f172a",
+  },
+
+  kpiHelper: {
+    display: "block",
+    marginTop: "8px",
+    fontSize: "0.72rem",
+    color: "#94a3b8",
+  },
+
+  catalogCard: {
+    marginBottom: "16px",
+    padding: "18px",
+    border: "1px solid #dbe3ee",
+    borderRadius: "10px",
+    background: "#ffffff",
+    boxShadow:
+      "0 1px 2px rgba(15, 23, 42, 0.04)",
+  },
+
+ compactCatalogHeader: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  flexWrap: "wrap",
+  gap: "14px",
+  marginBottom: "14px",
+},
+
+reportSearchCompact: {
+  width: "100%",
+  maxWidth: "330px",
+},
+
+compactSelectorRow: {
+  display: "grid",
+  gridTemplateColumns: "92px minmax(0, 1fr)",
+  alignItems: "start",
+  gap: "12px",
+  marginTop: "12px",
+},
+
+selectorLabel: {
+  paddingTop: "8px",
+  fontSize: "0.82rem",
+  fontWeight: 750,
+  color: "#334155",
+},
+
+reportButtonList: {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+},
+
+reportButton: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  minHeight: "38px",
+  padding: "8px 13px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#334155",
+  fontSize: "0.84rem",
+  fontWeight: 650,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+},
+
+reportButtonActive: {
+  borderColor: "#ea580c",
+  background: "#fff7ed",
+  color: "#c2410c",
+  boxShadow:
+    "0 0 0 1px rgba(234, 88, 12, 0.08)",
+},
+
+reportLegacyMark: {
+  padding: "2px 5px",
+  borderRadius: "999px",
+  background: "#fef3c7",
+  color: "#92400e",
+  fontSize: "0.58rem",
+  fontWeight: 750,
+},
+
+noReportsCompact: {
+  display: "inline-block",
+  padding: "9px 0",
+  fontSize: "0.82rem",
+  color: "#64748b",
+}, 
+
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    marginBottom: "14px",
+  },
+
+ sectionTitle: {
+  margin: 0,
+  fontSize: "1.05rem",
+  fontWeight: 750,
+  color: "#0f172a",
+},
+
+  sectionSubtitle: {
+    margin: "4px 0 0",
+    fontSize: "0.82rem",
+    color: "#64748b",
+  },
+
+  categoryTabs: {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  margin: 0,
+},
+
+  categoryButton: {
+  minHeight: "36px",
+  padding: "7px 12px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#475569",
+  fontSize: "0.82rem",
+  fontWeight: 650,
+  cursor: "pointer",
+},
+
+  categoryButtonActive: {
+    borderColor: "#ea580c",
+    background: "#fff7ed",
+    color: "#c2410c",
+  },
+
+  reportSearchRow: {
+    display: "flex",
+    marginBottom: "14px",
+  },
+
+  reportSearchField: {
+    width: "100%",
+    maxWidth: "520px",
+  },
+
+  reportGrid: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: "10px",
+  },
+
+  reportCard: {
+    minHeight: "126px",
+    padding: "14px",
+    border: "1px solid #dbe3ee",
+    borderRadius: "9px",
+    background: "#ffffff",
+    textAlign: "left",
+    cursor: "pointer",
+    transition:
+      "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+  },
+
+  reportCardActive: {
+    borderColor: "#ea580c",
+    background: "#fff7ed",
+    boxShadow:
+      "0 0 0 1px rgba(234, 88, 12, 0.1)",
+  },
+
+  reportCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "12px",
+  },
+
+  reportIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "28px",
+    height: "28px",
+    borderRadius: "8px",
+    background: "#fff7ed",
+    color: "#ea580c",
+    fontWeight: 800,
+    fontSize: "0.76rem",
+  },
+
+  legacyBadge: {
+    padding: "3px 7px",
+    borderRadius: "999px",
+    background: "#fef3c7",
+    color: "#92400e",
+    fontSize: "0.62rem",
+    fontWeight: 700,
+  },
+
+  reportCardTitle: {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "0.86rem",
+    color: "#0f172a",
+  },
+
+  reportCardDescription: {
+    display: "block",
+    fontSize: "0.72rem",
+    lineHeight: 1.45,
+    color: "#64748b",
+  },
+
+  noReportsState: {
+    gridColumn: "1 / -1",
+    padding: "26px",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "8px",
+    textAlign: "center",
+    fontSize: "0.8rem",
+    color: "#64748b",
+  },
+
+  workspaceCard: {
+    marginBottom: "16px",
+    border: "1px solid #dbe3ee",
+    borderRadius: "10px",
+    background: "#ffffff",
+    overflow: "hidden",
+    boxShadow:
+      "0 1px 2px rgba(15, 23, 42, 0.04)",
+  },
+
+  workspaceHeader: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "12px",
+  padding: "13px 18px",
+  borderBottom: "1px solid #e2e8f0",
+},
+
+selectedReportRow: {
+  display: "flex",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "10px",
+},
+
+selectedReportLabel: {
+  fontSize: "0.78rem",
+  fontWeight: 650,
+  color: "#64748b",
+},
+
+generatedStatus: {
+  fontSize: "0.76rem",
+  fontWeight: 650,
+  color: "#64748b",
+},
+
+  workspaceTitle: {
+    margin: 0,
+    fontSize: "1.08rem",
+    fontWeight: 750,
+    color: "#0f172a",
+  },
+
+  workspaceSubtitle: {
+    margin: "5px 0 0",
+    fontSize: "0.75rem",
+    color: "#64748b",
+  },
+
+  workspaceStatus: {
+    padding: "5px 9px",
+    border: "1px solid #bbf7d0",
+    borderRadius: "999px",
+    background: "#f0fdf4",
+    color: "#15803d",
+    fontSize: "0.66rem",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+
+  filterSection: {
+    padding: "14px 18px 16px",
+  },
+
+  filterSectionHeader: {
+  marginBottom: "12px",
+  paddingBottom: "7px",
+  borderBottom: "1px solid #fed7aa",
+  color: "#ea580c",
+  fontSize: "0.78rem",
+  fontWeight: 800,
+  letterSpacing: "0.03em",
+},
+
+  filterGrid: {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "12px",
+  alignItems: "end",
+},
+
+  fieldGroup: {
+    minWidth: 0,
+  },
+
+  fieldLabel: {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "0.8rem",
+    fontWeight: 650,
+    color: "#334155",
+  },
+
+  input: {
+  width: "100%",
+  minHeight: "42px",
+  padding: "9px 11px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#0f172a",
+  fontSize: "0.86rem",
+  boxSizing: "border-box",
+  outline: "none",
+},
+
+  select: {
+    minHeight: "36px",
+    padding: "7px 9px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "7px",
+    background: "#ffffff",
+    color: "#0f172a",
+    fontSize: "0.76rem",
+  },
+
+  actionRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "10px",
+    marginTop: "14px",
+  },
+
+  primaryActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+  },
+
+  exportActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+  },
+
+  primaryButton: {
+  minHeight: "40px",
+  padding: "9px 16px",
+  border: "1px solid #ea580c",
+  borderRadius: "7px",
+  background: "#ea580c",
+  color: "#ffffff",
+  fontSize: "0.84rem",
+  fontWeight: 700,
+  cursor: "pointer",
+  boxShadow:
+    "0 2px 4px rgba(234, 88, 12, 0.2)",
+},
+
+  secondaryButton: {
+  minHeight: "40px",
+  padding: "9px 14px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#334155",
+  fontSize: "0.82rem",
+  fontWeight: 650,
+  cursor: "pointer",
+},
+
+  disabledButton: {
+    cursor: "not-allowed",
+    opacity: 0.5,
+    boxShadow: "none",
+  },
+
+  errorBox: {
+    marginTop: "12px",
+    padding: "10px 12px",
+    border: "1px solid #fecaca",
+    borderRadius: "7px",
+    background: "#fef2f2",
+    color: "#b91c1c",
+    fontSize: "0.75rem",
+  },
+
+  tableCard: {
+    marginBottom: "16px",
+    border: "1px solid #dbe3ee",
+    borderRadius: "10px",
+    background: "#ffffff",
+    overflow: "hidden",
+    boxShadow:
+      "0 1px 2px rgba(15, 23, 42, 0.04)",
+  },
+
+  tableTopBar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "12px",
+    padding: "15px 18px",
+    borderBottom: "1px solid #e2e8f0",
+  },
+
+  tableTitle: {
+  margin: 0,
+  fontSize: "1rem",
+  fontWeight: 750,
+  color: "#0f172a",
+},
+
+  tableSubtitle: {
+  margin: "4px 0 0",
+  fontSize: "0.8rem",
+  color: "#64748b",
+},
+
+  paginationControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+
+  paginationLabel: {
+  fontSize: "0.78rem",
+  fontWeight: 600,
+  color: "#475569",
+},
+
+  tableScrollContainer: {
+    width: "100%",
+    overflowX: "auto",
+  },
+
+  table: {
+  width: "100%",
+  minWidth: "920px",
+  borderCollapse: "collapse",
+  fontSize: "0.84rem",
+},
+
+  th: {
+  padding: "12px 13px",
+  borderBottom: "1px solid #dbe3ee",
+  background: "#f8fafc",
+  color: "#475569",
+  textAlign: "left",
+  fontSize: "0.76rem",
+  fontWeight: 750,
+  letterSpacing: "0.02em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
+},
+
+  td: {
+  padding: "12px 13px",
+  borderBottom: "1px solid #eef2f7",
+  color: "#1e293b",
+  verticalAlign: "top",
+  whiteSpace: "nowrap",
+},
+
+  numericCell: {
+    textAlign: "right",
+    fontVariantNumeric:
+      "tabular-nums",
+  },
+
+  evenRow: {
+    background: "#ffffff",
+  },
+
+  oddRow: {
+    background: "#fbfdff",
+  },
+
+  stateCell: {
+    padding: "42px 18px",
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: "0.78rem",
+  },
+
+  totalRow: {
+    background: "#f1f5f9",
+  },
+
+  totalCell: {
+    padding: "10px 12px",
+    borderTop: "2px solid #cbd5e1",
+    color: "#0f172a",
+    fontWeight: 750,
+    whiteSpace: "nowrap",
+  },
+
+  tableFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "10px",
+    padding: "11px 18px",
+    borderTop: "1px solid #e2e8f0",
+    background: "#f8fafc",
+  },
+
+  pageText: {
+  fontSize: "0.78rem",
+  color: "#64748b",
+},
+
+  pageButtonGroup: {
+    display: "flex",
+    gap: "8px",
+  },
+
+  customReportCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "20px",
+    padding: "18px",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "10px",
+    background: "#f8fafc",
+  },
+
+  customReportTitle: {
+    margin: 0,
+    fontSize: "0.95rem",
+    fontWeight: 750,
+    color: "#0f172a",
+  },
+
+  customReportText: {
+    margin: "5px 0 0",
+    maxWidth: "760px",
+    fontSize: "0.74rem",
+    lineHeight: 1.5,
+    color: "#64748b",
+  },
+
+  comingSoonBadge: {
+    padding: "5px 10px",
+    borderRadius: "999px",
+    background: "#e2e8f0",
+    color: "#475569",
+    fontSize: "0.66rem",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+};
