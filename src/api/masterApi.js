@@ -1,6 +1,19 @@
 // src/api/masterApi.js
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
+/*
+ * Prevent accidental duplicate Dashboard requests.
+ *
+ * This is useful during:
+ * - React development Strict Mode
+ * - rapid remounting
+ * - multiple components requesting the Dashboard simultaneously
+ *
+ * It only deduplicates a request while that request is running.
+ * It does not introduce long-term browser caching or stale data.
+ */
+let dashboardSummaryInFlight = null;
+
 // =========================================================================
 // HELPERS (Do not modify unless changing core logic)
 // =========================================================================
@@ -82,6 +95,56 @@ async function postRequest(
 // =========================================================================
 // API ENDPOINTS
 // =========================================================================
+
+// 0. DASHBOARD SUMMARY
+
+/**
+ * Loads the compact, backend-calculated Dashboard summary.
+ *
+ * Normal request:
+ * - Uses the Apps Script Dashboard cache.
+ * - Deduplicates simultaneous frontend requests.
+ *
+ * Force refresh:
+ * - Bypasses the Apps Script Dashboard cache.
+ * - Intended for testing or an explicit Refresh button.
+ */
+export async function getDashboardSummary(
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  /*
+   * A force refresh must always create a fresh request.
+   */
+  if (forceRefresh) {
+    return getRequest(
+      "getDashboardSummary",
+      {
+        forceRefresh: true,
+      }
+    );
+  }
+
+  /*
+   * Reuse the currently running request so React does not
+   * accidentally call the same expensive endpoint twice.
+   */
+  if (dashboardSummaryInFlight) {
+    return dashboardSummaryInFlight;
+  }
+
+  dashboardSummaryInFlight =
+    getRequest(
+      "getDashboardSummary"
+    ).finally(() => {
+      dashboardSummaryInFlight =
+        null;
+    });
+
+  return dashboardSummaryInFlight;
+}
 
 // 1. CATTLE MANAGEMENT
 export async function getCattle() { return getRequest("getCattle"); }
@@ -347,6 +410,9 @@ export async function updateSponsorshipPayment(payload) {
 // =========================================================================
 // ALIASES (For backward compatibility)
 // =========================================================================
+export const fetchDashboardSummary =
+  getDashboardSummary;
+
 export const login = loginUser; 
 export const getUsers = fetchUsers;
 export const fetchCattle = getCattle;

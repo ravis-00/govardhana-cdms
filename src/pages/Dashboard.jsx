@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  getCattle, getMilkYield, getMilkDistribution, getNewBorn, getDattuYojana, getFeeding, getCattleExitLog,
+  getDashboardSummary,
 } from "../api/masterApi";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, CartesianGrid
@@ -22,25 +22,10 @@ function formatNumber(value) {
   return value % 1 !== 0 ? value.toFixed(1) : value;
 }
 
-function toArray(result) {
-  if (Array.isArray(result)) return result;
-  if (result && Array.isArray(result.data)) return result.data;
-  return [];
-}
 
-function normalizeBreed(rawName) {
-  if (!rawName) return "Unknown";
-  const lower = String(rawName).toLowerCase().trim();
-  if (lower.includes("malnad") || lower.includes("malenadu")) return "Malnad Gidda";
-  if (lower.includes("hallikar")) return "Hallikar";
-  if (lower.includes("gir")) return "Gir";
-  if (lower.includes("deoni")) return "Deoni";
-  if (lower.includes("kankrej")) return "Kankrej";
-  if (lower.includes("bargur")) return "Bargur";
-  if (lower.includes("sahival") || lower.includes("sahiwal")) return "Sahiwal";
-  if (lower.includes("mix") || lower.includes("cross")) return "Mix / Cross";
-  return rawName; 
-}
+
+
+
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -56,173 +41,186 @@ export default function Dashboard() {
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        setError("");
+  let isMounted = true;
 
-        const results = await Promise.allSettled([
-  getCattle(),
-  getMilkYield(),
-  getMilkDistribution(),
-  getNewBorn(),
-  getDattuYojana(),
-  getFeeding(),
-  getCattleExitLog(),
-]);
+  async function loadDashboard() {
+    try {
+      setLoading(true);
+      setError("");
 
-const getResult = (index) => {
-  if (results[index].status === "fulfilled") {
-    return results[index].value;
-  }
-  console.warn("Dashboard API failed:", index, results[index].reason);
-  return [];
-};
+      const response =
+        await getDashboardSummary();
 
-const cattleRes = getResult(0);
-const milkRes = getResult(1);
-const distRes = getResult(2);
-const newBornRes = getResult(3);
-const dattuRes = getResult(4);
-const feedingRes = getResult(5);
-const exitRes = getResult(6);
+      if (
+        !response ||
+        response.success !== true ||
+        !response.data
+      ) {
+        throw new Error(
+          response?.error ||
+          "Dashboard summary was not returned."
+        );
+      }
 
-        const cattle = toArray(cattleRes);
-        const milkYield = toArray(milkRes);
-        const milkDist = toArray(distRes);
-        const newBorn = toArray(newBornRes);
-        const dattu = toArray(dattuRes);
-        const feeding = toArray(feedingRes);
-        const exitLog = toArray(exitRes);
+      const dashboard =
+        response.data;
 
-        const todayDate = new Date();
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(todayDate.getFullYear() - 1);
+      const returnedStats =
+        dashboard.stats || {};
 
-        // --- CATTLE PROCESSING ---
-        const cattleMap = new Map();
-        cattle.forEach(c => {
-           if(c.tag) cattleMap.set(String(c.tag).toLowerCase().trim(), c);
-           if(c.id) cattleMap.set(String(c.id).toLowerCase().trim(), c);
-        });
+      const nextStats = {
+        activeCattle:
+          Number(returnedStats.activeCattle) || 0,
 
-        let activeCount = 0, femaleCount = 0, maleCount = 0;
-        const breedCounts = {};
-        const catCounts = { "Cows": 0, "Heifers": 0, "Bulls": 0, "Calves": 0 };
-        let pureBredCount = 0, totalBirths12M = 0;
+        femaleCattle:
+          Number(returnedStats.femaleCattle) || 0,
 
-        cattle.forEach(c => {
-          const status = String(c.status || "").toLowerCase().trim();
-          const dob = c.dob ? new Date(c.dob) : null;
-          const stdBreed = normalizeBreed(c.breed);
-          
-          if (status === "active") {
-            activeCount++;
-            const gender = String(c.gender || "").toLowerCase();
-            if (gender.startsWith("f")) femaleCount++;
-            else if (gender.startsWith("m")) maleCount++;
+        maleCattle:
+          Number(returnedStats.maleCattle) || 0,
 
-            breedCounts[stdBreed] = (breedCounts[stdBreed] || 0) + 1;
+        avgMilkYieldPerDay:
+          Number(returnedStats.avgMilkYieldPerDay) || 0,
 
-            const cat = String(c.category || c.cattleType || "").toLowerCase();
-            if (cat.includes("cow")) catCounts["Cows"]++;
-            else if (cat.includes("heifer")) catCounts["Heifers"]++;
-            else if (cat.includes("bull") || cat.includes("ox")) catCounts["Bulls"]++;
-            else if (cat.includes("calf")) catCounts["Calves"]++;
-          }
+        avgMilkSoldPerDay:
+          Number(returnedStats.avgMilkSoldPerDay) || 0,
 
-          if (dob && dob >= oneYearAgo && dob <= todayDate) {
-            totalBirths12M++;
-            if (stdBreed !== "Mix / Cross" && stdBreed !== "Unknown") pureBredCount++;
-          }
-        });
+        newBorn12M:
+          Number(returnedStats.newBorn12M) || 0,
 
-        const newBornLogCount = newBorn.filter(nb => {
-           const d = new Date(nb.date || nb.dateOfBirth);
-           return !isNaN(d) && d >= oneYearAgo && d <= todayDate;
-        }).length;
+        calfMortality12M:
+          Number(returnedStats.calfMortality12M) || 0,
 
-        const finalBirthCount = Math.max(totalBirths12M, newBornLogCount);
-        const pureRate = finalBirthCount > 0 ? ((pureBredCount / finalBirthCount) * 100).toFixed(0) : 0;
+        calfMortalityRate:
+          Number(returnedStats.calfMortalityRate) || 0,
 
-        const activeDattu = dattu.filter(d => String(d.schemeStatus || "").toLowerCase() === "active").length;
-        const sponsorRate = activeCount > 0 ? ((activeDattu / activeCount) * 100).toFixed(1) : 0;
+        pureBredRate:
+          Number(returnedStats.pureBredRate) || 0,
 
-        const yieldByDate = new Map();
-        milkYield.forEach(row => {
-          const day = String(row.date || "").slice(0, 10);
-          if (day) yieldByDate.set(day, (yieldByDate.get(day) || 0) + (Number(row.totalYield) || 0));
-        });
-        const yieldDays = Array.from(yieldByDate.values());
-        const avgYield = yieldDays.length > 0 ? yieldDays.reduce((a, b) => a + b, 0) / yieldDays.length : 0;
+        activeDattuYojana:
+          Number(returnedStats.activeDattuYojana) || 0,
 
-        const soldByDate = new Map();
-        milkDist.forEach(row => {
-          const day = String(row.date || "").slice(0, 10);
-          if (day) soldByDate.set(day, (soldByDate.get(day) || 0) + (Number(row.outPassQty) || 0));
-        });
-        const soldDays = Array.from(soldByDate.values());
-        const avgSold = soldDays.length > 0 ? soldDays.reduce((a, b) => a + b, 0) / soldDays.length : 0;
+        sponsorshipCoverage:
+          Number(returnedStats.sponsorshipCoverage) || 0,
 
-        const feedByDate = new Map();
-        feeding.forEach(row => {
-           const day = String(row.date || "").slice(0, 10);
-           if (day) feedByDate.set(day, (feedByDate.get(day) || 0) + (Number(row.quantityKg || row.totalKg) || 0));
-        });
-        const feedDays = Array.from(feedByDate.values());
-        const avgFeed = feedDays.length > 0 ? feedDays.reduce((a, b) => a + b, 0) / feedDays.length : 0;
+        avgFeedingPerDay:
+          Number(returnedStats.avgFeedingPerDay) || 0,
 
-        let deaths12m = 0, sold12m = 0, calfDeaths12m = 0;
-        exitLog.forEach(log => {
-          const exitDate = new Date(log.date);
-          if (!isNaN(exitDate) && exitDate >= oneYearAgo && exitDate <= todayDate) {
-            const reason = String(log.reason || "").toLowerCase();
-            const tag = String(log.cattleId || "").toLowerCase().trim();
+        deathsLastYear:
+          Number(returnedStats.deathsLastYear) || 0,
 
-            if (reason.includes("death") || reason.includes("died") || reason.includes("mortality") || reason.includes("expired")) {
-              deaths12m++;
-              const animal = cattleMap.get(tag);
-              if (animal) {
-                  const cat = String(animal.category || "").toLowerCase();
-                  if (cat.includes("calf")) calfDeaths12m++;
-              }
-            } else if (reason.includes("sold") || reason.includes("sale")) {
-              sold12m++;
-            }
-          }
-        });
+        soldLastYear:
+          Number(returnedStats.soldLastYear) || 0,
+      };
 
-        const mortalityRate = finalBirthCount > 0 ? ((calfDeaths12m / finalBirthCount) * 100).toFixed(1) : 0;
+      const nextBreedData =
+        Array.isArray(dashboard.breedData)
+          ? dashboard.breedData
+              .map((item) => ({
+                name: String(
+                  item?.name || "Unknown"
+                ),
+                count:
+                  Number(item?.count) || 0,
+              }))
+              .filter(
+                (item) => item.count > 0
+              )
+          : [];
 
-        setStats({
-          activeCattle: activeCount, femaleCattle: femaleCount, maleCattle: maleCount,
-          avgMilkYieldPerDay: avgYield, avgMilkSoldPerDay: avgSold, newBorn12M: finalBirthCount,
-          calfMortality12M: calfDeaths12m, calfMortalityRate: mortalityRate, pureBredRate: pureRate,
-          activeDattuYojana: activeDattu, sponsorshipCoverage: sponsorRate, avgFeedingPerDay: avgFeed,
-          deathsLastYear: deaths12m, soldLastYear: sold12m,
-        });
+      const defaultCategoryColors = {
+        Cows: "#3b82f6",
+        Heifers: "#8b5cf6",
+        Calves: "#10b981",
+        Bulls: "#f59e0b",
+      };
 
-        const breedChart = Object.keys(breedCounts).map(k => ({ name: k, count: breedCounts[k] })).sort((a,b) => b.count - a.count); 
-        setBreedData(breedChart);
+      const nextCategoryData =
+        Array.isArray(
+          dashboard.categoryData
+        )
+          ? dashboard.categoryData
+              .map((item) => {
+                const name =
+                  String(
+                    item?.name || ""
+                  );
 
-        const catChart = [
-          { name: "Cows", count: catCounts["Cows"], color: "#3b82f6" }, 
-          { name: "Heifers", count: catCounts["Heifers"], color: "#8b5cf6" },
-          { name: "Calves", count: catCounts["Calves"], color: "#10b981" },
-          { name: "Bulls", count: catCounts["Bulls"], color: "#f59e0b" }
-        ];
-        setCategoryData(catChart.filter(c => c.count > 0));
-        setLastRefreshTime(new Date());
+                return {
+                  name,
 
-      } catch (err) {
-        console.error("Dashboard Load Error:", err);
-        setError("Failed to load dashboard data.");
-      } finally {
+                  count:
+                    Number(
+                      item?.count
+                    ) || 0,
+
+                  color:
+                    item?.color ||
+                    defaultCategoryColors[
+                      name
+                    ] ||
+                    "#64748b",
+                };
+              })
+              .filter(
+                (item) =>
+                  item.name &&
+                  item.count > 0
+              )
+          : [];
+
+      if (!isMounted) {
+        return;
+      }
+
+      setStats(nextStats);
+      setBreedData(nextBreedData);
+      setCategoryData(
+        nextCategoryData
+      );
+
+      const generatedAt =
+        dashboard.generatedAt ||
+        response.meta?.generatedAt;
+
+      const parsedRefreshTime =
+        generatedAt
+          ? new Date(generatedAt)
+          : new Date();
+
+      setLastRefreshTime(
+        Number.isNaN(
+          parsedRefreshTime.getTime()
+        )
+          ? new Date()
+          : parsedRefreshTime
+      );
+
+    } catch (err) {
+      console.error(
+        "Dashboard Load Error:",
+        err
+      );
+
+      if (isMounted) {
+        setError(
+          err?.message ||
+          "Failed to load dashboard data."
+        );
+      }
+
+    } finally {
+      if (isMounted) {
         setLoading(false);
       }
     }
-    loadData();
-  }, []);
+  }
+
+  loadDashboard();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   if (loading) return <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>Loading Dashboard...</div>;
   if (error) return <div style={{ padding: "3rem", textAlign: "center", color: "#ef4444" }}>{error}</div>;
