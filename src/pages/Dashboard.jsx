@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getDashboardSummary,
 } from "../api/masterApi";
@@ -22,11 +23,6 @@ function formatNumber(value) {
   return value % 1 !== 0 ? value.toFixed(1) : value;
 }
 
-
-
-
-
-
 export default function Dashboard() {
   const [stats, setStats] = useState({
     activeCattle: 0, femaleCattle: 0, maleCattle: 0, avgMilkYieldPerDay: 0, avgMilkSoldPerDay: 0,
@@ -36,9 +32,15 @@ export default function Dashboard() {
 
   const [breedData, setBreedData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
+  const [attention, setAttention] = useState({
+  vaccinationOverdue: 0,
+  calfRegistrationOverdue: 0,
+  sponsorshipExpiring30Days: 0,
+});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
   let isMounted = true;
@@ -67,6 +69,9 @@ export default function Dashboard() {
 
       const returnedStats =
         dashboard.stats || {};
+
+        const returnedAttention =
+  dashboard.attention || {};
 
       const nextStats = {
         activeCattle:
@@ -173,10 +178,29 @@ export default function Dashboard() {
       }
 
       setStats(nextStats);
-      setBreedData(nextBreedData);
-      setCategoryData(
-        nextCategoryData
-      );
+
+setAttention({
+  vaccinationOverdue:
+    Number(
+      returnedAttention.vaccinationOverdue
+    ) || 0,
+
+  calfRegistrationOverdue:
+    Number(
+      returnedAttention.calfRegistrationOverdue
+    ) || 0,
+
+  sponsorshipExpiring30Days:
+    Number(
+      returnedAttention.sponsorshipExpiring30Days
+    ) || 0,
+});
+
+setBreedData(nextBreedData);
+
+setCategoryData(
+  nextCategoryData
+);
 
       const generatedAt =
         dashboard.generatedAt ||
@@ -351,7 +375,7 @@ export default function Dashboard() {
         <MiniCard label="Avg Feeding / Day" value={`${formatNumber(stats.avgFeedingPerDay)} Kg`} accentColor="#8b5cf6" />
       </div>
 
-      {/* --- KEY OBSERVATIONS --- */}
+      {/* --- ACTIONABLE REMINDERS --- */}
 <div
   style={{
     background: "#fff7ed",
@@ -359,11 +383,22 @@ export default function Dashboard() {
     padding: "1.25rem 1.5rem",
     borderRadius: "14px",
     marginBottom: "2.5rem",
-    boxShadow: "0 4px 12px rgba(234, 88, 12, 0.08)",
+    boxShadow:
+      "0 4px 12px rgba(234, 88, 12, 0.08)",
   }}
 >
-  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "0.75rem" }}>
-    <div style={{ fontSize: "1.4rem" }}>⚠️</div>
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      marginBottom: "1rem",
+    }}
+  >
+    <div style={{ fontSize: "1.4rem" }}>
+      ⚠️
+    </div>
+
     <h3
       style={{
         margin: 0,
@@ -378,29 +413,39 @@ export default function Dashboard() {
     </h3>
   </div>
 
-  <ul style={{ margin: 0, paddingLeft: "1.5rem", color: "#7c2d12", fontSize: "0.95rem", lineHeight: "1.7" }}>
-    {stats.pureBredRate < 75 && (
-      <li>
-        <strong>Purebred rate is below target:</strong> Current {stats.pureBredRate}%, Target 75–80%.
-      </li>
-    )}
+  <div
+    style={{
+      display: "grid",
+      gap: "0.7rem",
+    }}
+  >
+    <AttentionRow
+      icon="💉"
+      label="Vaccination overdue"
+      count={attention.vaccinationOverdue}
+      onView={() =>
+        navigate("/preventive-care")
+      }
+    />
 
-    {stats.sponsorshipCoverage < 60 && (
-      <li>
-        <strong>Sponsorship coverage needs improvement:</strong> Current {stats.sponsorshipCoverage}%, Target 50–60%.
-      </li>
-    )}
+    <AttentionRow
+      icon="🐄"
+      label="Calf registration overdue"
+      count={attention.calfRegistrationOverdue}
+      onView={() =>
+        navigate("/registration")
+      }
+    />
 
-    {stats.calfMortalityRate > 5 && (
-      <li>
-        <strong>Calf mortality is above acceptable level:</strong> Current {stats.calfMortalityRate}%, Target below 5%.
-      </li>
-    )}
-
-    {stats.pureBredRate >= 75 && stats.sponsorshipCoverage >= 60 && stats.calfMortalityRate <= 5 && (
-      <li>All key performance indicators are within target range.</li>
-    )}
-  </ul>
+    <AttentionRow
+      icon="🤝"
+      label="Sponsorship expiring in 30 days"
+      count={attention.sponsorshipExpiring30Days}
+      onView={() =>
+        navigate("/sponsorships")
+      }
+    />
+  </div>
 </div>
 
      {/* --- CHARTS & HERD COMPOSITION --- */}
@@ -595,6 +640,114 @@ function MiniCard({ label, value, accentColor }) {
     }}>
       <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{label}</div>
       <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#1e293b" }}>{value}</div>
+    </div>
+  );
+}
+
+function AttentionRow({
+  icon,
+  label,
+  count,
+  onView,
+}) {
+  const numericCount =
+    Number(count) || 0;
+
+  const hasItems =
+    numericCount > 0;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "minmax(0, 1fr) auto auto",
+        alignItems: "center",
+        gap: "0.9rem",
+        padding: "0.75rem 0.9rem",
+        borderRadius: "10px",
+        border: hasItems
+          ? "1px solid #fed7aa"
+          : "1px solid #e2e8f0",
+        background: hasItems
+          ? "#ffffff"
+          : "#f8fafc",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.7rem",
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: "1.1rem",
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </span>
+
+        <span
+          style={{
+            color: hasItems
+              ? "#7c2d12"
+              : "#64748b",
+            fontSize: "0.92rem",
+            fontWeight: "700",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+
+      <div
+        style={{
+          minWidth: "38px",
+          padding: "0.28rem 0.65rem",
+          borderRadius: "999px",
+          background: hasItems
+            ? "#ffedd5"
+            : "#e2e8f0",
+          color: hasItems
+            ? "#c2410c"
+            : "#64748b",
+          fontWeight: "800",
+          fontSize: "0.88rem",
+          textAlign: "center",
+        }}
+      >
+        {numericCount}
+      </div>
+
+      <button
+        type="button"
+        onClick={onView}
+        style={{
+          border: "none",
+          background: "transparent",
+          color: "#c2410c",
+          fontSize: "0.85rem",
+          fontWeight: "800",
+          cursor: "pointer",
+          padding: "0.35rem 0.5rem",
+        }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.textDecoration =
+            "underline";
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.textDecoration =
+            "none";
+        }}
+      >
+        View
+      </button>
     </div>
   );
 }
