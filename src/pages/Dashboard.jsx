@@ -433,7 +433,7 @@ setCategoryData(
       label="Calf registration overdue"
       count={attention.calfRegistrationOverdue}
       onView={() =>
-         navigate("/cattle/register")
+         navigate("/newborn")
       }
     />
 
