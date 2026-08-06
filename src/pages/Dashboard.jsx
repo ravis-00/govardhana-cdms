@@ -424,7 +424,7 @@ setCategoryData(
       label="Vaccination overdue"
       count={attention.vaccinationOverdue}
       onView={() =>
-        navigate("/preventive-care")
+        navigate("/vaccine")
       }
     />
 
@@ -433,7 +433,7 @@ setCategoryData(
       label="Calf registration overdue"
       count={attention.calfRegistrationOverdue}
       onView={() =>
-        navigate("/registration")
+         navigate("/cattle/register")
       }
     />
 
@@ -442,7 +442,7 @@ setCategoryData(
       label="Sponsorship expiring in 30 days"
       count={attention.sponsorshipExpiring30Days}
       onView={() =>
-        navigate("/sponsorships")
+        navigate("/dattu-yojana")
       }
     />
   </div>
