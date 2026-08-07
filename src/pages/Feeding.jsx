@@ -384,8 +384,28 @@ const [toDate, setToDate] = useState(
   });
 
   useEffect(() => {
-    loadData();
-  }, []);
+  let active = true;
+
+  async function initialise() {
+    try {
+      await loadData();
+    } catch (error) {
+      if (active) {
+        showToast(
+          "error",
+          error?.message ||
+            "Unable to load Feeding records."
+        );
+      }
+    }
+  }
+
+  initialise();
+
+  return () => {
+    active = false;
+  };
+}, []);
 
   useEffect(() => {
     if (!toast.show) return undefined;
@@ -408,30 +428,101 @@ const [toDate, setToDate] = useState(
     });
   }
 
-  async function loadData() {
-    setLoading(true);
-    setLoadError("");
+  async function loadData(
+  options = {}
+) {
+  const {
+    preserveRows = false,
+    retryOnAbort = true,
+    forceRefresh = false,
+  } = options;
+
+  setLoading(true);
+  setLoadError("");
+
+  try {
+    let response;
 
     try {
-      const response = await getFeeding();
-      const rawRows = extractApiRows(response);
-      const groupedRows = groupFeedingRows(rawRows);
+      response = await getFeeding({
+        forceRefresh,
+      });
+    } catch (firstError) {
+      const errorName =
+        String(
+          firstError?.name || ""
+        ).toLowerCase();
 
-      setRows(groupedRows);
-    } catch (error) {
-      console.error("Unable to load Feeding:", error);
+      const errorMessage =
+        String(
+          firstError?.message || ""
+        ).toLowerCase();
 
-      const message =
-        error?.message ||
-        "Unable to load Feeding records.";
+      const wasAborted =
+        errorName === "aborterror" ||
+        errorMessage.includes("abort") ||
+        errorMessage.includes(
+          "signal is aborted"
+        );
 
-      setLoadError(message);
-      showToast("error", message);
-    } finally {
-      setLoading(false);
+      if (
+        !retryOnAbort ||
+        !wasAborted
+      ) {
+        throw firstError;
+      }
+
+      /*
+       * Google Apps Script redirects can occasionally produce
+       * a transient aborted GET. Retry once after a short pause.
+       */
+      await new Promise((resolve) => {
+        window.setTimeout(
+          resolve,
+          1200
+        );
+      });
+
+      response = await getFeeding({
+        forceRefresh: true,
+      });
     }
-  }
 
+    const rawRows =
+      extractApiRows(response);
+
+    const groupedRows =
+      groupFeedingRows(rawRows);
+
+    setRows(groupedRows);
+    setLoadError("");
+
+    return groupedRows;
+  } catch (error) {
+    console.error(
+      "Unable to load Feeding:",
+      error
+    );
+
+    const message =
+      error?.message ||
+      "Unable to load Feeding records.";
+
+    setLoadError(message);
+
+    /*
+     * During a post-save refresh, retain the previous table
+     * instead of replacing it with an empty error state.
+     */
+    if (!preserveRows) {
+      setRows([]);
+    }
+
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+}
   const filteredRows = useMemo(() => {
   return rows.filter((row) => {
     const rowDate = normaliseDate(row.date);
@@ -622,97 +713,149 @@ const [toDate, setToDate] = useState(
   }
 
   async function handleSubmit(event) {
-    event.preventDefault();
+  event.preventDefault();
 
-    if (saving) return;
+  if (saving) return;
 
-    const validationMessage = validateForm();
+  const validationMessage =
+    validateForm();
 
-    if (validationMessage) {
-      showToast("error", validationMessage);
-      return;
-    }
-
-    const payload = {
-      date: form.date,
-      feedType: form.feedType,
-      recordedBy: form.recordedBy.trim(),
-
-      nandini: toNumber(form.nandini),
-      surabhi: toNumber(form.surabhi),
-      kaveri: toNumber(form.kaveri),
-      kamadhenu: toNumber(form.kamadhenu),
-      jayadeva: toNumber(form.jayadeva),
-      nandiniOld: toNumber(form.nandiniOld),
-
-      remarks: form.remarks.trim(),
-
-      transactionIds: {
-        ...getEmptyTransactionIds(),
-        ...(form.transactionIds || {}),
-      },
-
-      originalDate:
-        form.originalDate || form.date,
-
-      originalFeedType:
-        form.originalFeedType ||
-        form.feedType,
-    };
-
-    setSaving(true);
-
+  if (validationMessage) {
     showToast(
-  "info",
-  isEditMode
-    ? "Updating feeding entry..."
-    : "Saving feeding entry..."
-);
+      "error",
+      validationMessage
+    );
+    return;
+  }
 
-    try {
-      const response = isEditMode
+  const payload = {
+    date: form.date,
+    feedType: form.feedType,
+    recordedBy:
+      form.recordedBy.trim(),
+
+    nandini:
+      toNumber(form.nandini),
+
+    surabhi:
+      toNumber(form.surabhi),
+
+    kaveri:
+      toNumber(form.kaveri),
+
+    kamadhenu:
+      toNumber(form.kamadhenu),
+
+    jayadeva:
+      toNumber(form.jayadeva),
+
+    nandiniOld:
+      toNumber(form.nandiniOld),
+
+    remarks:
+      form.remarks.trim(),
+
+    transactionIds: {
+      ...getEmptyTransactionIds(),
+      ...(form.transactionIds || {}),
+    },
+
+    originalDate:
+      form.originalDate ||
+      form.date,
+
+    originalFeedType:
+      form.originalFeedType ||
+      form.feedType,
+  };
+
+  const wasEditMode =
+    isEditMode;
+
+  setSaving(true);
+
+  showToast(
+    "info",
+    wasEditMode
+      ? "Updating feeding entry..."
+      : "Saving feeding entry..."
+  );
+
+  try {
+    const response =
+      wasEditMode
         ? await updateFeeding(payload)
         : await addFeeding(payload);
 
-      if (response?.success === false) {
-        throw new Error(
-          response.error ||
-            response.message ||
-            "Backend rejected the Feeding entry."
-        );
-      }
+    if (
+      response?.success === false
+    ) {
+      throw new Error(
+        response.error ||
+          response.message ||
+          "Backend rejected the Feeding entry."
+      );
+    }
 
-      /*
-       * Close first so the user immediately knows
-       * the save operation finished.
-       */
-      setShowForm(false);
-      setIsEditMode(false);
-      setForm(getEmptyForm());
+    /*
+     * Backend save/update has completed successfully.
+     */
+    setShowForm(false);
+    setIsEditMode(false);
+    setForm(getEmptyForm());
+
+    showToast(
+      "info",
+      wasEditMode
+        ? "Update completed. Refreshing feeding records..."
+        : "Save completed. Refreshing feeding records..."
+    );
+
+    /*
+     * Refresh the table separately.
+     * A refresh failure must not be reported as a save failure.
+     */
+    try {
+      await loadData({
+        preserveRows: true,
+        retryOnAbort: true,
+        forceRefresh: true,
+      });
 
       showToast(
         "success",
-        isEditMode
+        wasEditMode
           ? "Feeding entry updated successfully."
           : "Feeding entry saved successfully."
       );
-
-      /*
-       * Reload after successful backend confirmation.
-       */
-      await loadData();
-    } catch (error) {
-      console.error("Feeding save failed:", error);
+    } catch (refreshError) {
+      console.error(
+        "Feeding saved, but refresh failed:",
+        refreshError
+      );
 
       showToast(
-        "error",
-        error?.message ||
-          "Unable to save Feeding entry."
+        "success",
+        wasEditMode
+          ? "Feeding entry was updated. Use Retry or refresh the page to verify the latest values."
+          : "Feeding entry was saved. Use Retry or refresh the page to verify the latest values."
       );
-    } finally {
-      setSaving(false);
     }
+  } catch (error) {
+    console.error(
+      "Feeding save failed:",
+      error
+    );
+
+    showToast(
+      "error",
+      error?.message ||
+        "Unable to save Feeding entry."
+    );
+  } finally {
+    setSaving(false);
   }
+}
 
   function handleRowClick(row) {
     setSelectedEntry(row);
@@ -956,13 +1099,23 @@ const [toDate, setToDate] = useState(
                       <div>{loadError}</div>
 
                       <button
-                        type="button"
-                        onClick={loadData}
-                        className="btn btn-secondary"
-                        style={{ marginTop: "0.75rem" }}
-                      >
-                        Retry
-                      </button>
+  type="button"
+  onClick={() => {
+    loadData({
+      forceRefresh: true,
+    }).catch((error) => {
+      showToast(
+        "error",
+        error?.message ||
+          "Unable to refresh Feeding records."
+      );
+    });
+  }}
+  className="btn btn-secondary"
+  style={{ marginTop: "0.75rem" }}
+>
+  Retry
+</button>
                     </div>
                   </td>
                 </tr>

@@ -1785,7 +1785,7 @@ const originalDocumentTitle =
       
 
       <section style={styles.catalogCard}>
-  <div style={styles.compactCatalogHeader}>
+  <div className="reports-catalog-header">
     <div>
       <h2 style={styles.sectionTitle}>
         Important Reports
@@ -1796,7 +1796,7 @@ const originalDocumentTitle =
       </p>
     </div>
 
-    <div style={styles.reportSearchCompact}>
+    <div className="reports-catalog-search">
       <label
         style={styles.fieldLabel}
         htmlFor="report-search"
@@ -1819,12 +1819,15 @@ const originalDocumentTitle =
     </div>
   </div>
 
-  <div style={styles.compactSelectorRow}>
-    <span style={styles.selectorLabel}>
+  <div className="reports-selector-row">
+    <span
+  className="reports-selector-label"
+  style={styles.selectorLabel}
+>
       Categories
     </span>
 
-    <div style={styles.categoryTabs}>
+    <div className="reports-category-list">
       <CategoryButton
         active={
           activeCategory === "all"
@@ -1855,12 +1858,15 @@ const originalDocumentTitle =
     </div>
   </div>
 
-  <div style={styles.compactSelectorRow}>
-    <span style={styles.selectorLabel}>
+  <div className="reports-selector-row">
+    <span
+  className="reports-selector-label"
+  style={styles.selectorLabel}
+>
       Reports
     </span>
 
-    <div style={styles.reportButtonList}>
+    <div className="reports-button-list">
       {visibleReports.length === 0 ? (
         <span style={styles.noReportsCompact}>
           No reports found.
@@ -1905,8 +1911,11 @@ const originalDocumentTitle =
       <section
         style={styles.workspaceCard}
       >
-        <div style={styles.workspaceHeader}>
-  <div style={styles.selectedReportRow}>
+        <div className="reports-workspace-header">
+  <div
+  className="reports-selected-row"
+  style={styles.selectedReportRow}
+>
     <span style={styles.selectedReportLabel}>
       Selected Report
     </span>
@@ -1916,7 +1925,10 @@ const originalDocumentTitle =
     </h2>
   </div>
 
-  <div style={styles.generatedStatus}>
+  <div
+  className="reports-generated-status"
+  style={styles.generatedStatus}
+>
     {lastGeneratedOn
       ? `Generated ${lastGeneratedOn.toLocaleTimeString(
           "en-IN",
@@ -1934,7 +1946,7 @@ const originalDocumentTitle =
     SEARCH & FILTERS
   </div>
 
-  <div style={styles.filterGrid}>
+  <div className="reports-filter-grid">
   {activeReport.searchEnabled !== false && (
   <div style={styles.fieldGroup}>
     <label
@@ -1974,16 +1986,15 @@ const originalDocumentTitle =
         </label>
 
         <input
-          id="from-date"
-          type="date"
-          value={fromDate}
-          onChange={(event) =>
-            setFromDate(
-              event.target.value,
-            )
-          }
-          style={styles.input}
-        />
+  id="from-date"
+  type="date"
+  value={fromDate}
+  onChange={(event) =>
+    setFromDate(event.target.value)
+  }
+  max={toDate || undefined}
+  style={styles.input}
+/>
       </div>
 
       <div style={styles.fieldGroup}>
@@ -1995,16 +2006,15 @@ const originalDocumentTitle =
         </label>
 
         <input
-          id="to-date"
-          type="date"
-          value={toDate}
-          onChange={(event) =>
-            setToDate(
-              event.target.value,
-            )
-          }
-          style={styles.input}
-        />
+  id="to-date"
+  type="date"
+  value={toDate}
+  onChange={(event) =>
+    setToDate(event.target.value)
+  }
+  min={fromDate || undefined}
+  style={styles.input}
+/>
       </div>
     </>
   )}
@@ -2064,8 +2074,8 @@ const originalDocumentTitle =
   )}
 </div>
 
-<div style={styles.actionRow}>
-  <div style={styles.primaryActions}>
+<div className="reports-action-row">
+  <div className="reports-primary-actions">
     <button
       type="button"
       onClick={loadReport}
@@ -2092,7 +2102,7 @@ const originalDocumentTitle =
     </button>
   </div>
 
-  <div style={styles.exportActions}>
+  <div className="reports-export-actions">
     <button
       type="button"
       onClick={handleExportCsv}
@@ -2140,7 +2150,7 @@ const originalDocumentTitle =
 </section>
 
 <section style={styles.tableCard}>
-  <div style={styles.tableTopBar}>
+  <div className="reports-table-topbar">
     <div>
       <h3 style={styles.tableTitle}>
         Report Results
@@ -2153,7 +2163,10 @@ const originalDocumentTitle =
       </p>
     </div>
 
-    <div style={styles.paginationControls}>
+    <div
+  className="reports-pagination-controls"
+  style={styles.paginationControls}
+>
       <label
         htmlFor="rows-per-page"
         style={styles.paginationLabel}
@@ -2179,11 +2192,11 @@ const originalDocumentTitle =
     </div>
   </div>
 
-  <div
-    style={
-      styles.tableScrollContainer
-    }
-  >
+  <div className="reports-table-scroll-hint">
+  Swipe sideways to view all columns
+</div>
+
+<div className="reports-table-scroll">
     <table style={styles.table}>
             <thead>
               <tr>
@@ -2335,17 +2348,13 @@ const originalDocumentTitle =
           </table>
         </div>
 
-        <div style={styles.tableFooter}>
+        <div className="reports-table-footer">
           <span style={styles.pageText}>
             Page {currentPage} of{" "}
             {totalPages}
           </span>
 
-          <div
-            style={
-              styles.pageButtonGroup
-            }
-          >
+          <div className="reports-page-buttons">
             <button
               type="button"
               onClick={() =>
@@ -2403,9 +2412,7 @@ const originalDocumentTitle =
         </div>
       </section>
 
-      <section
-        style={styles.customReportCard}
-      >
+      <section className="reports-custom-card">
         <div>
           <h2
             style={
@@ -2438,24 +2445,275 @@ const originalDocumentTitle =
       </section>
 
       <style>{`
-        @media (max-width: 1100px) {
-          .reports-page {
-            padding: 20px !important;
-          }
-        }
+  .reports-page {
+    width: 100%;
+    max-width: 1600px;
+    min-width: 0;
+    margin: 0 auto;
+  }
 
-        @media (max-width: 760px) {
-          .reports-page {
-            padding: 16px !important;
-          }
+  .reports-catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+    margin-bottom: 0.875rem;
+  }
 
-          .reports-page button,
-          .reports-page input,
-          .reports-page select {
-            min-height: 40px;
-          }
-        }
-      `}</style>
+  .reports-catalog-search {
+    width: 100%;
+    max-width: 330px;
+  }
+
+  .reports-selector-row {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .reports-category-list,
+  .reports-button-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .reports-workspace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.8rem 1.125rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .reports-filter-grid {
+    display: grid;
+    grid-template-columns:
+      repeat(4, minmax(180px, 1fr));
+    gap: 0.75rem;
+    align-items: end;
+  }
+
+  .reports-action-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.875rem;
+  }
+
+  .reports-primary-actions,
+  .reports-export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .reports-table-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.95rem 1.125rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .reports-table-scroll-hint {
+    display: none;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 0.76rem;
+    text-align: center;
+  }
+
+  .reports-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .reports-table-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    padding: 0.7rem 1.125rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .reports-page-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .reports-custom-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.125rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  @media (max-width: 1200px) {
+    .reports-filter-grid {
+      grid-template-columns:
+        repeat(3, minmax(180px, 1fr));
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .reports-filter-grid {
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    .reports-page {
+      padding: 0 !important;
+    }
+
+    .reports-page button,
+    .reports-page input,
+    .reports-page select {
+      min-height: 44px;
+    }
+
+    .reports-catalog-header {
+      align-items: stretch;
+    }
+
+    .reports-catalog-search {
+      max-width: none;
+    }
+
+    .reports-selector-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.5rem;
+    }
+
+    .reports-selector-label {
+      padding-top: 0 !important;
+    }
+
+    .reports-category-list {
+      display: grid;
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    }
+
+    .reports-button-list {
+      display: grid;
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    }
+
+    .reports-category-list button,
+    .reports-button-list button {
+      width: 100%;
+      white-space: normal !important;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .reports-workspace-header {
+      align-items: flex-start;
+    }
+
+    .reports-selected-row {
+      width: 100%;
+    }
+
+    .reports-generated-status {
+      width: 100%;
+    }
+
+    .reports-filter-grid {
+      grid-template-columns:
+        minmax(0, 1fr);
+    }
+
+    .reports-action-row {
+      align-items: stretch;
+    }
+
+    .reports-primary-actions,
+    .reports-export-actions {
+      width: 100%;
+    }
+
+    .reports-primary-actions button,
+    .reports-export-actions button {
+      flex: 1 1 140px;
+    }
+
+    .reports-table-topbar {
+      align-items: flex-start;
+    }
+
+    .reports-pagination-controls {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .reports-table-scroll-hint {
+      display: block;
+    }
+
+    .reports-table-footer {
+      align-items: stretch;
+    }
+
+    .reports-page-buttons {
+      width: 100%;
+    }
+
+    .reports-page-buttons button {
+      flex: 1;
+    }
+
+    .reports-custom-card {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .reports-category-list,
+    .reports-button-list {
+      grid-template-columns:
+        minmax(0, 1fr);
+    }
+
+    .reports-primary-actions,
+    .reports-export-actions {
+      display: grid;
+      grid-template-columns:
+        minmax(0, 1fr);
+    }
+
+    .reports-primary-actions button,
+    .reports-export-actions button {
+      width: 100%;
+    }
+  }
+`}</style>
     </div>
   );
 }
@@ -2498,7 +2756,10 @@ function CategoryButton({
 const styles = {
   page: {
   minHeight: "100%",
-  padding: "20px 28px 32px",
+  width: "100%",
+  maxWidth: "1600px",
+  minWidth: 0,
+  margin: "0 auto",
   background: "#f3f4f6",
   color: "#0f172a",
 },

@@ -9,7 +9,7 @@ import ConfirmDialog from "../components/common/ConfirmDialog";
 import PageHeader from "../components/common/PageHeader";
 import SectionCard from "../components/common/SectionCard";
 import FormActions from "../components/common/FormActions";
-import StatusBadge from "../components/common/StatusBadge";
+
 
 function getToday() {
   const d = new Date();
@@ -72,6 +72,7 @@ export default function NewTag() {
   const [selectedAnimalId, setSelectedAnimalId] = useState(null);
   const [cattleList, setCattleList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 const [pendingPayload, setPendingPayload] = useState(null);
@@ -99,100 +100,280 @@ const [pendingPayload, setPendingPayload] = useState(null);
   });
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await getCattle();
+  let isMounted = true;
 
-        let rows = [];
-        if (res?.data && Array.isArray(res.data)) {
-          rows = res.data;
-        } else if (Array.isArray(res)) {
-          rows = res;
-        }
+  async function loadData() {
+    setLoading(true);
+    setLoadError("");
 
-        setCattleList(rows.map(normalizeCattle));
+    try {
+      const [cattleResponse, historyResponse] =
+        await Promise.all([
+          getCattle(),
+          getAllTagHistory(),
+        ]);
 
-        const historyRes = await getAllTagHistory();
-        if (historyRes?.success && Array.isArray(historyRes.data)) {
-          setAllTagHistoryRows(historyRes.data);
-        }
-      } catch (e) {
-        console.error("Failed to load cattle/tag history", e);
-      } finally {
+      let cattleRows = [];
+
+      if (
+        cattleResponse?.data &&
+        Array.isArray(cattleResponse.data)
+      ) {
+        cattleRows = cattleResponse.data;
+      } else if (
+        Array.isArray(cattleResponse)
+      ) {
+        cattleRows = cattleResponse;
+      }
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCattleList(
+        cattleRows.map(normalizeCattle)
+      );
+
+      if (
+        historyResponse?.success &&
+        Array.isArray(historyResponse.data)
+      ) {
+        setAllTagHistoryRows(
+          historyResponse.data
+        );
+      } else if (
+        Array.isArray(historyResponse)
+      ) {
+        setAllTagHistoryRows(
+          historyResponse
+        );
+      } else {
+        setAllTagHistoryRows([]);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load cattle/tag history:",
+        error
+      );
+
+      if (isMounted) {
+        setLoadError(
+          error?.message ||
+            "Unable to load cattle and tag history."
+        );
+        setCattleList([]);
+        setAllTagHistoryRows([]);
+      }
+    } finally {
+      if (isMounted) {
         setLoading(false);
       }
     }
+  }
 
-    loadData();
-  }, []);
+  loadData();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+
+  // ---------------------------------------------------------------------------
+  // ACTIVE CATTLE
+  // ---------------------------------------------------------------------------
 
   const activeCattle = useMemo(() => {
     return cattleList.filter(
-      (c) => String(c.status || "").toLowerCase().trim() === "active"
+      (animal) =>
+        String(animal.status || "")
+          .trim()
+          .toLowerCase() === "active"
     );
   }, [cattleList]);
 
+  // ---------------------------------------------------------------------------
+  // FILTER DROPDOWN OPTIONS
+  // ---------------------------------------------------------------------------
+
   const filterOptions = useMemo(() => {
     return {
-      categories: uniqueOptions(activeCattle, "category"),
-      genders: uniqueOptions(activeCattle, "gender"),
-      breeds: uniqueOptions(activeCattle, "breed"),
-      colors: uniqueOptions(activeCattle, "color"),
-      sheds: uniqueOptions(activeCattle, "shed"),
+      categories: uniqueOptions(
+        activeCattle,
+        "category"
+      ),
+
+      genders: uniqueOptions(
+        activeCattle,
+        "gender"
+      ),
+
+      breeds: uniqueOptions(
+        activeCattle,
+        "breed"
+      ),
+
+      colors: uniqueOptions(
+        activeCattle,
+        "color"
+      ),
+
+      sheds: uniqueOptions(
+        activeCattle,
+        "shed"
+      ),
     };
   }, [activeCattle]);
 
+  // ---------------------------------------------------------------------------
+  // FILTERED CATTLE
+  // Includes matches against old tag numbers from tag history.
+  // ---------------------------------------------------------------------------
+
   const filteredCattle = useMemo(() => {
-    const historicalMatchedIds = new Set();
+    const historicalMatchedIds =
+      new Set();
 
-    if (filters.tagNo) {
-      const tagSearch = filters.tagNo.toLowerCase().trim();
+    const tagSearch = String(
+      filters.tagNo || ""
+    )
+      .trim()
+      .toLowerCase();
 
-      allTagHistoryRows.forEach((h) => {
-        const oldTag = String(h.old_tag_number || "").toLowerCase();
-        const newTag = String(h.new_tag_number || "").toLowerCase();
+    if (tagSearch) {
+      allTagHistoryRows.forEach(
+        (historyRow) => {
+          const oldTag = String(
+            historyRow.old_tag_number || ""
+          ).toLowerCase();
 
-        if (oldTag.includes(tagSearch) || newTag.includes(tagSearch)) {
-          historicalMatchedIds.add(String(h.internal_id || "").trim());
+          const newTag = String(
+            historyRow.new_tag_number || ""
+          ).toLowerCase();
+
+          if (
+            oldTag.includes(tagSearch) ||
+            newTag.includes(tagSearch)
+          ) {
+            historicalMatchedIds.add(
+              String(
+                historyRow.internal_id || ""
+              ).trim()
+            );
+          }
         }
-      });
+      );
     }
 
-    return activeCattle.filter((c) => {
-      const matchExact = (field, value) => {
-        if (!value) return true;
+    return activeCattle.filter(
+      (animal) => {
+        const matchExact = (
+          field,
+          filterValue
+        ) => {
+          if (!filterValue) {
+            return true;
+          }
+
+          return (
+            String(animal[field] || "")
+              .trim()
+              .toLowerCase() ===
+            String(filterValue)
+              .trim()
+              .toLowerCase()
+          );
+        };
+
+        const matchContains = (
+          field,
+          filterValue
+        ) => {
+          if (!filterValue) {
+            return true;
+          }
+
+          return String(
+            animal[field] || ""
+          )
+            .toLowerCase()
+            .includes(
+              String(filterValue)
+                .trim()
+                .toLowerCase()
+            );
+        };
+
+        const currentTagMatches =
+          matchContains(
+            "tagNo",
+            filters.tagNo
+          );
+
+        const historicalTagMatches =
+          historicalMatchedIds.has(
+            String(
+              animal.internalId || ""
+            ).trim()
+          );
+
         return (
-          String(c[field] || "").toLowerCase().trim() ===
-          value.toLowerCase().trim()
+          matchExact(
+            "category",
+            filters.category
+          ) &&
+          matchExact(
+            "gender",
+            filters.gender
+          ) &&
+          matchExact(
+            "breed",
+            filters.breed
+          ) &&
+          matchExact(
+            "color",
+            filters.color
+          ) &&
+          matchExact(
+            "shed",
+            filters.shed
+          ) &&
+          matchContains(
+            "name",
+            filters.name
+          ) &&
+          (
+            currentTagMatches ||
+            historicalTagMatches
+          )
         );
-      };
+      }
+    );
+  }, [
+    activeCattle,
+    filters,
+    allTagHistoryRows,
+  ]);
 
-      const matchContains = (field, value) => {
-        if (!value) return true;
-        return String(c[field] || "")
-          .toLowerCase()
-          .includes(value.toLowerCase().trim());
-      };
-
-      return (
-        matchExact("category", filters.category) &&
-        matchExact("gender", filters.gender) &&
-        matchExact("breed", filters.breed) &&
-        matchExact("color", filters.color) &&
-        matchExact("shed", filters.shed) &&
-        matchContains("name", filters.name) &&
-        (matchContains("tagNo", filters.tagNo) ||
-          historicalMatchedIds.has(String(c.internalId)))
-      );
-    });
-  }, [activeCattle, filters, allTagHistoryRows]);
+  // ---------------------------------------------------------------------------
+  // SELECTED ACTIVE ANIMAL
+  // ---------------------------------------------------------------------------
 
   const selectedAnimal = useMemo(() => {
+    if (!selectedAnimalId) {
+      return null;
+    }
+
     return (
-      cattleList.find((c) => String(c.internalId) === String(selectedAnimalId)) ||
-      null
+      activeCattle.find(
+        (animal) =>
+          String(animal.internalId) ===
+          String(selectedAnimalId)
+      ) || null
     );
-  }, [selectedAnimalId, cattleList]);
+  }, [
+    selectedAnimalId,
+    activeCattle,
+  ]);
 
   useEffect(() => {
     async function loadTagHistory() {
@@ -261,118 +442,164 @@ const [pendingPayload, setPendingPayload] = useState(null);
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  function handleSubmit(event) {
+  event.preventDefault();
 
-    if (!selectedAnimal) return alert("Please select cattle first.");
-    if (!form.newTagNo) return alert("Please enter the new tag number.");
-    if (!form.changeDate) return alert("Please select the change date.");
-    if (!form.changedBy) return alert("Please enter Changed By name.");
-
-    setPendingPayload({
-  internalId: selectedAnimal.internalId,
-  newTagNo: form.newTagNo,
-  changeDate: form.changeDate,
-  reason: form.reason,
-  changedBy: form.changedBy,
-  remarks: form.remarks,
-});
-
-setShowConfirm(true);
-return;
-
-    setSaving(true);
-
-    try {
-      const payload = {
-        internalId: selectedAnimal.internalId,
-        newTagNo: form.newTagNo,
-        changeDate: form.changeDate,
-        reason: form.reason,
-        changedBy: form.changedBy,
-        remarks: form.remarks,
-      };
-
-      const res = await updateCattleTag(payload);
-
-      if (res.success) {
-        alert("Tag updated successfully!");
-
-        setCattleList((prev) =>
-          prev.map((c) =>
-            String(c.internalId) === String(selectedAnimal.internalId)
-              ? {
-                  ...c,
-                  tagNo: form.newTagNo,
-                  raw: { ...c.raw, tag_number: form.newTagNo },
-                }
-              : c
-          )
-        );
-
-        resetForm();
-
-        const historyRes = await getTagHistoryByCattle(selectedAnimal.internalId);
-        if (historyRes?.success && Array.isArray(historyRes.data)) {
-          setTagHistoryRows(sortHistoryLatestFirst(historyRes.data));
-        }
-
-        const allHistoryRes = await getAllTagHistory();
-        if (allHistoryRes?.success && Array.isArray(allHistoryRes.data)) {
-          setAllTagHistoryRows(allHistoryRes.data);
-        }
-      } else {
-        alert("Failed: " + (res.error || "Unknown error"));
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error updating tag.");
-    } finally {
-      setSaving(false);
-    }
+  if (!selectedAnimal) {
+    alert("Please select cattle first.");
+    return;
   }
+
+  const newTagNo = String(form.newTagNo || "").trim();
+  const changedBy = String(form.changedBy || "").trim();
+
+  if (!newTagNo) {
+    alert("Please enter the new tag number.");
+    return;
+  }
+
+  if (!form.changeDate) {
+    alert("Please select the change date.");
+    return;
+  }
+
+  if (!changedBy) {
+    alert("Please enter Changed By name.");
+    return;
+  }
+
+  if (
+    String(selectedAnimal.tagNo || "").trim().toLowerCase() ===
+    newTagNo.toLowerCase()
+  ) {
+    alert("The new tag number must be different from the current tag number.");
+    return;
+  }
+
+  const duplicateAnimal = cattleList.find(
+    (animal) =>
+      String(animal.internalId) !==
+        String(selectedAnimal.internalId) &&
+      String(animal.tagNo || "").trim().toLowerCase() ===
+        newTagNo.toLowerCase()
+  );
+
+  if (duplicateAnimal) {
+    alert(
+      `Tag number ${newTagNo} is already assigned to ${
+        duplicateAnimal.name || duplicateAnimal.internalId
+      }.`
+    );
+    return;
+  }
+
+  setPendingPayload({
+    internalId: selectedAnimal.internalId,
+    newTagNo,
+    changeDate: form.changeDate,
+    reason: String(form.reason || "").trim(),
+    changedBy,
+    remarks: String(form.remarks || "").trim(),
+  });
+
+  setShowConfirm(true);
+}
 async function confirmTagChange() {
-  if (!pendingPayload) return;
+  if (!pendingPayload || saving) {
+    return;
+  }
+
+  const animalId = pendingPayload.internalId;
+  const newTagNo = pendingPayload.newTagNo;
 
   setShowConfirm(false);
   setSaving(true);
 
   try {
-    const res = await updateCattleTag(pendingPayload);
+    const response = await updateCattleTag(
+      pendingPayload
+    );
 
-    if (res.success) {
-      alert("Tag updated successfully!");
+    if (!response?.success) {
+      throw new Error(
+        response?.error ||
+          "The tag update was not completed."
+      );
+    }
 
-      setCattleList((prev) =>
-        prev.map((c) =>
-          String(c.internalId) === String(selectedAnimal.internalId)
-            ? {
-                ...c,
-                tagNo: pendingPayload.newTagNo,
-                raw: {
-                  ...c.raw,
-                  tag_number: pendingPayload.newTagNo,
-                },
-              }
-            : c
+    setCattleList((previousRows) =>
+      previousRows.map((animal) =>
+        String(animal.internalId) ===
+        String(animalId)
+          ? {
+              ...animal,
+              tagNo: newTagNo,
+              raw: {
+                ...animal.raw,
+                tagNo: newTagNo,
+                tag_number: newTagNo,
+              },
+            }
+          : animal
+      )
+    );
+
+    const [
+      cattleHistoryResponse,
+      allHistoryResponse,
+    ] = await Promise.all([
+      getTagHistoryByCattle(animalId),
+      getAllTagHistory(),
+    ]);
+
+    if (
+      cattleHistoryResponse?.success &&
+      Array.isArray(
+        cattleHistoryResponse.data
+      )
+    ) {
+      setTagHistoryRows(
+        sortHistoryLatestFirst(
+          cattleHistoryResponse.data
         )
       );
-
-      resetForm();
-
-      const historyRes = await getTagHistoryByCattle(
-        selectedAnimal.internalId
+    } else if (
+      Array.isArray(cattleHistoryResponse)
+    ) {
+      setTagHistoryRows(
+        sortHistoryLatestFirst(
+          cattleHistoryResponse
+        )
       );
-
-      if (historyRes?.success && Array.isArray(historyRes.data)) {
-        setTagHistoryRows(sortHistoryLatestFirst(historyRes.data));
-      }
-    } else {
-      alert("Failed: " + (res.error || "Unknown error"));
     }
-  } catch (err) {
-    console.error(err);
-    alert("Error updating tag.");
+
+    if (
+      allHistoryResponse?.success &&
+      Array.isArray(allHistoryResponse.data)
+    ) {
+      setAllTagHistoryRows(
+        allHistoryResponse.data
+      );
+    } else if (
+      Array.isArray(allHistoryResponse)
+    ) {
+      setAllTagHistoryRows(
+        allHistoryResponse
+      );
+    }
+
+    resetForm();
+    alert("Tag updated successfully.");
+  } catch (error) {
+    console.error(
+      "Tag update failed:",
+      error
+    );
+
+    alert(
+      error?.message ||
+        "Error updating the tag."
+    );
   } finally {
     setSaving(false);
     setPendingPayload(null);
@@ -381,96 +608,244 @@ async function confirmTagChange() {
 
 
   return (
-    <div
-      style={{
-        padding: "1.5rem",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
+    <div className="new-tag-page">
       <style>{`
-        .tag-layout {
-          display: grid;
-          grid-template-columns: 360px 1fr;
-          gap: 1.5rem;
-          align-items: start;
-        }
-        .tag-list-panel {
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-          padding: 1rem;
-          height: calc(100vh - 140px);
-          display: flex;
-          flex-direction: column;
-          border: 1px solid #e5e7eb;
-        }
-        .tag-form-panel {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-        }
-        .scrollable-list {
-          flex: 1;
-          overflow-y: auto;
-          margin-top: 0.75rem;
-          padding-right: 0.25rem;
-        }
-        .filter-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.6rem;
-        }
-        .form-input,
-        .form-select {
-          width: 100%;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          padding: 0.6rem;
-          font-size: 0.85rem;
-          box-sizing: border-box;
-          background: white;
-        }
-        .card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-          padding: 1rem;
-        }
-        .section-title {
-          font-size: 0.85rem;
-          font-weight: 700;
-          color: #ea580c;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          border-bottom: 1px solid #fdba74;
-          padding-bottom: 0.5rem;
-          margin-bottom: 1rem;
-        }
-        .responsive-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 1rem;
-        }
-        @media (max-width: 1024px) {
-          .tag-layout {
-            grid-template-columns: 1fr;
-          }
-          .tag-list-panel {
-            height: auto;
-            max-height: 520px;
-          }
-        }
-        @media (max-width: 640px) {
-          .filter-grid,
-          .responsive-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+  .new-tag-page {
+    width: 100%;
+    max-width: 1200px;
+    min-width: 0;
+    margin: 0 auto;
+  }
+
+  .tag-layout {
+    min-width: 0;
+    display: grid;
+    grid-template-columns:
+      minmax(320px, 360px)
+      minmax(0, 1fr);
+    align-items: start;
+    gap: 1.5rem;
+  }
+
+  .tag-list-column {
+    min-width: 0;
+    height: calc(
+      100dvh -
+      var(--header-height) -
+      7.5rem
+    );
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .tag-list-column > div {
+    min-height: 0;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .tag-filter-section {
+    flex-shrink: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .tag-filter-grid {
+    display: grid;
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .tag-name-filter {
+    margin-top: 0.6rem;
+  }
+
+  .tag-match-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .tag-cattle-list {
+    flex: 1;
+    min-height: 180px;
+    margin-top: 0.75rem;
+    padding-right: 0.25rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .tag-cattle-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .tag-cattle-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(100, 116, 139, 0.45);
+  }
+
+  .tag-cattle-button {
+    width: 100%;
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.5rem;
+    padding: 0.65rem;
+    border: 1px solid #f3f4f6;
+    border-radius: 10px;
+    background: #ffffff;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .tag-cattle-button:hover {
+    border-color: #fdba74;
+    background: #fff7ed;
+  }
+
+  .tag-cattle-button.selected {
+    border-color: #93c5fd;
+    background: #eff6ff;
+  }
+
+  .tag-form-panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .tag-form-grid {
+    min-width: 0;
+    display: grid;
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .selected-cattle-card {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .selected-cattle-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .selected-cattle-details {
+    display: grid;
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .tag-history-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tag-history-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 1024px) {
+    .tag-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tag-list-column {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+    }
+
+    .tag-list-column > div {
+      overflow: visible;
+    }
+
+    .tag-cattle-list {
+      flex: none;
+      height: 320px;
+      min-height: 240px;
+      max-height: 360px;
+    }
+
+    .selected-cattle-details {
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .tag-layout {
+      gap: 1rem;
+    }
+
+    .tag-filter-grid,
+    .tag-form-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tag-cattle-list {
+      height: 300px;
+      min-height: 260px;
+      max-height: 340px;
+      padding-right: 0.15rem;
+    }
+
+    .selected-cattle-card {
+      flex-direction: column;
+    }
+
+    .selected-cattle-photo {
+      width: 100% !important;
+      height: 180px !important;
+    }
+
+    .selected-cattle-details {
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .tag-cattle-list {
+      height: 280px;
+    }
+
+    .selected-cattle-details {
+      grid-template-columns:
+        minmax(0, 1fr);
+    }
+  }
+`}</style>
 
       <PageHeader
   title="🏷️ Tag Management"
@@ -483,11 +858,12 @@ async function confirmTagChange() {
 />
 
       <div className="tag-layout">
-        <SectionCard title="Find Cattle" style={tagListPanelStyle}>
-          <div style={{ paddingBottom: "0.75rem", borderBottom: "1px solid #f3f4f6" }}>
+        <div className="tag-list-column">
+  <SectionCard title="Find Cattle">
+          <div className="tag-filter-section">
             
 
-            <div className="filter-grid">
+            <div className="tag-filter-grid">
               <FilterField label="Breed">
                 <select name="breed" value={filters.breed} onChange={handleFilterChange} className="form-select">
                   <option value="">All</option>
@@ -545,7 +921,7 @@ async function confirmTagChange() {
               </FilterField>
             </div>
 
-            <div style={{ marginTop: "0.6rem" }}>
+            <div className="tag-name-filter">
               <FilterField label="Cattle Name">
                 <input
                   type="text"
@@ -558,7 +934,7 @@ async function confirmTagChange() {
               </FilterField>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.75rem" }}>
+            <div className="tag-match-summary">
               <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
                 Matches: <strong>{filteredCattle.length}</strong>
               </div>
@@ -581,12 +957,29 @@ async function confirmTagChange() {
             </div>
           </div>
 
-          <div className="scrollable-list">
+          <div className="tag-cattle-list">
             {loading ? (
-              <div style={{ padding: "1rem", textAlign: "center", color: "#9ca3af" }}>
-                Loading...
-              </div>
-            ) : filteredCattle.length === 0 ? (
+  <div
+    style={{
+      padding: "1rem",
+      textAlign: "center",
+      color: "#9ca3af",
+    }}
+  >
+    Loading cattle...
+  </div>
+) : loadError ? (
+  <div
+    style={{
+      padding: "1.25rem",
+      textAlign: "center",
+      color: "#b91c1c",
+      fontSize: "0.85rem",
+    }}
+  >
+    ⚠️ {loadError}
+  </div>
+) : filteredCattle.length === 0 ? (
               <div style={{ padding: "2rem", fontSize: "0.85rem", color: "#6b7280", textAlign: "center" }}>
                 🔍 No matching active cattle found.
               </div>
@@ -596,24 +989,18 @@ async function confirmTagChange() {
 
                 return (
                   <button
-                    key={c.internalId}
-                    type="button"
-                    onClick={() => handleSelectAnimal(c.internalId)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      border: "1px solid",
-                      background: isActive ? "#eff6ff" : "#ffffff",
-                      borderColor: isActive ? "#93c5fd" : "#f3f4f6",
-                      padding: "0.65rem",
-                      borderRadius: "10px",
-                      cursor: "pointer",
-                      marginBottom: "0.5rem",
-                      display: "flex",
-                      gap: "0.65rem",
-                      alignItems: "center",
-                    }}
-                  >
+  key={c.internalId}
+  type="button"
+  onClick={() =>
+    handleSelectAnimal(c.internalId)
+  }
+  className={
+    isActive
+      ? "tag-cattle-button selected"
+      : "tag-cattle-button"
+  }
+  aria-pressed={isActive}
+>
                     <div
                       style={{
                         width: "52px",
@@ -656,13 +1043,17 @@ async function confirmTagChange() {
               })
             )}
           </div>
-        </SectionCard>
+          </SectionCard>
+</div>
 
         <section className="tag-form-panel">
          <SectionCard>
   {selectedAnimal ? (
-    <div style={selectedCardStyle}>
-      <div style={selectedPhotoBoxStyle}>
+    <div className="selected-cattle-card">
+      <div
+  className="selected-cattle-photo"
+  style={selectedPhotoBoxStyle}
+>
         {selectedAnimal.photo ? (
           <img
             src={selectedAnimal.photo}
@@ -674,7 +1065,7 @@ async function confirmTagChange() {
         )}
       </div>
 
-      <div style={{ flex: 1 }}>
+      <div className="selected-cattle-info">
         <div style={selectedLabelStyle}>Selected Cattle</div>
 
         <div style={selectedTitleStyle}>
@@ -686,7 +1077,7 @@ async function confirmTagChange() {
           <strong>{selectedAnimal.internalId || "-"}</strong>
         </div>
 
-        <div style={selectedInfoGridStyle}>
+        <div className="selected-cattle-details">
           <Detail label="Breed" value={selectedAnimal.breed} />
           <Detail label="Gender" value={<GenderText gender={selectedAnimal.gender} />} />
           <Detail label="Category" value={selectedAnimal.category} />
@@ -706,7 +1097,7 @@ async function confirmTagChange() {
 
 <SectionCard title="Update Tag Details">
   <form onSubmit={handleSubmit}>
-    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+    <div className="tag-form-grid">
       <Field label="Current Tag Number">
         <input
           type="text"
@@ -731,7 +1122,7 @@ async function confirmTagChange() {
       </Field>
     </div>
 
-    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+    <div className="tag-form-grid">
       <Field label="Change Date *">
         <input
           type="date"
@@ -760,7 +1151,7 @@ async function confirmTagChange() {
       </Field>
     </div>
 
-    <div className="responsive-grid" style={{ marginBottom: "1rem" }}>
+    <div className="tag-form-grid">
       <Field label="Changed By *">
         <input
           type="text"
@@ -797,8 +1188,8 @@ async function confirmTagChange() {
   {historyLoading ? (
     <div style={historyEmptyStyle}>Loading tag history...</div>
   ) : selectedAnimal && tagHistoryRows.length > 0 ? (
-    <div style={historyTableWrapStyle}>
-      <table style={historyTableStyle}>
+    <div className="tag-history-table-wrap">
+  <table className="tag-history-table">
         <thead>
           <tr>
             <th style={historyThStyle}>Date</th>
@@ -876,11 +1267,7 @@ Proceed with tag update?`
   );
 }
 
-    const selectedCardStyle = {
-  display: "flex",
-  gap: "1rem",
-  alignItems: "flex-start",
-};
+    
 
 const selectedPhotoBoxStyle = {
   width: "120px",
@@ -922,13 +1309,7 @@ const selectedSubTextStyle = {
   marginTop: "4px",
 };
 
-const selectedInfoGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: "0.5rem 1rem",
-  marginTop: "0.75rem",
-  fontSize: "0.85rem",
-};
+
 
 const emptySelectedStyle = {
   padding: "1rem",
@@ -937,39 +1318,6 @@ const emptySelectedStyle = {
   fontStyle: "italic",
 };
 
-const thStyle = {
-  padding: "0.7rem 1rem",
-  textAlign: "left",
-  fontSize: "0.75rem",
-  fontWeight: 700,
-  color: "#6b7280",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle = {
-  padding: "0.75rem 1rem",
-  color: "#374151",
-  fontSize: "0.82rem",
-  whiteSpace: "nowrap",
-};
-
-const tagListPanelStyle = {
-  height: "calc(100vh - 140px)",
-  display: "flex",
-  flexDirection: "column",
-};
-
-const historyTableWrapStyle = {
-  overflowX: "auto",
-  border: "1px solid #e5e7eb",
-  borderRadius: "10px",
-};
-
-const historyTableStyle = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: "0.85rem",
-};
 
 const historyThStyle = {
   background: "#f8fafc",

@@ -753,7 +753,7 @@ function validateCattleId(value = form.cattleId) {
 }
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+    <div className="clinical-page">
       {toast.visible && (
   <div
     style={{
@@ -808,11 +808,122 @@ function validateCattleId(value = form.cattleId) {
       }
     }
 
+    .clinical-page {
+      width: 100%;
+      max-width: 1200px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .clinical-metric-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(5, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .clinical-filter-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(3, minmax(180px, 1fr));
+      gap: 0.85rem;
+      align-items: end;
+    }
+
+    .clinical-filter-action {
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .clinical-filter-action .btn {
+      width: auto;
+    }
+
+    .clinical-table-scroll-hint {
+      display: none;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 0.76rem;
+      text-align: center;
+    }
+
+    .clinical-table-card {
+      min-height: 380px;
+      max-height: calc(100vh - 390px);
+    }
+
+    .clinical-modal {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    @media (max-width: 1024px) {
+      .clinical-metric-grid {
+        grid-template-columns:
+          repeat(3, minmax(0, 1fr));
+      }
+
+      .clinical-filter-grid {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+      }
+
+      .clinical-table-card {
+        max-height: none;
+      }
+    }
+
     @media (max-width: 640px) {
       .clinical-toast-mobile {
         left: 16px;
         right: 16px;
         min-width: 0;
+      }
+
+      .clinical-metric-grid {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+
+      .clinical-filter-grid {
+        grid-template-columns:
+          minmax(0, 1fr);
+      }
+
+      .clinical-filter-action {
+        width: 100%;
+      }
+
+      .clinical-filter-action .btn {
+        width: 100%;
+      }
+
+      .clinical-table-scroll-hint {
+        display: block;
+      }
+
+      .clinical-table-card {
+        min-height: 320px;
+        max-height: none;
+      }
+
+      .clinical-modal {
+        height: 100dvh;
+        max-width: none !important;
+        max-height: 100dvh !important;
+        padding: 1rem !important;
+        border-radius: 0 !important;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .clinical-metric-grid {
+        grid-template-columns:
+          minmax(0, 1fr);
       }
     }
   `}
@@ -835,14 +946,7 @@ function validateCattleId(value = form.cattleId) {
   }
 />
 
-<div
-  style={{
-    display: "flex",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-    marginBottom: "1rem",
-  }}
->
+<div className="clinical-metric-grid">
   <MetricCard
     label="Total Records"
     value={metrics.total}
@@ -875,15 +979,7 @@ function validateCattleId(value = form.cattleId) {
 </div>
 
 <SectionCard title="Search & Filters">
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns:
-        "repeat(auto-fit, minmax(180px, 1fr))",
-      gap: "0.85rem",
-      alignItems: "end",
-    }}
-  >
+  <div className="clinical-filter-grid">
     <Field label="Search">
       <input
         type="text"
@@ -900,7 +996,9 @@ function validateCattleId(value = form.cattleId) {
   <input
     type="date"
     value={fromDate}
-    onChange={(event) => setFromDate(event.target.value)}
+    onChange={(event) =>
+      setFromDate(event.target.value)
+    }
     className="form-input"
     max={toDate || undefined}
   />
@@ -910,7 +1008,9 @@ function validateCattleId(value = form.cattleId) {
   <input
     type="date"
     value={toDate}
-    onChange={(event) => setToDate(event.target.value)}
+    onChange={(event) =>
+      setToDate(event.target.value)
+    }
     className="form-input"
     min={fromDate || undefined}
   />
@@ -952,7 +1052,7 @@ function validateCattleId(value = form.cattleId) {
       </select>
     </Field>
 
-    <div style={{ display: "flex", alignItems: "flex-end" }}>
+    <div className="clinical-filter-action">
       <button
         type="button"
         onClick={clearFilters}
@@ -981,16 +1081,17 @@ function validateCattleId(value = form.cattleId) {
 )}
 
 <div
-  className="card"
+  className="card clinical-table-card"
   style={{
     padding: 0,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    minHeight: "380px",
-    maxHeight: "calc(100vh - 390px)",
   }}
 >
+  <div className="clinical-table-scroll-hint">
+    Swipe sideways to view all columns
+  </div>
   <div
     style={{
       flex: 1,
@@ -1158,11 +1259,12 @@ function validateCattleId(value = form.cattleId) {
     }}
   >
     <div
-      style={{
-        ...modalStyle,
-        maxWidth: "760px",
-        padding: "1.25rem",
-      }}
+  className="clinical-modal"
+  style={{
+    ...modalStyle,
+    maxWidth: "760px",
+    padding: "1.25rem",
+  }}
       onClick={(event) => event.stopPropagation()}
     >
       <div style={modalHeaderStyle}>
@@ -1524,10 +1626,11 @@ function validateCattleId(value = form.cattleId) {
     onClick={() => setSelectedEntry(null)}
   >
     <div
-      style={{
-        ...modalStyle,
-        maxWidth: "760px",
-      }}
+  className="clinical-modal"
+  style={{
+    ...modalStyle,
+    maxWidth: "760px",
+  }}
       onClick={(event) => event.stopPropagation()}
     >
       <div style={modalHeaderStyle}>

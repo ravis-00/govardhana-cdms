@@ -13,6 +13,10 @@ const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuC
  * It does not introduce long-term browser caching or stale data.
  */
 let dashboardSummaryInFlight = null;
+let feedingInFlight = null;
+
+let shedsInFlight = null;
+const bioWasteInFlight = new Map();
 
 // =========================================================================
 // HELPERS (Do not modify unless changing core logic)
@@ -209,14 +213,116 @@ export async function addMilkDistribution(payload) { return postRequest("addMilk
 export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
 
 // 4. BIO WASTE
-export async function getBioWaste(params = {}) { return getRequest("getBioWaste", params); }
-export async function addBioWaste(payload) { return postRequest("addBioWaste", payload); }
-export async function updateBioWaste(payload) { return postRequest("updateBioWaste", payload); }
+
+export async function getBioWaste(
+  params = {},
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  const requestParams = {
+    fromDate: params.fromDate || "",
+    toDate: params.toDate || "",
+  };
+
+  const requestKey = JSON.stringify(
+    requestParams
+  );
+
+  if (forceRefresh) {
+    return getRequest(
+      "getBioWaste",
+      requestParams
+    );
+  }
+
+  if (
+    bioWasteInFlight.has(
+      requestKey
+    )
+  ) {
+    return bioWasteInFlight.get(
+      requestKey
+    );
+  }
+
+  const request = getRequest(
+    "getBioWaste",
+    requestParams
+  ).finally(() => {
+    bioWasteInFlight.delete(
+      requestKey
+    );
+  });
+
+  bioWasteInFlight.set(
+    requestKey,
+    request
+  );
+
+  return request;
+}
+
+export async function addBioWaste(
+  payload
+) {
+  return postRequest(
+    "addBioWaste",
+    payload,
+    60000
+  );
+}
+
+export async function updateBioWaste(
+  payload
+) {
+  return postRequest(
+    "updateBioWaste",
+    payload,
+    60000
+  );
+}
 
 // 5. FEEDING
-export async function getFeeding() { return getRequest("getFeeding"); }
-export async function addFeeding(payload) { return postRequest("addFeeding", payload); }
-export async function updateFeeding(payload) { return postRequest("updateFeeding", payload); }
+export async function getFeeding(
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  if (forceRefresh) {
+    return getRequest("getFeeding");
+  }
+
+  if (feedingInFlight) {
+    return feedingInFlight;
+  }
+
+  feedingInFlight = getRequest(
+    "getFeeding"
+  ).finally(() => {
+    feedingInFlight = null;
+  });
+
+  return feedingInFlight;
+}
+
+export async function addFeeding(payload) {
+  return postRequest(
+    "addFeeding",
+    payload,
+    90000
+  );
+}
+
+export async function updateFeeding(payload) {
+  return postRequest(
+    "updateFeeding",
+    payload,
+    90000
+  );
+}
 
 // 6. MEDICAL & VET
 
@@ -355,7 +461,28 @@ export async function deleteMaster(type, id) {
 }
 
 // 11. SHED CONFIGURATION (Specific)
-export const getSheds = async () => { return getRequest("getSheds"); };
+export async function getSheds(
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  if (forceRefresh) {
+    return getRequest("getSheds");
+  }
+
+  if (shedsInFlight) {
+    return shedsInFlight;
+  }
+
+  shedsInFlight = getRequest(
+    "getSheds"
+  ).finally(() => {
+    shedsInFlight = null;
+  });
+
+  return shedsInFlight;
+}
 export const addShed = async (data) => { return postRequest("addShed", data); };
 export const updateShed = async (data) => { return postRequest("updateShed", data); };
 export const deleteShed = async (data) => { return postRequest("deleteShed", data); };

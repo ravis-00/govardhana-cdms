@@ -1647,11 +1647,150 @@ const sponsorshipSummary = useMemo(() => {
 
   // PART 2 STARTS WITH THE MAIN return (...) BLOCK.
     return (
-    <div style={pageStyle}>
+  <div className="sponsorship-page">
+    <style>{`
+      .sponsorship-page {
+        width: 100%;
+        max-width: 1440px;
+        min-width: 0;
+        margin: 0 auto;
+      }
+
+      .sponsorship-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.125rem;
+      }
+
+      .sponsorship-tabs {
+        display: flex;
+        gap: 0.375rem;
+        width: fit-content;
+        max-width: 100%;
+        margin-bottom: 1.125rem;
+        padding: 0.3125rem;
+        overflow-x: auto;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+      }
+
+      .sponsorship-metrics {
+        display: grid;
+        grid-template-columns:
+          repeat(4, minmax(0, 1fr));
+        gap: 0.875rem;
+        margin-bottom: 1.125rem;
+      }
+
+      .sponsorship-filter-grid {
+        display: grid;
+        grid-template-columns:
+          minmax(220px, 2fr)
+          repeat(2, minmax(160px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .sponsorship-payment-filter-grid {
+        display: grid;
+        grid-template-columns:
+          minmax(220px, 2fr)
+          repeat(3, minmax(150px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .sponsorship-table-hint {
+        display: none;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: 0.76rem;
+        text-align: center;
+      }
+
+      .sponsorship-form-grid {
+        display: grid;
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+        gap: 0.875rem;
+      }
+
+      @media (max-width: 1024px) {
+        .sponsorship-metrics {
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        }
+
+        .sponsorship-filter-grid,
+        .sponsorship-payment-filter-grid {
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .sponsorship-header {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .sponsorship-header-actions {
+          width: 100%;
+        }
+
+        .sponsorship-header-actions button {
+          width: 100%;
+          min-height: 44px;
+        }
+
+        .sponsorship-tabs {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .sponsorship-tabs button {
+          flex: 1 0 auto;
+          min-height: 44px;
+          padding-inline: 0.85rem !important;
+        }
+
+        .sponsorship-metrics {
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        }
+
+        .sponsorship-filter-grid,
+        .sponsorship-payment-filter-grid {
+          grid-template-columns:
+            minmax(0, 1fr);
+        }
+
+        .sponsorship-table-hint {
+          display: block;
+        }
+
+        .sponsorship-form-grid {
+          grid-template-columns:
+            minmax(0, 1fr);
+        }
+      }
+
+      @media (max-width: 380px) {
+        .sponsorship-metrics {
+          grid-template-columns:
+            minmax(0, 1fr);
+        }
+      }
+    `}</style>
       {toast.show && (
         <div
-          style={{
-            ...toastStyle,
+  className="sponsorship-toast"
+  style={{
+    ...toastStyle,
             ...(toast.type === "success"
               ? successToastStyle
               : errorToastStyle),
@@ -1661,7 +1800,7 @@ const sponsorshipSummary = useMemo(() => {
         </div>
       )}
 
-      <div style={headerStyle}>
+      <div className="sponsorship-header-actions">
         <div>
           <h1 style={pageTitleStyle}>
             Sponsorship Management
@@ -1708,7 +1847,7 @@ const sponsorshipSummary = useMemo(() => {
         )}
       </div>
 
-      <div style={tabsContainerStyle}>
+      <div className="sponsorship-tabs">
         {["Sponsors", "Sponsorships", "Payments"].map(
           (tab) => (
             <button
@@ -1730,7 +1869,7 @@ const sponsorshipSummary = useMemo(() => {
 
       {activeTab === "Sponsors" && (
         <>
-          <div style={metricsGridStyle}>
+          <div className="sponsorship-metrics">
             <MetricCard
               label="Total Sponsors"
               value={sponsorSummary.total}
@@ -1780,7 +1919,7 @@ const sponsorshipSummary = useMemo(() => {
               )}
             </div>
 
-            <div style={filterGridStyle}>
+            <div className="sponsorship-filter-grid">
               <Field label="Search">
                 <input
                   type="text"
@@ -1858,6 +1997,10 @@ const sponsorshipSummary = useMemo(() => {
                 </div>
               </div>
             </div>
+
+<div className="sponsorship-table-hint">
+  Swipe sideways to view all columns
+</div>
 
             <div style={tableScrollStyle}>
               <table style={tableStyle}>
@@ -2004,7 +2147,7 @@ const sponsorshipSummary = useMemo(() => {
 
       {activeTab === "Sponsorships" && (
         <>
-          <div style={metricsGridStyle}>
+          <div className="sponsorship-metrics">
             <MetricCard
               label="Total Sponsorships"
               value={sponsorshipSummary.total}
@@ -2060,7 +2203,7 @@ const sponsorshipSummary = useMemo(() => {
               )}
             </div>
 
-            <div style={filterGridStyle}>
+            <div className="sponsorship-filter-grid">
               <Field label="Search">
                 <input
                   type="text"
@@ -2149,6 +2292,10 @@ const sponsorshipSummary = useMemo(() => {
                 </div>
               </div>
             </div>
+
+<div className="sponsorship-table-hint">
+  Swipe sideways to view all columns
+</div>
 
             <div style={tableScrollStyle}>
               <table
@@ -2366,7 +2513,7 @@ const sponsorshipSummary = useMemo(() => {
 
       {activeTab === "Payments" && (
         <>
-          <div style={metricsGridStyle}>
+          <div className="sponsorship-metrics">
             <MetricCard
               label="Payment Entries"
               value={paymentSummary.totalEntries}
@@ -2425,7 +2572,7 @@ const sponsorshipSummary = useMemo(() => {
               )}
             </div>
 
-            <div style={paymentFilterGridStyle}>
+            <div className="sponsorship-payment-filter-grid">
               <Field label="Search">
                 <input
                   type="text"
@@ -2466,17 +2613,18 @@ const sponsorshipSummary = useMemo(() => {
               </Field>
 
               <Field label="From Date">
-                <input
-                  type="date"
-                  value={paymentFromDate}
-                  onChange={(event) =>
-                    setPaymentFromDate(
-                      event.target.value
-                    )
-                  }
-                  style={inputStyle}
-                />
-              </Field>
+  <input
+    type="date"
+    value={paymentFromDate}
+    onChange={(event) =>
+      setPaymentFromDate(
+        event.target.value
+      )
+    }
+    max={paymentToDate || undefined}
+    style={inputStyle}
+  />
+</Field>
 
               <Field label="To Date">
                 <input
@@ -2508,6 +2656,9 @@ const sponsorshipSummary = useMemo(() => {
               </div>
             </div>
 
+<div className="sponsorship-table-hint">
+  Swipe sideways to view all columns
+</div>
             <div style={tableScrollStyle}>
               <table
                 style={{
@@ -2671,7 +2822,8 @@ const sponsorshipSummary = useMemo(() => {
                 {modalType === "sponsor-form" && (
         <div style={overlayStyle} onClick={closeModal}>
           <div
-            style={formModalStyle}
+  className="sponsorship-modal"
+  style={formModalStyle}
             onClick={(event) => event.stopPropagation()}
           >
             <div style={modalHeaderStyle}>
@@ -2708,7 +2860,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Sponsor Details"
                   description="Primary identity and contact information"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Sponsor Name *">
                       <input
                         type="text"
@@ -2806,7 +2958,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Address"
                   description="Sponsor communication address"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Address" fullWidth>
                       <textarea
                         name="address"
@@ -2868,7 +3020,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Important Dates"
                   description="Optional dates for sponsor communication"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Date of Birth">
                       <input
                         type="date"
@@ -2927,7 +3079,8 @@ const sponsorshipSummary = useMemo(() => {
       {modalType === "sponsorship-form" && (
         <div style={overlayStyle} onClick={closeModal}>
           <div
-            style={formModalStyle}
+  className="sponsorship-modal"
+  style={formModalStyle}
             onClick={(event) => event.stopPropagation()}
           >
             <div style={modalHeaderStyle}>
@@ -2964,7 +3117,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Sponsor & Scheme"
                   description="Select sponsor and sponsorship scheme"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Sponsor *">
                       <select
                         name="sponsorId"
@@ -3097,7 +3250,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Period & Commitment"
                   description="Define duration, amount and payment frequency"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Start Date *">
                       <input
                         type="date"
@@ -3250,7 +3403,8 @@ const sponsorshipSummary = useMemo(() => {
       {modalType === "payment-form" && (
         <div style={overlayStyle} onClick={closeModal}>
           <div
-            style={formModalStyle}
+  className="sponsorship-modal"
+  style={formModalStyle}
             onClick={(event) => event.stopPropagation()}
           >
             <div style={modalHeaderStyle}>
@@ -3287,7 +3441,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Sponsorship"
                   description="Select the sponsorship receiving payment"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Sponsorship *" fullWidth>
                       <select
                         name="sponsorshipId"
@@ -3407,7 +3561,7 @@ const sponsorshipSummary = useMemo(() => {
                   title="Payment Details"
                   description="Amount, date and payment method"
                 >
-                  <div style={formGridStyle}>
+                  <div className="sponsorship-form-grid">
                     <Field label="Payment Date *">
                       <input
                         type="date"
@@ -3521,7 +3675,8 @@ const sponsorshipSummary = useMemo(() => {
       {modalType === "cancel-sponsorship" && (
         <div style={overlayStyle} onClick={closeModal}>
           <div
-            style={confirmModalStyle}
+  className="sponsorship-confirm-modal"
+  style={confirmModalStyle}
             onClick={(event) => event.stopPropagation()}
           >
             <div style={modalHeaderStyle}>
@@ -3583,7 +3738,10 @@ const sponsorshipSummary = useMemo(() => {
                 </div>
               </div>
 
-              <div style={modalFooterStyle}>
+              <div
+  className="sponsorship-modal-footer"
+  style={modalFooterStyle}
+>
                 <button
                   type="button"
                   onClick={closeModal}
@@ -3679,7 +3837,8 @@ function SponsorDetailModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div
-        style={detailModalStyle}
+  className="sponsorship-detail-modal"
+  style={detailModalStyle}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={modalHeaderStyle}>
@@ -3702,7 +3861,10 @@ function SponsorDetailModal({
           </button>
         </div>
 
-        <div style={detailBodyStyle}>
+        <div
+  className="sponsorship-detail-body"
+  style={detailBodyStyle}
+>
           <div style={detailStatusRowStyle}>
             <StatusBadge
               status={sponsor.status || "Active"}
@@ -3854,7 +4016,8 @@ function SponsorshipDetailModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div
-        style={detailModalStyle}
+  className="sponsorship-detail-modal"
+  style={detailModalStyle}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={modalHeaderStyle}>
@@ -3878,7 +4041,10 @@ function SponsorshipDetailModal({
           </button>
         </div>
 
-        <div style={detailBodyStyle}>
+        <div
+  className="sponsorship-detail-body"
+  style={detailBodyStyle}
+>
           <div style={detailStatusRowStyle}>
             <StatusBadge
               status={getStatusLabel(sponsorship)}
@@ -4115,7 +4281,8 @@ function PaymentDetailModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div
-        style={detailModalStyle}
+  className="sponsorship-detail-modal"
+  style={detailModalStyle}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={modalHeaderStyle}>
@@ -4138,7 +4305,10 @@ function PaymentDetailModal({
           </button>
         </div>
 
-        <div style={detailBodyStyle}>
+        <div
+  className="sponsorship-detail-body"
+  style={detailBodyStyle}
+>
           <div style={detailStatusRowStyle}>
             <div style={paymentAmountStyle}>
               {formatCurrency(
@@ -4370,7 +4540,10 @@ function Pagination({
   onNext,
 }) {
   return (
-    <div style={paginationStyle}>
+    <div
+  className="sponsorship-pagination"
+  style={paginationStyle}
+>
       <div style={paginationInfoStyle}>
         Page {currentPage} of {totalPages}
       </div>
@@ -4414,7 +4587,10 @@ function ModalFooter({
   submitText,
 }) {
   return (
-    <div style={modalFooterStyle}>
+    <div
+  className="sponsorship-modal-footer"
+  style={modalFooterStyle}
+>
       <button
         type="button"
         onClick={onCancel}

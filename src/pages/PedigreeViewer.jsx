@@ -22,6 +22,31 @@ export default function PedigreeViewer() {
     loadList();
   }, []);
 
+  useEffect(() => {
+  const handleResize = () => {
+    if (
+      window.innerWidth <= 768 &&
+      !selectedId
+    ) {
+      setMobileView("list");
+    }
+  };
+
+  handleResize();
+
+  window.addEventListener(
+    "resize",
+    handleResize
+  );
+
+  return () => {
+    window.removeEventListener(
+      "resize",
+      handleResize
+    );
+  };
+}, [selectedId]);
+
   async function loadList() {
     setListLoading(true);
     setListError(null);
@@ -108,102 +133,455 @@ export default function PedigreeViewer() {
       
       {/* --- CSS STYLES (Scoped) --- */}
       <style>{`
-        .pedigree-layout { display: flex; height: 100vh; overflow: hidden; background: #f3f4f6; position: relative; }
-        
-        /* SIDEBAR (List) */
-        .pedigree-sidebar { 
-          width: 340px; 
-          background: white; 
-          border-right: 1px solid #e5e7eb; 
-          display: flex; 
-          flex-direction: column; 
-          z-index: 10;
-          transition: transform 0.3s ease;
-        }
+  ..pedigree-layout {
+  width: 100%;
+  height: calc(
+    100dvh -
+    var(--header-height) -
+    3rem
+  );
+  min-height: 520px;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  background: #f3f4f6;
+}
 
-        /* MAIN (Tree) */
-        .pedigree-main { 
-          flex: 1; 
-          display: flex; 
-          flex-direction: column; 
-          height: 100vh; 
-          overflow: hidden; /* Prevent body scroll, handle inside */
-        }
+  /* =====================================================
+     CATTLE LIST
+     ===================================================== */
 
-        .tree-scroll-area {
-          flex: 1;
-          overflow: auto; /* Allow scrolling in both directions */
-          padding: 2rem;
-          display: flex;
-          justify-content: center; /* Center chart on large screens */
-        }
+  .pedigree-sidebar {
+    flex: 0 0 340px;
+    width: 340px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    z-index: 10;
+    transition: transform 0.3s ease;
+  }
 
-        .pedigree-tree-wrapper {
-          min-width: 900px; /* 🔥 Force width so lines don't break */
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 2rem;
-        }
+  /* =====================================================
+     TREE PANEL
+     ===================================================== */
 
-        .back-btn { display: none; } 
+  .pedigree-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #f3f4f6;
+  }
 
-        /* PRINT STYLES */
-        @media print {
-          body * { visibility: hidden; }
-          .pedigree-printable, .pedigree-printable * { visibility: visible; }
-          .pedigree-printable {
-            position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-            background: white; padding: 20px;
-            display: flex; flex-direction: column; align-items: center;
-          }
-          aside, header, nav, .no-print { display: none !important; }
-          .print-header { display: block !important; margin-bottom: 20px; text-align: center; width: 100%; border-bottom: 2px solid #333; }
-          @page { size: landscape; margin: 5mm; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
+  .pedigree-tree-screen {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
-        /* --- MOBILE RESPONSIVENESS (< 768px) --- */
-        @media (max-width: 768px) {
-          .pedigree-sidebar { 
-            width: 100%; 
-            position: absolute; top: 0; bottom: 0; height: 100%;
-            z-index: 20;
-          }
-          
-          /* Hide sidebar when viewing tree */
-          .pedigree-sidebar.hidden { transform: translateX(-100%); }
+  .pedigree-tree-header {
+    flex-shrink: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 2rem;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    z-index: 5;
+  }
 
-          .pedigree-main { 
-            width: 100%; 
-            position: absolute; top: 0; bottom: 0;
-            background: #f3f4f6;
-            z-index: 10;
-          }
+  .pedigree-tree-header-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
 
-          .tree-scroll-area {
-            justify-content: flex-start; /* 🔥 Align left to prevent clipping on mobile */
-            padding: 1rem;
-          }
+  .pedigree-tree-heading {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
-          .pedigree-tree-wrapper {
-             /* Keep min-width to ensure chart looks correct, user scrolls X */
-             min-width: 800px; 
-             padding-bottom: 50px;
-          }
+  .pedigree-tree-name {
+    max-width: 100%;
+    margin: 0;
+    color: #111827;
+    font-size: 1.4rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-          .back-btn { 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center;
-            width: 36px; height: 36px;
-            background: white; border: 1px solid #d1d5db;
-            color: #374151;
-            border-radius: 50%; margin-right: 10px; cursor: pointer;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-          }
-        }
-      `}</style>
+  .pedigree-tree-id {
+    margin-top: 0.15rem;
+    color: #6b7280;
+    font-size: 0.85rem;
+  }
+
+  .tree-scroll-area {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    padding: 2rem;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pedigree-tree-wrapper {
+    width: 100%;
+    min-width: 900px;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  .pedigree-tree-row {
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 2rem;
+  }
+
+  .pedigree-parent-row {
+    width: 60%;
+  }
+
+  .pedigree-focus-row {
+    display: flex;
+    justify-content: center;
+  }
+
+  .pedigree-horizontal-connector {
+    width: 80%;
+    height: 2px;
+    flex-shrink: 0;
+    background: #d1d5db;
+  }
+
+  .pedigree-vertical-connector {
+    width: 2px;
+    height: 40px;
+    flex-shrink: 0;
+    background: #9ca3af;
+  }
+
+  .pedigree-tree-card {
+    flex: 1 1 0;
+    min-width: 190px;
+    max-width: 240px;
+    padding: 1rem;
+    border-style: solid;
+    border-radius: 12px;
+    transition: all 0.2s;
+  }
+
+  .pedigree-tree-card-placeholder {
+    border: 1px dashed #e5e7eb;
+    background: transparent;
+    opacity: 0.6;
+  }
+
+  .back-btn {
+    display: none;
+  }
+
+  /* =====================================================
+     TABLET
+     ===================================================== */
+
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .pedigree-sidebar {
+      flex-basis: 290px;
+      width: 290px;
+    }
+
+    .tree-scroll-area {
+      justify-content: flex-start;
+      padding: 1.5rem;
+    }
+
+    .pedigree-tree-wrapper {
+      min-width: 780px;
+    }
+
+    .pedigree-tree-row {
+      gap: 1rem;
+    }
+
+    .pedigree-tree-card {
+      min-width: 175px;
+      padding: 0.85rem;
+    }
+  }
+
+  /* =====================================================
+     MOBILE
+     ===================================================== */
+
+  @media (max-width: 768px) {
+    .pedigree-layout {
+  width: 100%;
+  height: calc(
+    100dvh -
+    var(--header-height) -
+    1.7rem
+  );
+  min-height: 480px;
+  overflow: hidden;
+}
+
+    .pedigree-sidebar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-basis: auto;
+  border-right: none;
+  transform: translateX(0);
+  z-index: 20;
+}
+
+    .pedigree-sidebar.hidden {
+      pointer-events: none;
+      transform: translateX(-105%);
+    }
+
+    .pedigree-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  z-index: 10;
+}
+
+    .pedigree-tree-header {
+      padding: 0.75rem;
+      gap: 0.65rem;
+    }
+
+    .pedigree-tree-header-left {
+      flex: 1;
+    }
+
+    .pedigree-tree-name {
+      font-size: 1.15rem;
+    }
+
+    .pedigree-tree-id {
+      font-size: 0.75rem;
+    }
+
+    .back-btn {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 0.65rem;
+      padding: 0;
+      border: 1px solid #d1d5db;
+      border-radius: 50%;
+      background: #ffffff;
+      color: #374151;
+      font-size: 1.15rem;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .pedigree-print-btn {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0.6rem 0.75rem !important;
+    }
+
+    .tree-scroll-area {
+      display: block;
+      width: 100%;
+      padding: 1rem;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .pedigree-tree-wrapper {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+      gap: 1rem;
+      padding-bottom: 2rem;
+    }
+
+    .pedigree-tree-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    .pedigree-parent-row {
+      width: 100%;
+    }
+
+    .pedigree-focus-row {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .pedigree-horizontal-connector {
+      width: 70%;
+      margin: 0 auto;
+    }
+
+    .pedigree-vertical-connector {
+      height: 24px;
+    }
+
+    .pedigree-tree-card {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+      padding: 0.75rem;
+      border-radius: 10px;
+    }
+
+    .pedigree-focus-row .pedigree-tree-card {
+      width: min(100%, 300px);
+      flex: 0 1 300px;
+    }
+  }
+
+  /* =====================================================
+     SMALL MOBILE
+     ===================================================== */
+
+  @media (max-width: 430px) {
+    .pedigree-tree-header {
+      padding: 0.65rem;
+    }
+
+    .pedigree-tree-name {
+      font-size: 1.05rem;
+    }
+
+    .pedigree-print-btn {
+      font-size: 0;
+    }
+
+    .pedigree-print-btn::before {
+      content: "🖨️";
+      font-size: 1rem;
+    }
+
+    .tree-scroll-area {
+      padding: 0.75rem;
+    }
+
+    .pedigree-tree-row {
+      gap: 0.6rem;
+    }
+
+    .pedigree-tree-card {
+      padding: 0.65rem;
+    }
+
+    .pedigree-card-photo {
+      width: 34px !important;
+      height: 34px !important;
+    }
+
+    .pedigree-card-name {
+      font-size: 0.8rem !important;
+    }
+
+    .pedigree-card-tag {
+      font-size: 0.68rem !important;
+    }
+
+    .pedigree-card-breed {
+      font-size: 0.65rem !important;
+    }
+
+    .pedigree-card-title {
+      font-size: 0.58rem !important;
+    }
+  }
+
+  /* =====================================================
+     PRINT
+     ===================================================== */
+
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+
+    .pedigree-printable,
+    .pedigree-printable * {
+      visibility: visible;
+    }
+
+    .pedigree-printable {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow: visible;
+      background: #ffffff;
+    }
+
+    .pedigree-tree-wrapper {
+      min-width: 900px;
+    }
+
+    aside,
+    header,
+    nav,
+    .no-print {
+      display: none !important;
+    }
+
+    .print-header {
+      display: block !important;
+      width: 100%;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #333333;
+      text-align: center;
+    }
+
+    @page {
+      size: landscape;
+      margin: 5mm;
+    }
+
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+`}</style>
 
       {/* --- SIDEBAR --- */}
       <aside className={`pedigree-sidebar no-print ${mobileView === 'tree' ? 'hidden' : ''}`}>
@@ -288,27 +666,41 @@ export default function PedigreeViewer() {
         )}
 
         {treeData && (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="pedigree-tree-screen">
             
             {/* STICKY HEADER */}
-            <div className="no-print" style={{ 
-                display: "flex", justifyContent: "space-between", alignItems: "center", 
-                padding: "1rem 2rem", background: "white", borderBottom: "1px solid #e5e7eb",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)", zIndex: 5
-            }}>
-              <div style={{ display: "flex", alignItems: "center", overflow: "hidden" }}>
-                 {/* Mobile Back Button */}
-                 <button className="back-btn" onClick={() => setMobileView("list")}>←</button>
-                 
-                 <div style={{ display: "flex", flexDirection: "column" }}>
-                    <h1 style={{ fontSize: "1.4rem", margin: 0, color: "#111827", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {treeData.name} 
-                    </h1>
-                    <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>ID: {treeData.id}</span>
-                 </div>
-              </div>
-              <button onClick={handlePrint} style={secondaryButtonStyle}>🖨️ Print</button>
-            </div>
+<div className="pedigree-tree-header no-print">
+  <div className="pedigree-tree-header-left">
+    <button
+      type="button"
+      className="back-btn"
+      onClick={() => setMobileView("list")}
+      aria-label="Return to cattle list"
+    >
+      ←
+    </button>
+
+    <div className="pedigree-tree-heading">
+      <h1 className="pedigree-tree-name">
+        {treeData.name}
+      </h1>
+
+      <span className="pedigree-tree-id">
+        ID: {treeData.id}
+      </span>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={handlePrint}
+    className="pedigree-print-btn"
+    style={secondaryButtonStyle}
+    aria-label="Print pedigree"
+  >
+    🖨️ Print
+  </button>
+</div>
 
             {/* SCROLLABLE TREE AREA */}
             <div className="tree-scroll-area pedigree-printable">
@@ -322,28 +714,63 @@ export default function PedigreeViewer() {
               <div className="pedigree-tree-wrapper">
                 
                 {/* LEVEL 3: GRANDPARENTS */}
-                <div style={treeRowStyle}>
-                  <TreeCard title="Paternal Grand Sire" animal={sireSire} />
-                  <TreeCard title="Paternal Grand Dam" animal={sireDam} isFemale />
-                  <TreeCard title="Maternal Grand Sire" animal={damSire} />
-                  <TreeCard title="Maternal Grand Dam" animal={damDam} isFemale />
-                </div>
+                <div className="pedigree-tree-row">
+  <TreeCard
+    title="Paternal Grand Sire"
+    animal={sireSire}
+  />
+
+  <TreeCard
+    title="Paternal Grand Dam"
+    animal={sireDam}
+    isFemale
+  />
+
+  <TreeCard
+    title="Maternal Grand Sire"
+    animal={damSire}
+  />
+
+  <TreeCard
+    title="Maternal Grand Dam"
+    animal={damDam}
+    isFemale
+  />
+</div>
 
                 {/* Connector Lines */}
-                <div style={{ width: "80%", height: "2px", background: "#d1d5db" }}></div>
+                <div className="pedigree-horizontal-connector" />
 
                 {/* LEVEL 2: PARENTS */}
-                <div style={{ ...treeRowStyle, width: "60%" }}>
-                  <TreeCard title="Sire (Father)" animal={sire} highlight />
-                  <TreeCard title="Dam (Mother)" animal={dam} highlight isFemale />
-                </div>
+                <div className="pedigree-tree-row pedigree-parent-row">
+  <TreeCard
+    title="Sire (Father)"
+    animal={sire}
+    highlight
+  />
 
-                <div style={{ width: "2px", height: "40px", background: "#9ca3af" }}></div>
+  <TreeCard
+    title="Dam (Mother)"
+    animal={dam}
+    highlight
+    isFemale
+  />
+</div>
+
+                <div className="pedigree-vertical-connector" />
 
                 {/* LEVEL 1: FOCUS ANIMAL */}
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <TreeCard title="Focus Animal" animal={child} strong isFemale={child.gender === "Female" || child.gender === "Cow"} />
-                </div>
+                <div className="pedigree-focus-row">
+  <TreeCard
+    title="Focus Animal"
+    animal={child}
+    strong
+    isFemale={
+      child.gender === "Female" ||
+      child.gender === "Cow"
+    }
+  />
+</div>
 
                 <div className="no-print" style={{ marginTop: "20px", fontSize: "0.8rem", color: "#9ca3af", textAlign: "center", width: "100%" }}>
                   Generated on: {new Date().toLocaleDateString()}
@@ -359,52 +786,151 @@ export default function PedigreeViewer() {
 }
 
 // --- CARD COMPONENT ---
-function TreeCard({ title, animal, highlight, strong, isFemale }) {
+function TreeCard({
+  title,
+  animal,
+  highlight,
+  strong,
+  isFemale,
+}) {
   if (!animal) {
     return (
-      <div style={treeCardPlaceholderStyle}>
-        <div style={treeTitleStyle}>{title}</div>
-        <div style={{ fontSize: "0.85rem", color: "#9ca3af", fontStyle: "italic" }}>Unknown</div>
+      <div className="pedigree-tree-card pedigree-tree-card-placeholder">
+        <div className="pedigree-card-title" style={treeTitleStyle}>
+          {title}
+        </div>
+
+        <div
+          style={{
+            color: "#9ca3af",
+            fontSize: "0.85rem",
+            fontStyle: "italic",
+          }}
+        >
+          Unknown
+        </div>
       </div>
     );
   }
 
-  const genderColor = isFemale ? "#ec4899" : "#3b82f6"; 
-  const borderColor = strong ? genderColor : (highlight ? "#9ca3af" : "#e5e7eb");
-  const bgColor = strong ? "#ffffff" : "#f9fafb";
-  const shadow = strong ? "0 10px 15px -3px rgba(0, 0, 0, 0.1)" : "none";
+  const genderColor = isFemale
+    ? "#ec4899"
+    : "#3b82f6";
+
+  const borderColor = strong
+    ? genderColor
+    : highlight
+      ? "#9ca3af"
+      : "#e5e7eb";
+
+  const backgroundColor = strong
+    ? "#ffffff"
+    : "#f9fafb";
+
+  const shadow = strong
+    ? "0 10px 15px -3px rgba(0, 0, 0, 0.1)"
+    : "none";
 
   return (
-    <div style={{
-        ...treeCardStyle,
-        borderColor: borderColor,
-        background: bgColor,
+    <div
+      className="pedigree-tree-card"
+      style={{
+        borderColor,
+        background: backgroundColor,
         boxShadow: shadow,
-        borderWidth: strong ? "2px" : "1px"
+        borderWidth: strong ? "2px" : "1px",
       }}
     >
-      <div style={treeTitleStyle}>{title}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <div style={{ 
-            width: "40px", height: "40px", borderRadius: "50%", 
-            background: "#f3f4f6", overflow: "hidden", flexShrink: 0,
-            display: "flex", justifyContent: "center", alignItems: "center",
-            border: `1px solid ${genderColor}`
-        }}>
+      <div
+        className="pedigree-card-title"
+        style={treeTitleStyle}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: "0.65rem",
+        }}
+      >
+        <div
+          className="pedigree-card-photo"
+          style={{
+            width: "40px",
+            height: "40px",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+            border: `1px solid ${genderColor}`,
+            borderRadius: "50%",
+            background: "#f3f4f6",
+          }}
+        >
           {animal.photo ? (
-            <img src={animal.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <img
+              src={animal.photo}
+              alt={animal.name || "Cattle"}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
           ) : (
-            <span style={{ fontSize: "1.2rem" }}>{isFemale ? "🐄" : "🐂"}</span>
+            <span style={{ fontSize: "1.2rem" }}>
+              {isFemale ? "🐄" : "🐂"}
+            </span>
           )}
         </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#1f2937" }}>
-            {animal.name && animal.name !== "Unknown" ? animal.name : animal.tag || animal.id}
+
+        <div style={{ minWidth: 0 }}>
+          <div
+            className="pedigree-card-name"
+            style={{
+              color: "#1f2937",
+              fontSize: "0.9rem",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {animal.name &&
+            animal.name !== "Unknown"
+              ? animal.name
+              : animal.tag || animal.id}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#4b5563" }}>
+
+          <div
+            className="pedigree-card-tag"
+            style={{
+              color: "#4b5563",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
             {animal.tag || "No Tag"}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>{animal.breed}</div>
+
+          <div
+            className="pedigree-card-breed"
+            style={{
+              color: "#6b7280",
+              fontSize: "0.7rem",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {animal.breed || "Unknown breed"}
+          </div>
         </div>
       </div>
     </div>
@@ -418,14 +944,6 @@ const secondaryButtonStyle = {
   cursor: "pointer", transition: "background 0.2s", whiteSpace: "nowrap"
 };
 
-const treeRowStyle = { display: "flex", justifyContent: "center", gap: "2rem", width: "100%" };
-
-const treeCardStyle = {
-  borderRadius: "12px", borderStyle: "solid", padding: "1rem",
-  minWidth: "220px", maxWidth: "240px", transition: "all 0.2s"
-};
-
-const treeCardPlaceholderStyle = { ...treeCardStyle, border: "1px dashed #e5e7eb", background: "transparent", opacity: 0.6 };
 
 const treeTitleStyle = {
   fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em",

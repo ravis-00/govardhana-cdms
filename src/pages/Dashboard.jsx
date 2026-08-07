@@ -42,6 +42,33 @@ export default function Dashboard() {
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
   const navigate = useNavigate();
 
+const [viewportWidth, setViewportWidth] = useState(
+  () => window.innerWidth
+);
+
+useEffect(() => {
+  let resizeTimer;
+
+  const handleResize = () => {
+    window.clearTimeout(resizeTimer);
+
+    resizeTimer = window.setTimeout(() => {
+      setViewportWidth(window.innerWidth);
+    }, 120);
+  };
+
+  window.addEventListener("resize", handleResize);
+
+  return () => {
+    window.clearTimeout(resizeTimer);
+    window.removeEventListener("resize", handleResize);
+  };
+}, []);
+
+const isMobile = viewportWidth <= 640;
+const isTablet = viewportWidth <= 1024;
+const isSmallMobile = viewportWidth <= 430;
+
   useEffect(() => {
   let isMounted = true;
 
@@ -250,16 +277,35 @@ setCategoryData(
   if (error) return <div style={{ padding: "3rem", textAlign: "center", color: "#ef4444" }}>{error}</div>;
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: "1600px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+    <div
+  style={{
+    width: "100%",
+    maxWidth: "1600px",
+    minWidth: 0,
+    margin: "0 auto",
+    padding: isMobile
+      ? "0"
+      : isTablet
+        ? "0.5rem"
+        : "1rem",
+    boxSizing: "border-box",
+  }}
+>
       
       {/* HEADER */}
 <div
   style={{
     display: "flex",
+    flexDirection: isMobile
+      ? "column"
+      : "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "2rem",
-    flexWrap: "wrap",
+    alignItems: isMobile
+      ? "stretch"
+      : "center",
+    marginBottom: isMobile
+      ? "1.25rem"
+      : "2rem",
     gap: "1rem",
   }}
 >
@@ -278,7 +324,8 @@ setCategoryData(
       padding: "0.55rem 1rem",
       borderRadius: "10px",
       border: "1px solid #e2e8f0",
-      whiteSpace: "nowrap",
+      whiteSpace: isSmallMobile ? "normal" : "nowrap",
+width: isMobile ? "100%" : "auto",
       boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
       lineHeight: 1.4,
     }}
@@ -313,7 +360,20 @@ setCategoryData(
 
       {/* --- HERO METRICS (UPDATED: Compact Grid 4-up) --- */}
       {/* Reduced minmax from 260px to 220px to allow 4 cards in one row on desktop */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "2.5rem" }}>
+      <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "minmax(0, 1fr)"
+      : isTablet
+        ? "repeat(2, minmax(0, 1fr))"
+        : "repeat(4, minmax(0, 1fr))",
+    gap: "1rem",
+    marginBottom: isMobile
+      ? "1.5rem"
+      : "2.5rem",
+  }}
+>
         
         {/* 1. Active Cattle */}
 <HeroCard 
@@ -366,7 +426,24 @@ setCategoryData(
 
       {/* --- MINI METRICS (Clean Look) --- */}
       <h3 style={sectionTitleStyle}>Detailed Demographics & Operations</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "2.5rem" }}>
+      <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: isSmallMobile
+      ? "minmax(0, 1fr)"
+      : isMobile
+        ? "repeat(2, minmax(0, 1fr))"
+        : isTablet
+          ? "repeat(3, minmax(0, 1fr))"
+          : "repeat(4, minmax(0, 1fr))",
+    gap: isMobile
+      ? "0.75rem"
+      : "1rem",
+    marginBottom: isMobile
+      ? "1.5rem"
+      : "2.5rem",
+  }}
+>
         <MiniCard label="Female Population" value={stats.femaleCattle} accentColor="#ec4899" />
         <MiniCard label="Male Population" value={stats.maleCattle} accentColor="#3b82f6" />
         <MiniCard label="New Born (12M)" value={stats.newBorn12M} accentColor="#10b981" />
@@ -380,9 +457,13 @@ setCategoryData(
   style={{
     background: "#fff7ed",
     border: "1px solid #fb923c",
-    padding: "1.25rem 1.5rem",
+    padding: isMobile
+  ? "1rem"
+  : "1.25rem 1.5rem",
     borderRadius: "14px",
-    marginBottom: "2.5rem",
+    marginBottom: isMobile
+  ? "1.5rem"
+  : "2.5rem",
     boxShadow:
       "0 4px 12px rgba(234, 88, 12, 0.08)",
   }}
@@ -448,56 +529,197 @@ setCategoryData(
   </div>
 </div>
 
-     {/* --- CHARTS & HERD COMPOSITION --- */}
-<div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1.5rem" }}>
-  {/* Breed Chart - Horizontal */}
-  <div style={chartCardStyle}>
-    <h3 style={chartTitleStyle}>Breed Distribution</h3>
+    {/* --- CHARTS & HERD COMPOSITION --- */}
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: isTablet
+      ? "minmax(0, 1fr)"
+      : "minmax(0, 1.2fr) minmax(280px, 0.8fr)",
+    alignItems: "start",
+    gap: isMobile
+      ? "1rem"
+      : "1.5rem",
+    minWidth: 0,
+  }}
+>
+  {/* Breed Distribution */}
+  <div
+    style={{
+      ...chartCardStyle,
+      minWidth: 0,
+      padding: isMobile
+        ? "1rem"
+        : "1.5rem",
+      overflow: "hidden",
+    }}
+  >
+    <h3
+      style={{
+        ...chartTitleStyle,
+        marginBottom: isMobile
+          ? "1rem"
+          : "1.5rem",
+      }}
+    >
+      Breed Distribution
+    </h3>
 
-    <div style={{ height: "360px", width: "100%" }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={breedData.slice(0, 12)}
-          layout="vertical"
-          margin={{ top: 10, right: 30, left: 60, bottom: 10 }}
+    {breedData.length === 0 ? (
+      <div
+        style={{
+          minHeight: "220px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#64748b",
+          fontSize: "0.9rem",
+          textAlign: "center",
+        }}
+      >
+        No breed distribution data available.
+      </div>
+    ) : (
+      <div
+        style={{
+          width: "100%",
+          minWidth: 0,
+          height: isSmallMobile
+            ? "330px"
+            : isMobile
+              ? "360px"
+              : "390px",
+        }}
+      >
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
         >
-          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-          <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={90}
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
-          />
-          <Tooltip
-            cursor={{ fill: "#f8fafc" }}
-            contentStyle={{
-              borderRadius: "8px",
-              border: "none",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+          <BarChart
+            data={breedData.slice(0, 12)}
+            layout="vertical"
+            margin={{
+              top: 8,
+              right: isSmallMobile ? 18 : 36,
+              left: isSmallMobile ? 0 : 10,
+              bottom: 8,
             }}
-          />
-          <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={18}>
-            <LabelList
-              dataKey="count"
-              position="right"
-              style={{ fill: "#475569", fontSize: "0.75rem", fontWeight: "bold" }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              horizontal={false}
+              stroke="#f1f5f9"
             />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+
+            <XAxis
+              type="number"
+              axisLine={false}
+              tickLine={false}
+              tick={{
+                fill: "#64748b",
+                fontSize: isSmallMobile ? 10 : 12,
+              }}
+            />
+
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={
+                isSmallMobile
+                  ? 72
+                  : isMobile
+                    ? 88
+                    : 105
+              }
+              axisLine={false}
+              tickLine={false}
+              tick={{
+                fill: "#334155",
+                fontSize: isSmallMobile ? 10 : 12,
+                fontWeight: 600,
+              }}
+            />
+
+            <Tooltip
+              cursor={{
+                fill: "#f8fafc",
+              }}
+              contentStyle={{
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+                boxShadow:
+                  "0 4px 10px rgba(15, 23, 42, 0.12)",
+                fontSize: "0.82rem",
+              }}
+            />
+
+            <Bar
+              dataKey="count"
+              fill="#3b82f6"
+              radius={[0, 6, 6, 0]}
+              barSize={isSmallMobile ? 14 : 18}
+            >
+              {!isSmallMobile && (
+                <LabelList
+                  dataKey="count"
+                  position="right"
+                  style={{
+                    fill: "#475569",
+                    fontSize: "0.75rem",
+                    fontWeight: "bold",
+                  }}
+                />
+              )}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )}
   </div>
 
-  {/* Herd Composition Cards */}
-  <div style={chartCardStyle}>
-    <h3 style={chartTitleStyle}>Herd Composition</h3>
+  {/* Herd Composition */}
+  <div
+    style={{
+      ...chartCardStyle,
+      minWidth: 0,
+      padding: isMobile
+        ? "1rem"
+        : "1.5rem",
+    }}
+  >
+    <h3
+      style={{
+        ...chartTitleStyle,
+        marginBottom: isMobile
+          ? "1rem"
+          : "1.5rem",
+      }}
+    >
+      Herd Composition
+    </h3>
 
-    <div style={{ display: "grid", gap: "1rem" }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          isTablet && !isMobile
+            ? "repeat(2, minmax(0, 1fr))"
+            : "minmax(0, 1fr)",
+        gap: isMobile
+          ? "0.75rem"
+          : "1rem",
+      }}
+    >
       {categoryData.map((item) => {
-        const percent = stats.activeCattle > 0 ? ((item.count / stats.activeCattle) * 100).toFixed(1) : 0;
+        const percent =
+          stats.activeCattle > 0
+            ? (
+                (item.count /
+                  stats.activeCattle) *
+                100
+              ).toFixed(1)
+            : 0;
 
         const iconMap = {
           Cows: "🐄",
@@ -510,29 +732,76 @@ setCategoryData(
           <div
             key={item.name}
             style={{
-              background: "#f8fafc",
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-              padding: "1rem",
+              minWidth: 0,
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+              padding: isSmallMobile
+                ? "0.8rem"
+                : "1rem",
+              border: "1px solid #e2e8f0",
               borderLeft: `5px solid ${item.color}`,
+              borderRadius: "12px",
+              background: "#f8fafc",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
-              <div style={{ fontSize: "1.6rem" }}>{iconMap[item.name] || "🐄"}</div>
-              <div>
-                <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+            <div
+              style={{
+                minWidth: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              <div
+                style={{
+                  flexShrink: 0,
+                  fontSize: isSmallMobile
+                    ? "1.35rem"
+                    : "1.6rem",
+                }}
+              >
+                {iconMap[item.name] || "🐄"}
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {item.name}
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: "2px" }}>
+
+                <div
+                  style={{
+                    marginTop: "2px",
+                    color: "#94a3b8",
+                    fontSize: "0.78rem",
+                  }}
+                >
                   {percent}% of active herd
                 </div>
               </div>
             </div>
 
-            <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1e293b" }}>
+            <div
+              style={{
+                flexShrink: 0,
+                color: "#1e293b",
+                fontSize: isSmallMobile
+                  ? "1.5rem"
+                  : "1.8rem",
+                fontWeight: 800,
+              }}
+            >
               {item.count}
             </div>
           </div>
@@ -544,28 +813,52 @@ setCategoryData(
       style={{
         marginTop: "1.25rem",
         padding: "1rem",
+        border: "1px solid #bfdbfe",
         borderRadius: "12px",
         background: "#eff6ff",
-        border: "1px solid #bfdbfe",
         textAlign: "center",
       }}
     >
-      <div style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 800, textTransform: "uppercase" }}>
+      <div
+        style={{
+          color: "#2563eb",
+          fontSize: "0.75rem",
+          fontWeight: 800,
+          textTransform: "uppercase",
+        }}
+      >
         Total Active Herd
       </div>
-      <div style={{ fontSize: "2rem", fontWeight: 900, color: "#1e3a8a" }}>
+
+      <div
+        style={{
+          color: "#1e3a8a",
+          fontSize: "2rem",
+          fontWeight: 900,
+        }}
+      >
         {stats.activeCattle}
       </div>
-    </div>
+        </div>
   </div>
 </div>
-</div>
+
+    </div>
   );
 }
 
 // --- SUB-COMPONENTS ---
 
-function HeroCard({ title, value, trend, icon, bg, iconColor, textColor, trendColor }) {
+function HeroCard({
+  title,
+  value,
+  trend,
+  icon,
+  bg,
+  iconColor,
+  textColor,
+  trendColor,
+}) {
   return (
     <div style={{ 
       background: bg, padding: "1.25rem", borderRadius: "16px", // Reduced Padding to make card smaller

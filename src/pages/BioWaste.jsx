@@ -234,8 +234,8 @@ function getEmptyForm() {
 function roundQuantity(value) {
   return (
     Math.round(
-      Number(value || 0) * 100
-    ) / 100
+      Number(value || 0) * 10
+    ) / 10
   );
 }
 
@@ -1685,8 +1685,8 @@ export default function BioWaste() {
                       type="number"
                       name="quantity"
                       value={form.quantity}
-                      min="0.01"
-                      step="0.01"
+                      min="0.1"
+                      step="0.1"
                       onChange={handleChange}
                       className="form-input"
                       disabled={saving}
@@ -2443,8 +2443,10 @@ const formStyle = {
 
 const quantityUnitGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1fr 150px",
-  gap: "0.6rem",
+  gridTemplateColumns:
+    "minmax(120px, 1.2fr) minmax(105px, 0.8fr)",
+  gap: "0.75rem",
+  minWidth: 0,
 };
 
 const fieldLabelStyle = {

@@ -1454,7 +1454,7 @@ export default function Vaccine() {
   // ===========================================================================
 
   return (
-    <div style={pageStyle}>
+    <div className="preventive-page">
       {toast.visible && (
         <div
           className="preventive-toast-mobile"
@@ -1527,30 +1527,160 @@ export default function Vaccine() {
       )}
 
       <style>
-        {`
-          @keyframes preventive-toast-spin {
-            from {
-              transform: rotate(0deg);
-            }
+  {`
+    @keyframes preventive-toast-spin {
+      from {
+        transform: rotate(0deg);
+      }
 
-            to {
-              transform: rotate(360deg);
-            }
-          }
+      to {
+        transform: rotate(360deg);
+      }
+    }
 
-          @media (max-width: 640px) {
-            .preventive-toast-mobile {
-              left: 16px;
-              right: 16px;
-              min-width: 0;
-            }
+    .preventive-page {
+      width: 100%;
+      max-width: 1400px;
+      min-width: 0;
+      margin: 0 auto;
+    }
 
-            .preventive-modal-grid {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}
-      </style>
+    .preventive-metric-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .preventive-filter-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(4, minmax(170px, 1fr));
+      gap: 0.85rem;
+      align-items: end;
+    }
+
+    .preventive-filter-action {
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .preventive-filter-action .btn {
+      width: auto;
+    }
+
+    .preventive-table-scroll-hint {
+      display: none;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 0.76rem;
+      text-align: center;
+    }
+
+    .preventive-table-card {
+      min-height: 390px;
+      max-height: calc(100vh - 410px);
+    }
+
+    .preventive-modal {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    @media (max-width: 1200px) {
+      .preventive-metric-grid {
+        grid-template-columns:
+          repeat(4, minmax(0, 1fr));
+      }
+
+      .preventive-filter-grid {
+        grid-template-columns:
+          repeat(3, minmax(170px, 1fr));
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .preventive-metric-grid {
+        grid-template-columns:
+          repeat(3, minmax(0, 1fr));
+      }
+
+      .preventive-filter-grid {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+      }
+
+      .preventive-table-card {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .preventive-toast-mobile {
+        left: 16px;
+        right: 16px;
+        min-width: 0;
+      }
+
+      .preventive-metric-grid {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+
+      .preventive-filter-grid {
+        grid-template-columns:
+          minmax(0, 1fr);
+      }
+
+      .preventive-filter-action {
+        width: 100%;
+      }
+
+      .preventive-filter-action .btn {
+        width: 100%;
+      }
+
+      .preventive-table-scroll-hint {
+        display: block;
+      }
+
+      .preventive-table-card {
+        min-height: 320px;
+        max-height: none;
+      }
+
+      .preventive-modal-grid {
+        grid-template-columns:
+          minmax(0, 1fr) !important;
+      }
+
+      .preventive-modal {
+        width: 100%;
+        height: 100dvh;
+        max-width: none !important;
+        max-height: 100dvh !important;
+        padding: 1rem !important;
+        border-radius: 0 !important;
+      }
+
+      .preventive-pagination {
+        width: 100%;
+        justify-content: flex-start !important;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .preventive-metric-grid {
+        grid-template-columns:
+          minmax(0, 1fr);
+      }
+    }
+  `}
+</style>
 
       <PageHeader
         title="Preventive Care"
@@ -1573,11 +1703,7 @@ export default function Vaccine() {
         }
       />
 
-      <div
-        style={
-          metricsWrapperStyle
-        }
-      >
+      <div className="preventive-metric-grid">
         <MetricCard
           label="Total Events"
           value={metrics.total}
@@ -1642,11 +1768,7 @@ export default function Vaccine() {
       </div>
 
       <SectionCard title="Search & Filters">
-        <div
-          style={
-            filtersGridStyle
-          }
-        >
+        <div className="preventive-filter-grid">
           <Field label="Search">
             <input
               type="text"
@@ -1857,23 +1979,15 @@ export default function Vaccine() {
             </select>
           </Field>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems:
-                "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              onClick={
-                clearFilters
-              }
-              className="btn btn-secondary"
-            >
-              Clear Filters
-            </button>
-          </div>
+          <div className="preventive-filter-action">
+  <button
+    type="button"
+    onClick={clearFilters}
+    className="btn btn-secondary"
+  >
+    Clear Filters
+  </button>
+</div>
         </div>
       </SectionCard>
 
@@ -1917,10 +2031,9 @@ export default function Vaccine() {
         </div>
 
         <div
-          style={
-            paginationControlsStyle
-          }
-        >
+  className="preventive-pagination"
+  style={paginationControlsStyle}
+>
           <label
             style={
               pageSizeLabelStyle
@@ -2028,9 +2141,16 @@ export default function Vaccine() {
       </div>
 
       <div
-        style={tableCardStyle}
-        className="card"
-      >
+  className="card preventive-table-card"
+  style={{
+    ...tableCardStyle,
+    minHeight: undefined,
+    maxHeight: undefined,
+  }}
+>
+  <div className="preventive-table-scroll-hint">
+    Swipe sideways to view all columns
+  </div>
         <div
           style={
             tableScrollStyle
@@ -2397,11 +2517,11 @@ export default function Vaccine() {
           }
         >
           <div
-            style={{
-              ...modalStyle,
-              maxWidth:
-                "900px",
-            }}
+  className="preventive-modal"
+  style={{
+    ...modalStyle,
+    maxWidth: "900px",
+  }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -2680,24 +2800,19 @@ export default function Vaccine() {
                   </Field>
 
                   <Field label="Dosage">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      name="dosage"
-                      value={
-                        form.dosage
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      className="form-input"
-                      placeholder="Example: 2"
-                      disabled={
-                        saving
-                      }
-                    />
-                  </Field>
+  <input
+    type="number"
+    min="0"
+    step="0.1"
+    inputMode="decimal"
+    name="dosage"
+    value={form.dosage}
+    onChange={handleChange}
+    className="form-input"
+    placeholder="Example: 2.0"
+    disabled={saving}
+  />
+</Field>
 
                   <Field label="Dosage Unit">
                     <select
@@ -2950,11 +3065,11 @@ export default function Vaccine() {
           }
         >
           <div
-            style={{
-              ...modalStyle,
-              maxWidth:
-                "900px",
-            }}
+  className="preventive-modal"
+  style={{
+    ...modalStyle,
+    maxWidth: "900px",
+  }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -3471,28 +3586,9 @@ function CountBadge({
 // STYLES
 // =============================================================================
 
-const pageStyle = {
-  padding: "1.5rem",
-  maxWidth: "1400px",
-  margin: "0 auto",
-  width: "100%",
-  boxSizing: "border-box",
-};
 
-const metricsWrapperStyle = {
-  display: "flex",
-  gap: "0.75rem",
-  flexWrap: "wrap",
-  marginBottom: "1rem",
-};
 
-const filtersGridStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "repeat(auto-fit, minmax(175px, 1fr))",
-  gap: "0.85rem",
-  alignItems: "end",
-};
+
 
 const twoColumnGridStyle = {
   display: "grid",
@@ -3570,8 +3666,7 @@ const tableCardStyle = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  minHeight: "390px",
-  maxHeight: "calc(100vh - 410px)",
+  
 };
 
 const tableScrollStyle = {
