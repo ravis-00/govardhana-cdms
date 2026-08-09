@@ -49,12 +49,22 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   // Normalize role to ensure matching works
-  const userRole = user.role ? String(user.role).trim() : "";
+  const userRole = user?.role
+  ? String(user.role).trim()
+  : "";
 
-  // Check permissions
-  const hasPermission = allowedRoles 
-    ? allowedRoles.some(r => r === userRole || r === user.role) 
-    : true;
+const normalizedUserRole =
+  userRole.toLowerCase();
+
+const hasPermission = allowedRoles
+  ? allowedRoles.some(
+      (role) =>
+        String(role)
+          .trim()
+          .toLowerCase() ===
+        normalizedUserRole
+    )
+  : true;
 
   if (allowedRoles && !hasPermission) {
     return (
@@ -107,7 +117,10 @@ export default function App() {
           <Route path="/death-records" element={<DeathRecords />} />
 
           {/* --- FINANCE & ADMIN --- */}
-          <Route path="/dattu-yojana" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin", "User"]}><DattuYojana /></ProtectedRoute>} />
+          <Route
+  path="/dattu-yojana"
+  element={<DattuYojana />}
+/>
           
           {/* --- REPORTS --- */}
           <Route path="/reports" element={<Reports />} />
@@ -126,10 +139,28 @@ export default function App() {
           <Route path="/config/rates" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Rates /></ProtectedRoute>} />
           <Route path="/config/weight" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Weight /></ProtectedRoute>} />
           <Route path="/config/symptoms" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><Symptoms /></ProtectedRoute>} />
-          <Route path="config/sheds" element={<ShedConfig />} />
+          <Route
+  path="/config/sheds"
+  element={
+    <ProtectedRoute
+      allowedRoles={["Admin", "Super Admin"]}
+    >
+      <ShedConfig />
+    </ProtectedRoute>
+  }
+/>
 
           {/* --- USER MANAGEMENT --- */}
-          <Route path="/users" element={<ProtectedRoute allowedRoles={["Admin", "Super Admin"]}><UserManagement /></ProtectedRoute>} />
+          <Route
+  path="/users"
+  element={
+    <ProtectedRoute
+      allowedRoles={["Super Admin"]}
+    >
+      <UserManagement />
+    </ProtectedRoute>
+  }
+/>
 
         </Route>
 

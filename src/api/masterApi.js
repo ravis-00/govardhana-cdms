@@ -14,6 +14,7 @@ const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuC
  */
 let dashboardSummaryInFlight = null;
 let feedingInFlight = null;
+let usersInFlight = null;
 
 let shedsInFlight = null;
 const bioWasteInFlight = new Map();
@@ -414,7 +415,35 @@ export async function updateDattuYojana(payload) {
 
 // 8. AUTH & USERS
 export async function loginUser(email, password) { return postRequest("login", { email, password }); }
-export async function fetchUsers() { return getRequest("getUsers"); }
+export async function fetchUsers(options = {}) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  /*
+   * Explicit refresh after Add/Edit must obtain
+   * the latest Users sheet data.
+   */
+  if (forceRefresh) {
+    return getRequest("getUsers");
+  }
+
+  /*
+   * If getUsers is already running, reuse the
+   * same Promise instead of starting another
+   * Apps Script request.
+   */
+  if (usersInFlight) {
+    return usersInFlight;
+  }
+
+  usersInFlight =
+    getRequest("getUsers")
+      .finally(() => {
+        usersInFlight = null;
+      });
+
+  return usersInFlight;
+}
 export async function addUser(userData) { return postRequest("addUser", userData); }
 export async function updateUser(userData) { return postRequest("updateUser", userData); }
 

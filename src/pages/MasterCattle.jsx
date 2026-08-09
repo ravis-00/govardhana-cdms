@@ -317,6 +317,130 @@ function getCertificateDateCode(dateValue) {
 function getCertificateNo(prefix, internalId, eventDate) {
   return `${prefix}-${internalId || "NA"}-${getCertificateDateCode(eventDate)}`;
 }
+
+/*
+ * ------------------------------------------------
+ * CERTIFICATE WINDOW HELPER
+ * ------------------------------------------------
+ *
+ * Desktop:
+ * - Opens certificate in a separate tab/window.
+ * - Existing automatic print behaviour is retained.
+ *
+ * iPhone / iPad:
+ * - Avoids document.write() into a blank Safari tab.
+ * - Removes automatic window.print(), which is unreliable on iOS.
+ * - Opens a standalone certificate document.
+ * - Adds a touch-friendly Print / Save PDF button.
+ *
+ * This prevents mobile Safari from unnecessarily disturbing
+ * the Govardhana CDMS application tab.
+ */
+function openCertificateDocument(html) {
+  const isIOS =
+    /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+    (
+      navigator.platform === "MacIntel" &&
+      navigator.maxTouchPoints > 1
+    );
+
+  let certificateHtml = html;
+
+  if (isIOS) {
+    // Automatic printing is unreliable on iPhone/iPad Safari.
+    certificateHtml = certificateHtml.replace(
+      '<script>setTimeout(() => window.print(), 500);</script>',
+      ""
+    );
+
+    // Add a manual print button for iOS.
+    certificateHtml = certificateHtml.replace(
+      "</body>",
+      `
+        <div
+          class="no-print"
+          style="
+            position:fixed;
+            left:12px;
+            right:12px;
+            bottom:12px;
+            z-index:9999;
+            display:flex;
+            justify-content:center;
+          "
+        >
+          <button
+            type="button"
+            onclick="window.print()"
+            style="
+              min-height:48px;
+              width:100%;
+              max-width:360px;
+              border:none;
+              border-radius:10px;
+              background:#2563eb;
+              color:#ffffff;
+              font-size:16px;
+              font-weight:700;
+              padding:12px 20px;
+            "
+          >
+            Print / Save PDF
+          </button>
+        </div>
+
+        <style>
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+          }
+        </style>
+      </body>
+      `
+    );
+  }
+
+  /*
+   * Blob URL is safer than:
+   *
+   * window.open("");
+   * win.document.write(...);
+   *
+   * especially on mobile Safari.
+   */
+  const blob = new Blob(
+    [certificateHtml],
+    { type: "text/html;charset=utf-8" }
+  );
+
+  const certificateUrl =
+    URL.createObjectURL(blob);
+
+  const certificateWindow =
+    window.open(
+      certificateUrl,
+      "_blank"
+    );
+
+  if (!certificateWindow) {
+    URL.revokeObjectURL(certificateUrl);
+
+    alert(
+      "Unable to open the certificate. Please allow pop-ups for Govardhana CDMS and try again."
+    );
+
+    return;
+  }
+
+  /*
+   * Give the new browser tab enough time to load all resources
+   * before releasing the temporary Blob URL.
+   */
+  setTimeout(() => {
+    URL.revokeObjectURL(certificateUrl);
+  }, 60000);
+}
 export default function MasterCattle() {
   const { user } = useAuth(); 
   const [rows, setRows] = useState([]);
@@ -623,8 +747,7 @@ const handleGenerateDeactiveCert = (row, exitType) => {
       </body>
       </html>
     `;
-    const win = window.open("", "_blank", "width=900,height=1100");
-    if (win) { win.document.write(html); win.document.close(); }
+    openCertificateDocument(html);
   };
 
 
@@ -917,11 +1040,7 @@ const printReactivationCertificate = (row) => {
     </html>
   `;
 
-  const win = window.open("", "_blank", "width=900,height=1100");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  openCertificateDocument(html);
 };
 
   // --- 2. INCOMING CERTIFICATE TEMPLATE ---
@@ -972,8 +1091,7 @@ const printReactivationCertificate = (row) => {
       </body>
       </html>
     `;
-    const win = window.open("", "_blank", "width=900,height=1100");
-    if (win) { win.document.write(html); win.document.close(); }
+    openCertificateDocument(html);
   };
 
   const printDeactiveCertificate = (row, certificateTitle) => {
@@ -1264,11 +1382,7 @@ const printReactivationCertificate = (row) => {
     </html>
   `;
 
-  const win = window.open("", "_blank", "width=900,height=1100");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  openCertificateDocument(html);
 };
 
 const printSaleCertificate = (row) => {
@@ -1551,11 +1665,7 @@ const printSaleCertificate = (row) => {
     </html>
   `;
 
-  const win = window.open("", "_blank", "width=900,height=1100");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  openCertificateDocument(html);
 };
 
 
@@ -1834,11 +1944,7 @@ const printTransferCertificate = (row) => {
     </html>
   `;
 
-  const win = window.open("", "_blank", "width=900,height=1100");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  openCertificateDocument(html);
 };
 
 const printFarmerHandoverCertificate = (row) => {
@@ -2129,17 +2235,22 @@ const printFarmerHandoverCertificate = (row) => {
     </html>
   `;
 
-  const win = window.open("", "_blank", "width=900,height=1100");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  openCertificateDocument(html);
 };
   if (loading) return <div style={{ padding: "2rem" }}>Loading Master Data...</div>;
   if (error) return <div style={{ padding: "2rem", color: "red" }}>{error}</div>;
 
   return (
-    <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
+    <div
+  style={{
+    padding: "clamp(0.75rem, 2vw, 1.5rem)",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+    overflowX: "hidden",
+  }}
+>
       
  {/* HEADER */}
 <div style={{ marginBottom: "1.25rem" }}>
@@ -2161,7 +2272,15 @@ const printFarmerHandoverCertificate = (row) => {
   />
 
   {/* SUMMARY CHIPS */}
-  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+  <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: "0.75rem",
+    marginBottom: "1rem",
+    width: "100%",
+  }}
+>
     <MetricCard
   label="Total"
   value={summary.total}
@@ -4429,14 +4548,7 @@ function formatAgeFromMonths(totalMonths) {
   return `${years} years ${months} months`;
 }
 
-function getAdmissionAgeMonths(row) {
-  return (
-    row.admissionAgeMonths ||
-    row.admission_age_months ||
-    row.admissionAge ||
-    ""
-  );
-}
+
 
 function getCategoryOptionsForEdit(gender) {
   const g = String(gender || "").toLowerCase();
@@ -4643,10 +4755,12 @@ const tdStyle = {
 };
 const inputStyle = { padding: "0.5rem", border: "1px solid #ccc", borderRadius: "5px", width: "100%", boxSizing:"border-box" };
 const filterInputStyle = {
-  padding: "0.6rem 0.75rem",
+  width: "100%",
+  minWidth: 0,
+  minHeight: "44px",
+  padding: "0.65rem 0.75rem",
   border: "1px solid #cbd5e1",
   borderRadius: "8px",
-  width: "100%",
   boxSizing: "border-box",
   background: "#fff",
   fontSize: "0.9rem",
@@ -4655,11 +4769,13 @@ const filterInputStyle = {
 const searchBoxWrapStyle = {
   position: "relative",
   width: "100%",
+  minWidth: 0,
 };
 
 const searchInputStyle = {
   ...filterInputStyle,
   paddingRight: "2.5rem",
+  minWidth: 0,
 };
 
 const clearSearchBtnStyle = {
@@ -4683,7 +4799,8 @@ const clearSearchBtnStyle = {
 };
 
 const clearFiltersBtnStyle = {
-  padding: "0.6rem 0.75rem",
+  minHeight: "44px",
+  padding: "0.65rem 1rem",
   border: "1px solid #cbd5e1",
   borderRadius: "8px",
   background: "#fff",
@@ -4691,6 +4808,7 @@ const clearFiltersBtnStyle = {
   fontSize: "0.85rem",
   fontWeight: "600",
   cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 const primaryBtnStyle = { 
   background: "#2563eb", 
@@ -4759,20 +4877,24 @@ const cancelBtnStyle = { background: "#fff", color:"#666", border:"1px solid #cc
 const closeBtnStyle = { background: "none", border:"none", fontSize:"2rem", cursor:"pointer", color:"#9ca3af", lineHeight:1};
 const paginationStyle = { display: "flex", justifyContent: "space-between", alignItems:"center", padding:"1rem", background:"#f8fafc", borderTop:"1px solid #e2e8f0" };
 const pageBtnStyle = {
-  padding: "4px 10px",
+  minHeight: "40px",
+  padding: "0.5rem 0.75rem",
   border: "1px solid #cbd5e1",
   background: "#fff",
   cursor: "pointer",
   borderRadius: "6px",
   fontSize: "0.8rem",
+  whiteSpace: "nowrap",
 };
 const pageNumberStyle = { padding: "6px 10px", fontWeight:600, color:"#334155" };
 const topPaginationStyle = {
   display: "flex",
   justifyContent: "flex-end",
   alignItems: "center",
+  flexWrap: "wrap",
   gap: "0.5rem",
   marginBottom: "0.5rem",
+  width: "100%",
 };
 const largePhotoContainerStyle = { width: "100%", height: "300px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "12px", border: "1px solid #e5e7eb", marginBottom: "1.5rem" };
 const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };
@@ -4787,13 +4909,18 @@ const filterPanelStyle = {
 
 const filterGridStyle = {
   display: "grid",
-  gridTemplateColumns: "140px 160px 160px 170px 1fr",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
   gap: "0.75rem",
   alignItems: "center",
+  width: "100%",
+  minWidth: 0,
 };
 
 const filterActionsStyle = {
   display: "flex",
   justifyContent: "flex-end",
+  flexWrap: "wrap",
+  gap: "0.5rem",
   marginTop: "0.75rem",
+  width: "100%",
 };
