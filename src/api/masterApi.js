@@ -1,6 +1,29 @@
 // src/api/masterApi.js
 const BASE_URL = "https://script.google.com/macros/s/AKfycbxyWG3lJI2THu2BwmdXsuCriFSQ7eaUx3wHCCMcZF04AHjiVM-10OVkRVFiqEFuzHPL8g/exec";
 
+const SESSION_TOKEN_KEY = "cattle_session_token";
+
+export function getSessionToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(SESSION_TOKEN_KEY) || "";
+}
+
+export function setSessionToken(token) {
+  if (typeof window === "undefined") return;
+
+  const value = String(token || "").trim();
+  if (value) {
+    window.localStorage.setItem(SESSION_TOKEN_KEY, value);
+  } else {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+  }
+}
+
+export function clearSessionToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
 /*
  * Prevent accidental duplicate Dashboard requests.
  *
@@ -95,6 +118,29 @@ async function postRequest(
   );
 
   return handleResponse(res);
+}
+
+async function authenticatedPostRequest(
+  action,
+  body = {},
+  timeoutMs = 45000
+) {
+  const sessionToken = getSessionToken();
+
+  if (!sessionToken) {
+    throw new Error(
+      "Your session is missing. Please sign in again."
+    );
+  }
+
+  return postRequest(
+    action,
+    {
+      ...body,
+      sessionToken,
+    },
+    timeoutMs
+  );
 }
 
 // =========================================================================
@@ -414,7 +460,22 @@ export async function updateDattuYojana(payload) {
 }
 
 // 8. AUTH & USERS
-export async function loginUser(email, password) { return postRequest("login", { email, password }); }
+export async function loginUser(email, password) {
+  return postRequest("login", { email, password });
+}
+
+export async function validateSession() {
+  return authenticatedPostRequest("validateSession");
+}
+
+export async function logoutUser() {
+  try {
+    return await authenticatedPostRequest("logout");
+  } finally {
+    clearSessionToken();
+  }
+}
+
 export async function fetchUsers(options = {}) {
   const forceRefresh =
     options.forceRefresh === true;
@@ -424,7 +485,7 @@ export async function fetchUsers(options = {}) {
    * the latest Users sheet data.
    */
   if (forceRefresh) {
-    return getRequest("getUsers");
+    return authenticatedPostRequest("getUsers");
   }
 
   /*
@@ -437,15 +498,21 @@ export async function fetchUsers(options = {}) {
   }
 
   usersInFlight =
-    getRequest("getUsers")
+    authenticatedPostRequest("getUsers")
       .finally(() => {
         usersInFlight = null;
       });
 
   return usersInFlight;
 }
-export async function addUser(userData) { return postRequest("addUser", userData); }
-export async function updateUser(userData) { return postRequest("updateUser", userData); }
+
+export async function addUser(userData) {
+  return authenticatedPostRequest("addUser", userData);
+}
+
+export async function updateUser(userData) {
+  return authenticatedPostRequest("updateUser", userData);
+}
 
 // 9. REPORTS 
 export async function getReportData(reportType, startDate, endDate) { 
