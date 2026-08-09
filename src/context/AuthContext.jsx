@@ -1,64 +1,186 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { loginUser } from "../api/masterApi";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-const AuthContext = createContext();
+import {
+  clearSessionToken,
+  getSessionToken,
+  loginUser,
+  logoutUser,
+  setSessionToken,
+  validateSession,
+} from "../api/masterApi";
+
+const AuthContext = createContext(null);
+const USER_STORAGE_KEY = "cattle_user";
+
+function clearStoredAuthentication() {
+  clearSessionToken();
+  localStorage.removeItem(USER_STORAGE_KEY);
+}
+
+function storeAuthenticatedUser(user) {
+  localStorage.setItem(
+    USER_STORAGE_KEY,
+    JSON.stringify(user)
+  );
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check LocalStorage on load to keep user logged in
+  /*
+   * Restore login only after the backend confirms that the saved
+   * session token is still valid and the account remains Active.
+   * Browser-stored role data is never trusted by itself.
+   */
   useEffect(() => {
-    const storedUser = localStorage.getItem("cattle_user");
-    if (storedUser) {
+    let cancelled = false;
+
+    async function restoreSession() {
+      const token = getSessionToken();
+
+      if (!token) {
+        clearStoredAuthentication();
+        if (!cancelled) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Failed to parse user", e);
-        localStorage.removeItem("cattle_user");
+        const response = await validateSession();
+
+        if (
+          !response ||
+          response.success !== true ||
+          !response.user
+        ) {
+          throw new Error(
+            response?.error ||
+              "Your session is no longer valid."
+          );
+        }
+
+        if (!cancelled) {
+          setUser(response.user);
+          storeAuthenticatedUser(response.user);
+        }
+      } catch (error) {
+        console.warn(
+          "Session restoration failed:",
+          error
+        );
+
+        clearStoredAuthentication();
+
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
-    setLoading(false);
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Login Function
-  const login = async (email, password) => {
+  async function login(email, password) {
     try {
-      const response = await loginUser(email, password);
-      
-      // If login is successful
-      if (response && response.success) {
-        const userData = response.user;
-        setUser(userData);
-        localStorage.setItem("cattle_user", JSON.stringify(userData));
-        return { success: true };
-      } 
-      
-      // If server returns a specific error
-      if (response && response.error) {
-        return { success: false, error: response.error };
+      clearStoredAuthentication();
+      setUser(null);
+
+      const response = await loginUser(
+        String(email || "").trim().toLowerCase(),
+        String(password || "")
+      );
+
+      if (
+        response &&
+        response.success === true &&
+        response.user &&
+        response.sessionToken
+      ) {
+        setSessionToken(response.sessionToken);
+        setUser(response.user);
+        storeAuthenticatedUser(response.user);
+
+        return {
+          success: true,
+          user: response.user,
+        };
       }
 
-      return { success: false, error: "Incorrect credentials" };
+      clearStoredAuthentication();
 
-    } catch (err) {
-      console.error("Login Request Failed:", err);
-      return { success: false, error: "Incorrect credentials" };
+      return {
+        success: false,
+        error:
+          response?.error ||
+          "Invalid email or password.",
+      };
+    } catch (error) {
+      console.error(
+        "Login request failed:",
+        error
+      );
+
+      clearStoredAuthentication();
+
+      return {
+        success: false,
+        error:
+          error?.message ||
+          "Login failed. Please check your connection.",
+      };
     }
-  };
+  }
 
-  // Logout Function
-  const logout = () => {
+  function logout() {
+    /*
+     * Start backend invalidation while the token is still available,
+     * then clear browser state immediately for a responsive logout.
+     */
+    const logoutRequest = logoutUser().catch(
+      (error) => {
+        console.warn(
+          "Backend logout failed:",
+          error
+        );
+      }
+    );
+
     setUser(null);
-    localStorage.removeItem("cattle_user");
-  };
+    clearStoredAuthentication();
+
+    return logoutRequest;
+  }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        loading,
+      }}
+    >
       {!loading && children}
     </AuthContext.Provider>
   );
 }
 
-// Hook to use auth
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

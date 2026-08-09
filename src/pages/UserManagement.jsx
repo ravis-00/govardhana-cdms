@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import MetricCard from "../components/common/MetricCard";
 import ProgressToast from "../components/common/ProgressToast";
+import ConfirmDialog from "../components/common/ConfirmDialog";
 
 const EMPTY_FORM = {
   id: "",
@@ -41,6 +42,8 @@ export default function UserManagement() {
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
+  const [confirmStatusRow, setConfirmStatusRow] = useState(null);
 
   const [toast, setToast] = useState({
     open: false,
@@ -126,11 +129,13 @@ export default function UserManagement() {
 
       const matchesRole =
         roleFilter === "All" ||
-        rowRole === roleFilter;
+        rowRole.toLowerCase() ===
+          roleFilter.toLowerCase();
 
       const matchesStatus =
         statusFilter === "All" ||
-        rowStatus === statusFilter;
+        rowStatus.toLowerCase() ===
+          statusFilter.toLowerCase();
 
       const haystack = `
         ${row.fullName || ""}
@@ -186,11 +191,13 @@ export default function UserManagement() {
   function openAddForm() {
     setEditingUser(null);
     setForm({ ...EMPTY_FORM });
+    setFormError("");
     setShowForm(true);
   }
 
   function openEditForm(row) {
     setEditingUser(row);
+    setFormError("");
 
     setForm({
       id: row.id || "",
@@ -226,11 +233,16 @@ export default function UserManagement() {
     setShowForm(false);
     setEditingUser(null);
     setForm({ ...EMPTY_FORM });
+    setFormError("");
   }
 
   function handleChange(event) {
     const { name, value } =
       event.target;
+
+    if (formError) {
+      setFormError("");
+    }
 
     setForm((prev) => ({
       ...prev,
@@ -244,13 +256,31 @@ export default function UserManagement() {
     setStatusFilter("All");
   }
 
+  function requestStatusToggle(row) {
+    if (!row?.id || statusUpdatingId) return;
+
+    if (row.id === user?.id) {
+      setToast({
+        open: true,
+        type: "error",
+        message:
+          "You cannot deactivate your own account.",
+      });
+      return;
+    }
+
+    setConfirmStatusRow(row);
+  }
+
   async function handleStatusToggle(row) {
   const userId = row.id || "";
   const currentStatus =
-    String(row.status || "Active").trim();
+    String(row.status || "Active")
+      .trim()
+      .toLowerCase();
 
   const nextStatus =
-    currentStatus === "Active"
+    currentStatus === "active"
       ? "Inactive"
       : "Active";
 
@@ -333,6 +363,19 @@ export default function UserManagement() {
     event.preventDefault();
 
     if (saving) return;
+
+    const validationMessage =
+      validateUserForm(
+        form,
+        !editingUser
+      );
+
+    if (validationMessage) {
+      setFormError(validationMessage);
+      return;
+    }
+
+    setFormError("");
 
     const payload = {
       ...form,
@@ -662,10 +705,16 @@ export default function UserManagement() {
   <StatusToggle
     status={row.status}
     disabled={
-      statusUpdatingId === row.id
+      statusUpdatingId === row.id ||
+      row.id === user?.id
+    }
+    disabledLabel={
+      row.id === user?.id
+        ? "Current account"
+        : "Updating..."
     }
     onChange={() =>
-      handleStatusToggle(row)
+      requestStatusToggle(row)
     }
   />
 </td>
@@ -743,10 +792,16 @@ export default function UserManagement() {
                 <StatusToggle
   status={row.status}
   disabled={
-    statusUpdatingId === row.id
+    statusUpdatingId === row.id ||
+    row.id === user?.id
+  }
+  disabledLabel={
+    row.id === user?.id
+      ? "Current account"
+      : "Updating..."
   }
   onChange={() =>
-    handleStatusToggle(row)
+    requestStatusToggle(row)
   }
 />
               </div>
@@ -843,7 +898,13 @@ export default function UserManagement() {
                     name="role"
                     value={form.role}
                     onChange={handleChange}
-                    disabled={saving}
+                    disabled={
+                      saving ||
+                      (
+                        editingUser &&
+                        editingUser.id === user?.id
+                      )
+                    }
                     style={inputStyle}
                   >
                     <option value="Super Admin">
@@ -930,6 +991,15 @@ export default function UserManagement() {
                 />
               </Field>
 
+              {formError && (
+                <div
+                  role="alert"
+                  style={formErrorStyle}
+                >
+                  {formError}
+                </div>
+              )}
+
               <div style={modalFooterStyle}>
                 <button
                   type="button"
@@ -968,6 +1038,53 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmStatusRow)}
+        title={
+          String(
+            confirmStatusRow?.status || ""
+          )
+            .trim()
+            .toLowerCase() === "active"
+            ? "Deactivate User"
+            : "Activate User"
+        }
+        message={
+          confirmStatusRow
+            ? `Are you sure you want to ${
+                String(
+                  confirmStatusRow.status || ""
+                )
+                  .trim()
+                  .toLowerCase() === "active"
+                  ? "deactivate"
+                  : "activate"
+              } ${
+                confirmStatusRow.fullName ||
+                confirmStatusRow.email ||
+                "this user"
+              }?`
+            : ""
+        }
+        confirmText={
+          String(
+            confirmStatusRow?.status || ""
+          )
+            .trim()
+            .toLowerCase() === "active"
+            ? "Deactivate"
+            : "Activate"
+        }
+        onCancel={() =>
+          setConfirmStatusRow(null)
+        }
+        onConfirm={() => {
+          const row = confirmStatusRow;
+          setConfirmStatusRow(null);
+          if (row) handleStatusToggle(row);
+        }}
+      />
 
       <style>
         {`
@@ -1053,6 +1170,7 @@ function StatusBadge({ status }) {
 function StatusToggle({
   status,
   disabled,
+  disabledLabel,
   onChange,
 }) {
   const active =
@@ -1105,7 +1223,8 @@ function StatusToggle({
         }}
       >
         {disabled
-          ? "Updating..."
+          ? disabledLabel ||
+            "Updating..."
           : active
             ? "Active"
             : "Inactive"}
@@ -1114,6 +1233,79 @@ function StatusToggle({
   );
 }
 
+
+function validateUserForm(
+  form,
+  isCreate
+) {
+  const fullName =
+    String(form.fullName || "").trim();
+
+  const email =
+    String(form.email || "")
+      .trim()
+      .toLowerCase();
+
+  const mobile =
+    String(form.mobile || "").trim();
+
+  const password =
+    String(form.password || "");
+
+  const remarks =
+    String(form.remarks || "").trim();
+
+  if (!fullName) {
+    return "Full Name is required.";
+  }
+
+  if (fullName.length > 100) {
+    return "Full Name cannot exceed 100 characters.";
+  }
+
+  if (!email) {
+    return "Email is required.";
+  }
+
+  if (
+    email.length > 254 ||
+   !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+  email
+)
+  ) {
+    return "Please enter a valid email address.";
+  }
+
+  if (
+    mobile &&
+    !/^\d{10}$/.test(mobile)
+  ) {
+    return "Mobile number must contain exactly 10 digits.";
+  }
+
+  if (remarks.length > 500) {
+    return "Remarks cannot exceed 500 characters.";
+  }
+
+  if (isCreate || password) {
+    if (password.length < 8) {
+      return "Password must contain at least 8 characters.";
+    }
+
+    if (password.length > 128) {
+      return "Password cannot exceed 128 characters.";
+    }
+
+    if (
+      !/[A-Za-z]/.test(password) ||
+      !/[0-9]/.test(password)
+    ) {
+      return "Password must include at least one letter and one number.";
+    }
+  }
+
+  return "";
+}
 
 function Field({
   label,
@@ -1307,7 +1499,7 @@ const emptyStateStyle = {
 
 const addBtnStyle = {
   minHeight: "44px",
-  background: "#2563eb",
+  background: "#ea580c",
   color: "#ffffff",
   border: "none",
   padding:
@@ -1322,7 +1514,7 @@ const addBtnStyle = {
 const editBtnStyle = {
   minHeight: "40px",
   background: "#eff6ff",
-  color: "#2563eb",
+  color: "#ea580c",
   border: "none",
   padding:
     "0.5rem 0.85rem",
@@ -1504,6 +1696,16 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
+const formErrorStyle = {
+  padding: "0.75rem",
+  borderRadius: "8px",
+  border: "1px solid #fecaca",
+  background: "#fef2f2",
+  color: "#b91c1c",
+  fontSize: "0.85rem",
+  fontWeight: 600,
+};
+
 const modalFooterStyle = {
   display: "flex",
   justifyContent:
@@ -1532,7 +1734,7 @@ const saveBtnStyle = {
   minHeight: "44px",
   padding:
     "0.65rem 1.2rem",
-  background: "#2563eb",
+  background: "#ea580c",
   color: "#ffffff",
   border: "none",
   borderRadius: "7px",
