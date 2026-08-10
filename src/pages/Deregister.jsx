@@ -18,12 +18,16 @@ const EMPTY_FILTERS = {
 };
 
 export default function Deregister() {
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth
+  );
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
   const [searchText, setSearchText] = useState("");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [viewing, setViewing] = useState(null);
   const [selectedForExit, setSelectedForExit] = useState(null);
@@ -86,6 +90,17 @@ export default function Deregister() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = viewportWidth <= 640;
+  const isTablet = viewportWidth > 640 && viewportWidth <= 1024;
+  const useCompactRecords = viewportWidth <= 820;
+  const recordsPerPage = useCompactRecords ? 10 : 20;
 
   useEffect(() => {
     if (!toast.open) return undefined;
@@ -198,6 +213,24 @@ export default function Deregister() {
     Boolean(filters.breed) ||
     Boolean(filters.shed);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRows.length / recordsPerPage)
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * recordsPerPage;
+    return filteredRows.slice(start, start + recordsPerPage);
+  }, [filteredRows, currentPage, recordsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, filters.gender, filters.breed, filters.shed, recordsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const clearFilters = () => {
     setSearchText("");
     setFilters(EMPTY_FILTERS);
@@ -218,7 +251,7 @@ export default function Deregister() {
   };
 
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, padding: isMobile ? "1rem" : "1.5rem", minWidth: 0 }}>
       <div style={headerStyle}>
         <div>
           <div style={eyebrowStyle}>Herd Management · Herd Lifecycle</div>
@@ -239,6 +272,7 @@ export default function Deregister() {
           disabled={loading}
           style={{
             ...refreshButtonStyle,
+            width: isMobile ? "100%" : "auto",
             ...(loading ? disabledButtonStyle : {}),
           }}
         >
@@ -246,7 +280,13 @@ export default function Deregister() {
         </button>
       </div>
 
-      <div style={metricsGridStyle}>
+      <div style={{
+        ...metricsGridStyle,
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: isMobile ? "0.75rem" : "1rem",
+      }}>
         <MetricCard
           label="Active Herd"
           value={metrics.total}
@@ -273,8 +313,15 @@ export default function Deregister() {
       </div>
 
       <div style={filterCardStyle}>
-        <div style={filterGridStyle}>
-          <div style={{ gridColumn: "span 2" }}>
+        <div style={{
+          ...filterGridStyle,
+          gridTemplateColumns: isMobile
+            ? "repeat(2, minmax(0, 1fr))"
+            : isTablet
+            ? "repeat(3, minmax(0, 1fr))"
+            : "repeat(auto-fit, minmax(170px, 1fr))",
+        }}>
+          <div style={{ gridColumn: isMobile ? "1 / -1" : "span 2", minWidth: 0 }}>
             <label style={filterLabelStyle}>
               Search
             </label>
@@ -384,6 +431,38 @@ export default function Deregister() {
           </div>
         </div>
 
+        <PaginationBar
+          recordCount={filteredRows.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+        />
+
+        {useCompactRecords ? (
+          <div style={mobileListStyle}>
+            {loading ? (
+              <div style={mobileEmptyStyle}>Loading active herd...</div>
+            ) : loadError ? (
+              <div style={{ ...mobileEmptyStyle, color: "#b91c1c" }}>{loadError}</div>
+            ) : filteredRows.length === 0 ? (
+              <div style={mobileEmptyStyle}>
+                {hasActiveFilters
+                  ? "No active cattle match the selected filters."
+                  : "No active cattle are currently available."}
+              </div>
+            ) : (
+              paginatedRows.map((row, index) => (
+                <MobileCattleCard
+                  key={getInternalId(row) || getTagNumber(row) || index}
+                  row={row}
+                  onView={() => setViewing(row)}
+                  onDeregister={() => setSelectedForExit(row)}
+                />
+              ))
+            )}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={tableStyle}>
             <thead style={tableHeadStyle}>
@@ -429,7 +508,7 @@ export default function Deregister() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row, index) => {
+                paginatedRows.map((row, index) => {
                   const rowKey =
                     row?.internalId ||
                     row?.internal_id ||
@@ -513,6 +592,18 @@ export default function Deregister() {
             </tbody>
           </table>
         </div>
+        )}
+
+        {filteredRows.length > 0 && (
+          <PaginationBar
+            recordCount={filteredRows.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            isFooter
+          />
+        )}
       </div>
 
       {viewing && (
@@ -523,6 +614,7 @@ export default function Deregister() {
             setSelectedForExit(viewing);
             setViewing(null);
           }}
+          isMobile={isMobile}
         />
       )}
 
@@ -536,6 +628,7 @@ export default function Deregister() {
             showToast("success", message);
           }}
           showToast={showToast}
+          isMobile={isMobile}
         />
       )}
 
@@ -550,12 +643,113 @@ export default function Deregister() {
   );
 }
 
+function PaginationBar({
+  recordCount,
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+  isFooter = false,
+}) {
+  return (
+    <div style={{
+      ...paginationBarStyle,
+      ...(isFooter ? paginationFooterStyle : {}),
+    }}>
+      <div style={paginationInfoStyle}>
+        Records: <strong>{recordCount}</strong>
+        <span aria-hidden="true"> | </span>
+        Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+      </div>
+
+      <div style={paginationActionsStyle}>
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          style={{
+            ...paginationButtonStyle,
+            ...(currentPage <= 1 ? disabledButtonStyle : {}),
+          }}
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= totalPages}
+          style={{
+            ...paginationButtonStyle,
+            ...(currentPage >= totalPages ? disabledButtonStyle : {}),
+          }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MetricCard({ label, value, helper }) {
   return (
     <div style={metricCardStyle}>
       <div style={metricLabelStyle}>{label}</div>
       <div style={metricValueStyle}>{value}</div>
       <div style={metricHelperStyle}>{helper}</div>
+    </div>
+  );
+}
+
+function MobileCattleCard({ row, onView, onDeregister }) {
+  return (
+    <article onClick={onView} style={mobileCardStyle}>
+      <div style={mobileCardHeaderStyle}>
+        <div style={{ minWidth: 0 }}>
+          <div style={mobileCardEyebrowStyle}>Tag Number</div>
+          <div style={mobileCardTitleStyle}>{getTagNumber(row) || "-"}</div>
+          <div style={mobileCardNameStyle}>{row?.name || "Unnamed Cattle"}</div>
+        </div>
+        <StatusBadge status={row?.status} />
+      </div>
+
+      <div style={mobileCardGridStyle}>
+        <MobileCardDetail label="Breed" value={row?.breed} />
+        <MobileCardDetail label="Gender" value={<GenderText gender={row?.gender} />} />
+        <MobileCardDetail label="Category" value={row?.category} />
+        <MobileCardDetail label="Shed" value={row?.shed} />
+      </div>
+
+      <div style={mobileCardActionsStyle}>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onView();
+          }}
+          style={secondaryButtonStyle}
+        >
+          View
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDeregister();
+          }}
+          style={dangerButtonStyle}
+        >
+          Deregister
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function MobileCardDetail({ label, value }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={mobileCardDetailLabelStyle}>{label}</div>
+      <div style={mobileCardDetailValueStyle}>{value || "-"}</div>
     </div>
   );
 }
@@ -590,11 +784,18 @@ function CattlePreviewModal({
   selected,
   onClose,
   onDeregister,
+  isMobile,
 }) {
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={onClose}>
       <div
-        style={previewModalStyle}
+        style={{
+          ...previewModalStyle,
+          width: isMobile ? "100%" : "720px",
+          height: isMobile ? "100dvh" : "auto",
+          maxHeight: isMobile ? "100dvh" : "90vh",
+          borderRadius: isMobile ? 0 : "12px",
+        }}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={modalHeaderStyle}>
@@ -629,7 +830,7 @@ function CattlePreviewModal({
           </button>
         </div>
 
-        <div style={previewGridStyle}>
+        <div style={{ ...previewGridStyle, flex: 1, overflowY: "auto", paddingRight: "2px" }}>
           <PreviewItem
             label="Name"
             value={selected?.name}
@@ -741,6 +942,7 @@ function DeregisterModal({
   onClose,
   onSuccess,
   showToast,
+  isMobile,
 }) {
   const isFemale =
     String(selected?.gender || "")
@@ -966,9 +1168,15 @@ function DeregisterModal({
 
   return (
     <>
-      <div style={overlayStyle} onClick={onClose}>
+      <div style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={onClose}>
         <div
-          style={exitModalStyle}
+          style={{
+            ...exitModalStyle,
+            width: isMobile ? "100%" : "760px",
+            height: isMobile ? "100dvh" : "auto",
+            maxHeight: isMobile ? "100dvh" : "92vh",
+            borderRadius: isMobile ? 0 : "12px",
+          }}
           onClick={(event) => event.stopPropagation()}
         >
           <div style={modalHeaderStyle}>
@@ -1006,7 +1214,13 @@ function DeregisterModal({
             </button>
           </div>
 
-          <div style={formGridStyle}>
+          <div style={{
+            ...formGridStyle,
+            gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : formGridStyle.gridTemplateColumns,
+            flex: 1,
+            overflowY: "auto",
+            paddingRight: "2px",
+          }}>
             <div>
               <label style={labelStyle}>
                 Reason / Type *
@@ -1791,6 +2005,44 @@ const tableSubtitleStyle = {
   marginTop: "3px",
 };
 
+const paginationBarStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "0.75rem",
+  padding: "0.75rem 1rem",
+  borderBottom: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+const paginationFooterStyle = {
+  borderTop: "1px solid #e2e8f0",
+  borderBottom: "none",
+};
+
+const paginationInfoStyle = {
+  color: "#64748b",
+  fontSize: "0.8rem",
+};
+
+const paginationActionsStyle = {
+  display: "flex",
+  gap: "0.5rem",
+};
+
+const paginationButtonStyle = {
+  minWidth: "58px",
+  padding: "0.5rem 0.7rem",
+  borderRadius: "7px",
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+  color: "#334155",
+  cursor: "pointer",
+  fontSize: "0.8rem",
+  fontWeight: 700,
+};
+
 const tableStyle = {
   width: "100%",
   minWidth: "950px",
@@ -1824,6 +2076,87 @@ const tdStyle = {
 const tableRowStyle = {
   cursor: "pointer",
   transition: "background 0.15s ease",
+};
+
+const mobileListStyle = {
+  display: "grid",
+  gap: "0.75rem",
+  padding: "0.75rem",
+};
+
+const mobileEmptyStyle = {
+  padding: "2.5rem 1rem",
+  textAlign: "center",
+  color: "#64748b",
+};
+
+const mobileCardStyle = {
+  display: "grid",
+  gap: "0.85rem",
+  padding: "0.9rem",
+  minWidth: 0,
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  cursor: "pointer",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "0.75rem",
+  paddingBottom: "0.75rem",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileCardEyebrowStyle = {
+  color: "#64748b",
+  fontSize: "0.68rem",
+  fontWeight: 750,
+  textTransform: "uppercase",
+};
+
+const mobileCardTitleStyle = {
+  color: "#0f172a",
+  fontSize: "1rem",
+  fontWeight: 800,
+  overflowWrap: "anywhere",
+};
+
+const mobileCardNameStyle = {
+  color: "#475569",
+  fontSize: "0.82rem",
+  fontWeight: 600,
+  marginTop: "2px",
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
+const mobileCardDetailLabelStyle = {
+  color: "#64748b",
+  fontSize: "0.68rem",
+  fontWeight: 750,
+  textTransform: "uppercase",
+};
+
+const mobileCardDetailValueStyle = {
+  color: "#1e293b",
+  fontSize: "0.84rem",
+  fontWeight: 600,
+  marginTop: "2px",
+  overflowWrap: "anywhere",
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "0.6rem",
 };
 
 const emptyCellStyle = {
@@ -1869,7 +2202,9 @@ const previewModalStyle = {
   width: "720px",
   maxWidth: "100%",
   maxHeight: "90vh",
-  overflowY: "auto",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
   background: "#ffffff",
   borderRadius: "12px",
   padding: "1.4rem",
@@ -1881,7 +2216,9 @@ const exitModalStyle = {
   width: "760px",
   maxWidth: "100%",
   maxHeight: "92vh",
-  overflowY: "auto",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
   background: "#ffffff",
   borderRadius: "12px",
   padding: "1.4rem",
@@ -1896,6 +2233,7 @@ const modalHeaderStyle = {
   paddingBottom: "1rem",
   marginBottom: "1rem",
   borderBottom: "1px solid #e2e8f0",
+  flexShrink: 0,
 };
 
 const modalEyebrowStyle = {
@@ -2089,6 +2427,7 @@ const modalFooterStyle = {
   marginTop: "1.3rem",
   paddingTop: "1rem",
   borderTop: "1px solid #e2e8f0",
+  flexShrink: 0,
 };
 
 const secondaryButtonStyle = {

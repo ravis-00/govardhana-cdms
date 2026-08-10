@@ -136,6 +136,9 @@ function getInternalDistribution(row) {
 // =========================================================
 
 export default function MilkYield() {
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth
+  );
   const [activeTab, setActiveTab] =
     useState("production");
 
@@ -150,6 +153,7 @@ const [toDate, setToDate] =
 
   const [searchText, setSearchText] =
     useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [loading, setLoading] =
     useState(false);
@@ -207,8 +211,23 @@ const [toDate, setToDate] =
   // =======================================================
 
   useEffect(() => {
-  loadData();
-}, [fromDate, toDate, activeTab]);
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = viewportWidth <= 640;
+  const isTablet = viewportWidth > 640 && viewportWidth <= 1024;
+  const useCompactRecords = viewportWidth <= 820;
+  const recordsPerPage = useCompactRecords ? 10 : 20;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadData();
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [fromDate, toDate, activeTab]);
 
   useEffect(() => {
     if (
@@ -888,12 +907,30 @@ if (fromDate > toDate) {
       ? filteredProductionRows
       : filteredDistributionRows;
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visibleRows.length / recordsPerPage)
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * recordsPerPage;
+    return visibleRows.slice(start, start + recordsPerPage);
+  }, [visibleRows, currentPage, recordsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, fromDate, toDate, searchText, recordsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   // =======================================================
   // RENDER
   // =======================================================
 
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, padding: isMobile ? "16px" : "24px", minWidth: 0 }}>
       {/* PAGE HEADER */}
 
       <div style={pageHeaderStyle}>
@@ -916,7 +953,7 @@ if (fromDate > toDate) {
           type="button"
           onClick={openAddModal}
           className="btn btn-primary"
-          style={addButtonStyle}
+          style={{ ...addButtonStyle, width: isMobile ? "100%" : "auto", justifyContent: "center" }}
         >
           + Add Entry
         </button>
@@ -924,7 +961,13 @@ if (fromDate > toDate) {
 
       {/* KPI CARDS */}
 
-      <div style={kpiGridStyle}>
+      <div style={{
+        ...kpiGridStyle,
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(auto-fit, minmax(190px, 1fr))",
+        gap: isMobile ? "10px" : "14px",
+      }}>
         {activeTab === "production" ? (
           <>
             <KpiCard
@@ -1027,8 +1070,16 @@ if (fromDate > toDate) {
 
       {/* TOOLBAR */}
 
-      <div style={toolbarStyle}>
-        <div style={toolbarFieldStyle}>
+      <div style={{
+        ...toolbarStyle,
+        display: "grid",
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : isTablet
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(2, minmax(180px, 220px)) minmax(260px, 1fr) auto",
+      }}>
+        <div style={{ ...toolbarFieldStyle, minWidth: 0 }}>
   <label style={toolbarLabelStyle}>
     From Date
   </label>
@@ -1047,7 +1098,7 @@ if (fromDate > toDate) {
   />
 </div>
 
-<div style={toolbarFieldStyle}>
+<div style={{ ...toolbarFieldStyle, minWidth: 0 }}>
   <label style={toolbarLabelStyle}>
     To Date
   </label>
@@ -1066,7 +1117,11 @@ if (fromDate > toDate) {
   />
 </div>
 
-        <div style={searchFieldStyle}>
+        <div style={{
+          ...searchFieldStyle,
+          gridColumn: isMobile || isTablet ? "1 / -1" : "auto",
+          minWidth: 0,
+        }}>
           <label style={toolbarLabelStyle}>
             Search
           </label>
@@ -1090,11 +1145,15 @@ if (fromDate > toDate) {
           />
         </div>
 
-        <div style={toolbarActionStyle}>
+        <div style={{
+          ...toolbarActionStyle,
+          gridColumn: isMobile || isTablet ? "1 / -1" : "auto",
+        }}>
           <button
             type="button"
             onClick={clearFilters}
             className="btn btn-secondary"
+            style={{ width: isMobile || isTablet ? "100%" : "auto" }}
           >
             Clear Filters
           </button>
@@ -1141,7 +1200,19 @@ if (fromDate > toDate) {
           </div>
         </div>
 
-        <div style={tableScrollStyle}>
+        <PaginationBar
+          recordCount={visibleRows.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+        />
+
+        <div style={{
+          ...tableScrollStyle,
+          overflowX: useCompactRecords ? "hidden" : "auto",
+          maxHeight: useCompactRecords ? "none" : tableScrollStyle.maxHeight,
+        }}>
           {loading ? (
             <LoadingState />
           ) : visibleRows.length === 0 ? (
@@ -1150,6 +1221,18 @@ if (fromDate > toDate) {
   fromDate={fromDate}
   toDate={toDate}
 />
+          ) : useCompactRecords ? (
+            <div style={mobileListStyle}>
+              {paginatedRows.map((row, index) => (
+                <MilkRecordCard
+                  key={row.transactionId || row.transaction_id || `${row.date}-${index}`}
+                  row={row}
+                  activeTab={activeTab}
+                  onView={() => setViewData(row)}
+                  onEdit={() => openEditModal(row)}
+                />
+              ))}
+            </div>
           ) : (
             <table style={tableStyle}>
               <thead style={theadStyle}>
@@ -1210,7 +1293,7 @@ if (fromDate > toDate) {
               </thead>
 
               <tbody>
-                {visibleRows.map(
+                {paginatedRows.map(
                   (row, index) => {
                     const key =
                       row.transactionId ||
@@ -1345,17 +1428,33 @@ if (fromDate > toDate) {
             </table>
           )}
         </div>
+
+        {visibleRows.length > 0 && (
+          <PaginationBar
+            recordCount={visibleRows.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            isFooter
+          />
+        )}
       </div>
 
       {/* ADD / EDIT MODAL */}
 
       {showModal && (
         <div
-          style={overlayStyle}
+          style={{ ...overlayStyle, padding: isMobile ? 0 : "20px", alignItems: isMobile ? "stretch" : "center" }}
           onClick={closeEditModal}
         >
           <div
-            style={modalStyle}
+            style={{
+              ...modalStyle,
+              height: isMobile ? "100dvh" : modalStyle.height,
+              maxWidth: isMobile ? "100%" : modalStyle.maxWidth,
+              borderRadius: isMobile ? 0 : "14px",
+            }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -1739,13 +1838,18 @@ if (fromDate > toDate) {
 
       {viewData && (
         <div
-          style={overlayStyle}
+          style={{ ...overlayStyle, padding: isMobile ? 0 : "20px", alignItems: isMobile ? "stretch" : "center" }}
           onClick={() =>
             setViewData(null)
           }
         >
           <div
-            style={detailsModalStyle}
+            style={{
+              ...detailsModalStyle,
+              height: isMobile ? "100dvh" : detailsModalStyle.height,
+              maxWidth: isMobile ? "100%" : detailsModalStyle.maxWidth,
+              borderRadius: isMobile ? 0 : "14px",
+            }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -2021,6 +2125,117 @@ if (fromDate > toDate) {
 // =========================================================
 // SMALL COMPONENTS
 // =========================================================
+
+function PaginationBar({
+  recordCount,
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+  isFooter = false,
+}) {
+  return (
+    <div style={{ ...paginationBarStyle, ...(isFooter ? paginationFooterStyle : {}) }}>
+      <div style={paginationInfoStyle}>
+        Records: <strong>{recordCount}</strong>
+        <span aria-hidden="true"> | </span>
+        Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+      </div>
+      <div style={paginationActionsStyle}>
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          style={{ ...paginationButtonStyle, ...(currentPage <= 1 ? paginationDisabledStyle : {}) }}
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= totalPages}
+          style={{ ...paginationButtonStyle, ...(currentPage >= totalPages ? paginationDisabledStyle : {}) }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MilkRecordCard({ row, activeTab, onView, onEdit }) {
+  const isProduction = activeTab === "production";
+
+  return (
+    <article style={mobileCardStyle} onClick={onView}>
+      <div style={mobileCardHeaderStyle}>
+        <div>
+          <div style={mobileCardLabelStyle}>Date</div>
+          <div style={mobileCardTitleStyle}>{formatDate(row.date)}</div>
+          <div style={mobileCardSubTitleStyle}>
+            {isProduction
+              ? row.shedId || row.shed || "No shed recorded"
+              : row.outPassNumber || row.outPassNum || "No out-pass number"}
+          </div>
+        </div>
+        <div style={mobileTotalBoxStyle}>
+          <div style={mobileCardLabelStyle}>{isProduction ? "Good Milk" : "Out Pass"}</div>
+          <div style={mobileTotalValueStyle}>
+            {formatQuantity(isProduction ? getProductionGoodMilk(row) : row.outPassQty)} L
+          </div>
+        </div>
+      </div>
+
+      {isProduction ? (
+        <div style={mobileCardGridStyle}>
+          <MobileMilkValue label="AM Good" value={row.amGoodQty ?? row.amGood} />
+          <MobileMilkValue label="PM Good" value={row.pmGoodQty ?? row.pmGood} />
+          <MobileMilkValue label="AM Colostrum" value={row.amColostrumQty ?? row.amColostrum} />
+          <MobileMilkValue label="PM Colostrum" value={row.pmColostrumQty ?? row.pmColostrum} />
+        </div>
+      ) : (
+        <div style={mobileCardGridStyle}>
+          <MobileMilkValue label="AM By-products" value={row.amToByProducts ?? row.amByProd} />
+          <MobileMilkValue label="PM By-products" value={row.pmToByProducts ?? row.pmByProd} />
+          <MobileMilkValue label="Temple" value={row.amTemple} />
+          <MobileMilkValue label="Workers" value={row.toWorkers} />
+        </div>
+      )}
+
+      <div style={mobileCardActionsStyle}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => {
+            event.stopPropagation();
+            onView();
+          }}
+        >
+          View
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit();
+          }}
+          style={editButtonStyle}
+        >
+          Edit
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function MobileMilkValue({ label, value }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={mobileCardLabelStyle}>{label}</div>
+      <div style={mobileCardValueStyle}>{formatQuantity(value)} L</div>
+    </div>
+  );
+}
 
 function KpiCard({
   label,
@@ -2427,6 +2642,49 @@ const recordCountStyle = {
   color: "#94a3b8",
 };
 
+const paginationBarStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "10px",
+  padding: "11px 16px",
+  borderBottom: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
+
+const paginationFooterStyle = {
+  borderTop: "1px solid #e2e8f0",
+  borderBottom: "none",
+};
+
+const paginationInfoStyle = {
+  color: "#64748b",
+  fontSize: "12px",
+};
+
+const paginationActionsStyle = {
+  display: "flex",
+  gap: "8px",
+};
+
+const paginationButtonStyle = {
+  minWidth: "58px",
+  padding: "7px 10px",
+  border: "1px solid #cbd5e1",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#334155",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 700,
+};
+
+const paginationDisabledStyle = {
+  opacity: 0.5,
+  cursor: "not-allowed",
+};
+
 const tableScrollStyle = {
   overflowX: "auto",
   minHeight: "300px",
@@ -2503,6 +2761,87 @@ const actionTdStyle = {
 const rowActionsStyle = {
   display: "flex",
   justifyContent: "center",
+  gap: "8px",
+};
+
+const mobileListStyle = {
+  display: "grid",
+  gap: "10px",
+  padding: "10px",
+};
+
+const mobileCardStyle = {
+  display: "grid",
+  gap: "12px",
+  minWidth: 0,
+  padding: "12px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  cursor: "pointer",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  paddingBottom: "10px",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileCardLabelStyle = {
+  color: "#64748b",
+  fontSize: "10px",
+  fontWeight: 750,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const mobileCardTitleStyle = {
+  marginTop: "3px",
+  color: "#0f172a",
+  fontSize: "15px",
+  fontWeight: 800,
+};
+
+const mobileCardSubTitleStyle = {
+  marginTop: "3px",
+  color: "#475569",
+  fontSize: "12px",
+  fontWeight: 600,
+  overflowWrap: "anywhere",
+};
+
+const mobileTotalBoxStyle = {
+  textAlign: "right",
+  flexShrink: 0,
+};
+
+const mobileTotalValueStyle = {
+  marginTop: "3px",
+  color: "#0f172a",
+  fontSize: "15px",
+  fontWeight: 800,
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "12px",
+};
+
+const mobileCardValueStyle = {
+  marginTop: "3px",
+  color: "#1e293b",
+  fontSize: "13px",
+  fontWeight: 650,
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
   gap: "8px",
 };
 

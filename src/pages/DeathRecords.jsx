@@ -285,6 +285,10 @@ export default function DeathRecords() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 820
+  );
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadData() {
     try {
@@ -319,52 +323,17 @@ export default function DeathRecords() {
   }
 
   useEffect(() => {
-    let active = true;
-
-    async function run() {
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await getDeathRecords(
-          fromDate || "2024-01-01",
-          toDate || ""
-        );
-
-        if (!active) return;
-
-        let rawData = [];
-
-        if (Array.isArray(response)) {
-          rawData = response;
-        } else if (Array.isArray(response?.data)) {
-          rawData = response.data;
-        }
-
-        setRows(rawData.map(normalizeRecord));
-      } catch (err) {
-        if (!active) return;
-
-        console.error("Mortality Register load failed:", err);
-
-        setRows([]);
-        setError(
-          err?.message ||
-            "Unable to load mortality records."
-        );
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    run();
-
-    return () => {
-      active = false;
-    };
+    const timer = window.setTimeout(loadData, 400);
+    return () => window.clearTimeout(timer);
   }, [fromDate, toDate]);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(window.innerWidth <= 820);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const causeOptions = useMemo(() => {
     const unique = new Set();
@@ -452,6 +421,21 @@ export default function DeathRecords() {
 
     return result;
   }, [filteredRows]);
+
+  const pageSize = isCompact ? 10 : 20;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, causeFilter, fromDate, toDate, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   function clearFilters() {
     setSearchText("");
@@ -760,9 +744,9 @@ export default function DeathRecords() {
   }
 
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, ...(isCompact ? compactPageStyle : {}) }}>
       {/* PAGE HEADER */}
-      <div style={pageHeaderStyle}>
+      <div style={{ ...pageHeaderStyle, ...(isCompact ? compactHeaderStyle : {}) }}>
         <div>
           <div style={eyebrowStyle}>Veterinary</div>
 
@@ -782,6 +766,7 @@ export default function DeathRecords() {
           disabled={loading}
           style={{
             ...refreshButtonStyle,
+            ...(isCompact ? compactFullButtonStyle : {}),
             opacity: loading ? 0.65 : 1,
           }}
         >
@@ -790,11 +775,12 @@ export default function DeathRecords() {
       </div>
 
       {/* KPI CARDS */}
-      <div style={metricsGridStyle}>
+      <div style={{ ...metricsGridStyle, ...(isCompact ? compactMetricsGridStyle : {}) }}>
         <MetricCard
           label="Total Deaths"
           value={metrics.total}
           helper="Current filtered records"
+          style={isCompact ? compactTotalMetricStyle : undefined}
         />
 
         <MetricCard
@@ -824,8 +810,8 @@ export default function DeathRecords() {
 
       {/* FILTER CARD */}
       <div style={filterCardStyle}>
-        <div style={filterGridStyle}>
-          <div style={{ gridColumn: "span 2" }}>
+        <div style={{ ...filterGridStyle, ...(isCompact ? compactFilterGridStyle : {}) }}>
+          <div style={{ gridColumn: isCompact ? "auto" : "span 2" }}>
             <label style={labelStyle}>
               Search
             </label>
@@ -891,11 +877,11 @@ export default function DeathRecords() {
             />
           </div>
 
-          <div style={filterActionStyle}>
+          <div style={{ ...filterActionStyle, ...(isCompact ? compactFilterActionStyle : {}) }}>
             <button
               type="button"
               onClick={clearFilters}
-              style={clearButtonStyle}
+              style={{ ...clearButtonStyle, ...(isCompact ? compactFullButtonStyle : {}) }}
             >
               Clear Filters
             </button>
@@ -909,9 +895,9 @@ export default function DeathRecords() {
         </div>
       )}
 
-      {/* TABLE */}
+      {/* RESPONSIVE REGISTER */}
       <div style={tableCardStyle}>
-        <div style={tableSummaryStyle}>
+        <div style={{ ...tableSummaryStyle, ...(isCompact ? compactSummaryStyle : {}) }}>
           <div>
             <strong>{filteredRows.length}</strong>{" "}
             mortality record(s)
@@ -922,6 +908,52 @@ export default function DeathRecords() {
           </div>
         </div>
 
+        <PaginationBar
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={filteredRows.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          compact={isCompact}
+        />
+
+        {isCompact ? (
+          <div style={mobileCardsStyle}>
+            {loading ? (
+              <div style={emptyStateStyle}>Loading mortality records...</div>
+            ) : filteredRows.length === 0 ? (
+              <div style={emptyStateStyle}>No mortality records found for the selected filters.</div>
+            ) : pagedRows.map((row, index) => (
+              <article
+                key={row.id || `${row.internalId}-${row.dateOfDeath}-${index}`}
+                style={mobileRecordCardStyle}
+              >
+                <div style={mobileCardHeaderStyle}>
+                  <div>
+                    <div style={mobileFieldLabelStyle}>Death Date</div>
+                    <strong>{formatDateDisplay(row.dateOfDeath)}</strong>
+                  </div>
+                  <CauseBadge value={row.causeCategory} />
+                </div>
+                <div style={mobileCardTitleStyle}>{row.cattleId || "-"} | {row.name}</div>
+                <div style={mobileDetailsGridStyle}>
+                  <MobileField label="Breed" value={displayValue(row.breed)} />
+                  <MobileField label="Gender" value={displayValue(row.gender)} />
+                  <MobileField label="Shed" value={displayValue(row.shed)} />
+                  <MobileField label="Doctor" value={displayValue(row.doctor)} />
+                </div>
+                <div style={mobileCauseStyle}>
+                  <span style={mobileFieldLabelStyle}>Cause</span>
+                  <span>{displayValue(row.causeOfDeath)}</span>
+                </div>
+                <div style={mobileActionsStyle}>
+                  <button type="button" onClick={() => setSelected(row)} style={secondaryButtonStyle}>View</button>
+                  <button type="button" onClick={() => printCertificate(row)} style={certificateButtonStyle}>Certificate</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
         <div style={tableScrollStyle}>
           <table style={tableStyle}>
             <thead style={tableHeadStyle}>
@@ -954,7 +986,7 @@ export default function DeathRecords() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row, index) => (
+                pagedRows.map((row, index) => (
                   <tr
                     key={
                       row.id ||
@@ -1022,19 +1054,29 @@ export default function DeathRecords() {
             </tbody>
           </table>
         </div>
+        )}
+
+        <PaginationBar
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={filteredRows.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          compact={isCompact}
+        />
       </div>
 
       {/* DETAILS MODAL */}
       {selected && (
         <div
-          style={overlayStyle}
+          style={{ ...overlayStyle, ...(isCompact ? compactOverlayStyle : {}) }}
           onClick={() => setSelected(null)}
         >
           <div
-            style={modalStyle}
+            style={{ ...modalStyle, ...(isCompact ? compactModalStyle : {}) }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div style={modalHeaderStyle}>
+            <div style={{ ...modalHeaderStyle, ...(isCompact ? compactModalHeaderStyle : {}) }}>
               <div>
                 <div style={modalEyebrowStyle}>
                   Mortality Record
@@ -1065,7 +1107,7 @@ export default function DeathRecords() {
               </button>
             </div>
 
-            <div style={modalBodyStyle}>
+            <div style={{ ...modalBodyStyle, ...(isCompact ? compactModalBodyStyle : {}) }}>
               <section style={sectionCardStyle}>
                 <SectionTitle>
                   Animal Information
@@ -1191,7 +1233,7 @@ export default function DeathRecords() {
                   Photo and Remarks
                 </SectionTitle>
 
-                <div style={photoRemarksGridStyle}>
+                <div style={{ ...photoRemarksGridStyle, ...(isCompact ? compactPhotoRemarksGridStyle : {}) }}>
                   <div style={photoBoxStyle}>
                     {selected.photoUrl ? (
                       <img
@@ -1219,7 +1261,7 @@ export default function DeathRecords() {
               </section>
             </div>
 
-            <div style={modalFooterStyle}>
+            <div style={{ ...modalFooterStyle, ...(isCompact ? compactModalFooterStyle : {}) }}>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
@@ -1247,9 +1289,9 @@ export default function DeathRecords() {
    SMALL COMPONENTS
 ============================================================ */
 
-function MetricCard({ label, value, helper }) {
+function MetricCard({ label, value, helper, style }) {
   return (
-    <div style={metricCardStyle}>
+    <div style={{ ...metricCardStyle, ...style }}>
       <div style={metricLabelStyle}>
         {label}
       </div>
@@ -1260,6 +1302,30 @@ function MetricCard({ label, value, helper }) {
 
       <div style={metricHelperStyle}>
         {helper}
+      </div>
+    </div>
+  );
+}
+
+function MobileField({ label, value }) {
+  return (
+    <div>
+      <div style={mobileFieldLabelStyle}>{label}</div>
+      <div style={mobileFieldValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function PaginationBar({ currentPage, totalPages, totalRecords, pageSize, onPageChange, compact }) {
+  if (totalRecords === 0) return null;
+  const first = (currentPage - 1) * pageSize + 1;
+  const last = Math.min(currentPage * pageSize, totalRecords);
+  return (
+    <div style={{ ...paginationStyle, ...(compact ? compactPaginationStyle : {}) }}>
+      <div>Records: {first}-{last} of {totalRecords} | Page {currentPage} of {totalPages}</div>
+      <div style={paginationButtonsStyle}>
+        <button type="button" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)} style={{ ...pageButtonStyle, opacity: currentPage === 1 ? 0.45 : 1 }}>Prev</button>
+        <button type="button" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)} style={{ ...pageButtonStyle, opacity: currentPage === totalPages ? 0.45 : 1 }}>Next</button>
       </div>
     </div>
   );
@@ -1790,3 +1856,43 @@ const primaryButtonStyle = {
   cursor: "pointer",
   fontWeight: 650,
 };
+
+const compactPageStyle = { padding: "1rem", overflowX: "hidden" };
+const compactHeaderStyle = { display: "block" };
+const compactFullButtonStyle = { width: "100%", justifyContent: "center" };
+const compactMetricsGridStyle = { gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.65rem" };
+const compactTotalMetricStyle = { gridColumn: "1 / -1" };
+const compactFilterGridStyle = { gridTemplateColumns: "1fr" };
+const compactFilterActionStyle = { display: "block" };
+const compactSummaryStyle = { alignItems: "flex-start", flexDirection: "column", gap: "0.25rem" };
+
+const paginationStyle = {
+  display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem",
+  padding: "0.7rem 1rem", color: "#64748b", fontSize: "0.78rem", borderBottom: "1px solid #e2e8f0",
+};
+const compactPaginationStyle = { flexWrap: "wrap", padding: "0.7rem" };
+const paginationButtonsStyle = { display: "flex", gap: "0.5rem", marginLeft: "auto" };
+const pageButtonStyle = {
+  border: "1px solid #cbd5e1", borderRadius: "7px", background: "#ffffff", color: "#334155",
+  padding: "0.45rem 0.7rem", fontWeight: 650, cursor: "pointer",
+};
+
+const mobileCardsStyle = { padding: "0.7rem", display: "grid", gap: "0.7rem", background: "#f8fafc" };
+const mobileRecordCardStyle = {
+  border: "1px solid #e2e8f0", borderRadius: "10px", background: "#ffffff", padding: "0.85rem",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)", minWidth: 0,
+};
+const mobileCardHeaderStyle = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.6rem" };
+const mobileCardTitleStyle = { margin: "0.65rem 0", paddingBottom: "0.55rem", borderBottom: "1px solid #e2e8f0", color: "#0f172a", fontWeight: 750, wordBreak: "break-word" };
+const mobileDetailsGridStyle = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.7rem" };
+const mobileFieldLabelStyle = { color: "#64748b", fontSize: "0.65rem", fontWeight: 750, textTransform: "uppercase", letterSpacing: "0.03em" };
+const mobileFieldValueStyle = { color: "#0f172a", fontSize: "0.8rem", fontWeight: 650, marginTop: "0.15rem", wordBreak: "break-word" };
+const mobileCauseStyle = { display: "grid", gap: "0.2rem", marginTop: "0.75rem", paddingTop: "0.65rem", borderTop: "1px solid #e2e8f0", color: "#334155", fontSize: "0.8rem" };
+const mobileActionsStyle = { display: "flex", justifyContent: "flex-end", gap: "0.55rem", marginTop: "0.8rem" };
+
+const compactOverlayStyle = { padding: 0, alignItems: "stretch" };
+const compactModalStyle = { width: "100%", maxWidth: "none", height: "100dvh", maxHeight: "100dvh", borderRadius: 0 };
+const compactModalHeaderStyle = { padding: "0.85rem 1rem" };
+const compactModalBodyStyle = { padding: "0.75rem", overscrollBehavior: "contain" };
+const compactModalFooterStyle = { padding: "0.75rem", position: "sticky", bottom: 0 };
+const compactPhotoRemarksGridStyle = { gridTemplateColumns: "1fr" };

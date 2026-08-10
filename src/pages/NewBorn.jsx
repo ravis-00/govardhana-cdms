@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom"; 
 import { getNewBorn, addNewBorn, updateNewBorn, getCattle } from "../api/masterApi"; 
+import ProgressToast from "../components/common/ProgressToast";
 
 const CLOUD_NAME = "dvcwgkszp";       
 const UPLOAD_PRESET = "cattle_upload"; 
@@ -205,6 +206,9 @@ fatherBreed: "",
 
 export default function NewBorn() {
   const navigate = useNavigate(); 
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth
+  );
   const [fromDate, setFromDate] = useState("");
 const [toDate, setToDate] = useState("");
 const [searchText, setSearchText] = useState("");
@@ -223,9 +227,35 @@ const recordsPerPage = 10;
   const [editingEntry, setEditingEntry] = useState(null);
   const [error, setError] = useState("");
   const [openActionMenu, setOpenActionMenu] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState({ show: false, type: "info", message: "" });
   
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+  };
+
+  useEffect(() => {
+    if (!toast.show || toast.type === "loading") return undefined;
+
+    const timer = window.setTimeout(() => {
+      setToast((current) => ({ ...current, show: false }));
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [toast.show, toast.type, toast.message]);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = viewportWidth <= 640;
+  const isTablet = viewportWidth > 640 && viewportWidth <= 1024;
+  const useCompactRecords = viewportWidth <= 820;
 
   useEffect(() => { 
     loadData(); 
@@ -295,7 +325,7 @@ keys.forEach((key) => {
     }
   } catch (e) {
     console.error("Could not load cattle directory", e);
-    alert("Could not load cattle directory. Check console.");
+    showToast("error", "Could not load the cattle directory. Please refresh and try again.");
   }
 };
 
@@ -409,7 +439,7 @@ const paginatedRows = filteredRows.slice(
   const eligibility = getRegistrationEligibility(entry);
 
   if (!eligibility.eligible) {
-    alert("Registration possible only after 21 days after birth.");
+    showToast("info", "Registration is possible only after the calf completes 21 days.");
     return;
   }
 
@@ -506,7 +536,8 @@ if (name === "birthStatus") {
         setForm(prev => ({ ...prev, photo: fileData.secure_url }));
       }
     } catch (err) {
-      alert("Error uploading image");
+      console.error("Image upload failed", err);
+      showToast("error", "Photo upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -514,6 +545,8 @@ if (name === "birthStatus") {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (saving || uploading) return;
+
     try {
       const motherEligibilityError = validateMotherEligibility(
   form,
@@ -523,27 +556,38 @@ if (name === "birthStatus") {
 );
 
 if (motherEligibilityError) {
-  alert(motherEligibilityError);
+  showToast("error", motherEligibilityError);
   return;
 }
       const motherGapError = validateMotherCalvingGap(form, rows, editingEntry);
 
 if (motherGapError) {
-  alert(motherGapError);
+  showToast("error", motherGapError);
   return;
 }
-      if (editingEntry) {
-        
-const res = await updateNewBorn(form);
 
+      setSaving(true);
+      showToast("loading", editingEntry ? "Updating birth record..." : "Saving birth record...");
+
+      let response;
+      if (editingEntry) {
+        response = await updateNewBorn(form);
       } else {
-        await addNewBorn(form);
+        response = await addNewBorn(form);
       }
-      alert("Saved Successfully!");
+
+      if (response?.success === false) {
+        throw new Error(response.error || response.message || "Unable to save the birth record.");
+      }
+
       setShowForm(false);
-      loadData(); 
+      showToast("success", editingEntry ? "Birth record updated successfully." : "Birth record saved successfully.");
+      await loadData();
     } catch (err) {
-      alert("Error saving: " + err.message);
+      console.error("Birth record save failed", err);
+      showToast("error", err?.message || "Unable to save the birth record. Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -565,7 +609,8 @@ const colourOptions = [
 };
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+    <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "1200px", margin: "0 auto", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <ProgressToast show={toast.show} type={toast.type} message={toast.message} />
       
 
       
@@ -585,7 +630,7 @@ const colourOptions = [
       New Born Log
     </h1>
 
-    <button type="button" onClick={openAddForm} className="btn btn-primary">
+    <button type="button" onClick={openAddForm} className="btn btn-primary" style={{ width: isMobile ? "100%" : "auto", justifyContent: "center" }}>
       + Add New Birth
     </button>
   </div>
@@ -598,7 +643,11 @@ const colourOptions = [
       padding: "14px",
       boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
       display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: isMobile
+        ? "minmax(0, 1fr)"
+        : isTablet
+        ? "repeat(2, minmax(0, 1fr))"
+        : "2fr 1fr 1fr 1fr 1fr auto",
       gap: "12px",
       alignItems: "end",
     }}
@@ -679,7 +728,7 @@ const colourOptions = [
         setToDate("");
       }}
       className="btn btn-secondary"
-      style={{ height: "38px", whiteSpace: "nowrap" }}
+      style={{ height: "38px", whiteSpace: "nowrap", width: isMobile ? "100%" : "auto" }}
     >
       Clear Filters
     </button>
@@ -690,7 +739,9 @@ const colourOptions = [
 <div
   style={{
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gridTemplateColumns: isMobile
+      ? "repeat(2, minmax(0, 1fr))"
+      : "repeat(auto-fit, minmax(150px, 1fr))",
     gap: "12px",
     marginBottom: "1rem",
   }}
@@ -710,14 +761,16 @@ const colourOptions = [
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    height: "calc(100vh - 240px)",
+    height: isMobile || isTablet ? "auto" : "calc(100vh - 240px)",
+    minWidth: 0,
   }}
 >
   <div
     style={{
       flex: 1,
-      overflowY: "auto",
-      overflowX: "auto",
+      overflowY: isMobile || isTablet ? "visible" : "auto",
+      overflowX: useCompactRecords ? "hidden" : "auto",
+      minWidth: 0,
     }}
   >
     <div
@@ -728,7 +781,7 @@ const colourOptions = [
     border: "1px solid #bfdbfe",
     borderRadius: "8px",
     color: "#1d4ed8",
-    fontSize: "0.9rem",
+    fontSize: isMobile ? "0.82rem" : "0.9rem",
     fontWeight: 500,
   }}
 >
@@ -742,7 +795,9 @@ const colourOptions = [
   style={{
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: isMobile ? "flex-start" : "center",
+    flexWrap: "wrap",
+    gap: "10px",
     padding: "10px 14px",
     borderBottom: "1px solid #e2e8f0",
     background: "#fff",
@@ -775,6 +830,88 @@ const colourOptions = [
     </button>
   </div>
 </div>
+          {useCompactRecords ? (
+            <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
+              {loading ? (
+                <div style={mobileEmptyStateStyle}>Loading...</div>
+              ) : filteredRows.length === 0 ? (
+                <div style={mobileEmptyStateStyle}>No birth records found for the selected period.</div>
+              ) : (
+                paginatedRows.map((row, idx) => {
+                  const registration = getRegistrationEligibility(row);
+
+                  return (
+                    <article
+                      key={row.id || idx}
+                      onClick={() => openView(row)}
+                      style={mobileRecordCardStyle}
+                    >
+                      <div style={mobileRecordHeaderStyle}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                            Transaction ID
+                          </div>
+                          <div style={{ fontWeight: 800, color: "#1e293b", overflowWrap: "anywhere" }}>
+                            {row.id || "-"}
+                          </div>
+                        </div>
+                        <WorkflowBadge status={row.status} />
+                      </div>
+
+                      <div style={mobileRecordGridStyle}>
+                        <MobileDetail label="Birth Date" value={formatDisplayDate(row.dateOfBirth)} />
+                        <MobileDetail label="Mother ID" value={row.motherTag} />
+                        <MobileDetail label="Calf Sex" value={row.calfSex} />
+                        <MobileDetail label="Calf Breed" value={row.calfBreed} />
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        <div>
+                          <HealthBadge status={row.birthStatus} />
+                          {registration.showButton && (
+                            <div style={{ marginTop: "4px", fontSize: "0.72rem", color: registration.overdue ? "#b91c1c" : "#64748b", fontWeight: registration.overdue ? 700 : 500 }}>
+                              {registration.overdue
+                                ? "Registration overdue"
+                                : !registration.eligible
+                                ? registration.message.replace("Registration possible after ", "Due in ")
+                                : "Eligible for registration"}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openView(row);
+                            }}
+                            style={{ padding: "7px 10px" }}
+                          >
+                            View
+                          </button>
+                          {registration.eligible && (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRegister(row);
+                              }}
+                              style={{ padding: "7px 10px" }}
+                            >
+                              Register
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "800px" }}>
             <thead
   style={{
@@ -925,13 +1062,14 @@ const colourOptions = [
               )}
             </tbody>
           </table>
+          )}
         </div>
       </div>
 
       {/* --- VIEW MODAL --- */}
       {showView && selectedEntry && (
-        <div style={overlayStyle} onClick={() => setShowView(false)}>
-          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={{ ...overlayStyle, padding: isMobile ? "0" : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={() => setShowView(false)}>
+          <div style={{ ...modalStyle, padding: isMobile ? "1rem" : "1.5rem", width: isMobile ? "100%" : "800px", maxHeight: isMobile ? "100dvh" : "90vh", borderRadius: isMobile ? 0 : "12px" }} onClick={(e) => e.stopPropagation()}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"1.5rem", borderBottom:"1px solid #eee", paddingBottom:"10px"}}>
                <h2 style={{margin:0, color:"#1e293b", fontSize:"1.2rem"}}>Transaction: {selectedEntry.id}</h2>
                <button onClick={() => setShowView(false)} style={closeBtn}>✕</button>
@@ -1033,8 +1171,8 @@ const colourOptions = [
 
       {/* --- FORM MODAL --- */}
       {showForm && (
-        <div style={overlayStyle} onClick={() => setShowForm(false)}>
-          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={{ ...overlayStyle, padding: isMobile ? "0" : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={() => setShowForm(false)}>
+          <div style={{ ...modalStyle, padding: isMobile ? "1rem" : "1.5rem", width: isMobile ? "100%" : "800px", maxHeight: isMobile ? "100dvh" : "90vh", borderRadius: isMobile ? 0 : "12px" }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ fontSize: "1.25rem", marginBottom: "1.5rem" }}>{editingEntry ? "Edit Birth Record" : "Add New Birth"}</h2>
             <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
               
@@ -1275,8 +1413,10 @@ const colourOptions = [
               </Field>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
-                <button type="button" onClick={() => setShowForm(false)} className="btn btn-secondary btn-full-mobile">Cancel</button>
-                <button type="submit" className="btn btn-primary btn-full-mobile">Save Entry</button>
+                <button type="button" disabled={saving || uploading} onClick={() => setShowForm(false)} className="btn btn-secondary btn-full-mobile">Cancel</button>
+                <button type="submit" disabled={saving || uploading} className="btn btn-primary btn-full-mobile">
+                  {saving ? "Saving..." : uploading ? "Uploading..." : "Save Entry"}
+                </button>
               </div>
             </form>
           </div>
@@ -1311,6 +1451,50 @@ const MiniMetric = ({ label, value, danger }) => (
     </div>
   </div>
 );
+
+const MobileDetail = ({ label, value }) => (
+  <div style={{ minWidth: 0 }}>
+    <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>
+      {label}
+    </div>
+    <div style={{ fontSize: "0.86rem", color: "#1e293b", fontWeight: 600, overflowWrap: "anywhere" }}>
+      {value || "-"}
+    </div>
+  </div>
+);
+
+const mobileRecordCardStyle = {
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  padding: "12px",
+  display: "grid",
+  gap: "12px",
+  minWidth: 0,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  cursor: "pointer",
+};
+
+const mobileRecordHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "10px",
+  paddingBottom: "10px",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileRecordGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "12px",
+};
+
+const mobileEmptyStateStyle = {
+  padding: "2rem 1rem",
+  textAlign: "center",
+  color: "#64748b",
+};
 
 const HealthBadge = ({ status }) => {
   let bg = "#f3f4f6";

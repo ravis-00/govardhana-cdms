@@ -344,6 +344,9 @@ function calculateFormTotal(formData) {
 }
 
 export default function Feeding() {
+const [viewportWidth, setViewportWidth] = useState(() =>
+  typeof window === "undefined" ? 1280 : window.innerWidth
+);
  const defaultDateRange = getDefaultDateRange();
 
 const [fromDate, setFromDate] = useState(
@@ -355,6 +358,7 @@ const [feedTypeFilter, setFeedTypeFilter] =
 
 const [shedFilter, setShedFilter] =
   useState("");
+const [currentPage, setCurrentPage] = useState(1);
 
 const [toDate, setToDate] = useState(
   defaultDateRange.toDate
@@ -406,6 +410,17 @@ const [toDate, setToDate] = useState(
     active = false;
   };
 }, []);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = viewportWidth <= 640;
+  const isTablet = viewportWidth > 640 && viewportWidth <= 1024;
+  const useCompactRecords = viewportWidth <= 820;
+  const recordsPerPage = useCompactRecords ? 10 : 20;
 
   useEffect(() => {
     if (!toast.show) return undefined;
@@ -603,6 +618,24 @@ const [toDate, setToDate] = useState(
     others: roundQuantity(metrics.others),
   };
 }, [filteredRows, shedFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRows.length / recordsPerPage)
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * recordsPerPage;
+    return filteredRows.slice(start, start + recordsPerPage);
+  }, [filteredRows, currentPage, recordsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fromDate, toDate, feedTypeFilter, shedFilter, recordsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   function openAddForm() {
   setIsEditMode(false);
@@ -867,7 +900,7 @@ const [toDate, setToDate] = useState(
   }
 
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, padding: isMobile ? "1rem" : "1.5rem", minWidth: 0 }}>
       {/* HEADER */}
       <div style={headerStyle}>
         <div>
@@ -881,9 +914,14 @@ const [toDate, setToDate] = useState(
           </p>
         </div>
 
-        <div style={headerActionsStyle}>
-          <div style={dateFilterGroupStyle}>
-  <div style={dateFilterFieldStyle}>
+        <div style={{ ...headerActionsStyle, width: isMobile ? "100%" : "auto" }}>
+          <div style={{
+            ...dateFilterGroupStyle,
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            width: isMobile ? "100%" : "auto",
+          }}>
+  <div style={{ ...dateFilterFieldStyle, minWidth: 0 }}>
     <label style={dateFilterLabelStyle}>
       From
     </label>
@@ -896,12 +934,12 @@ const [toDate, setToDate] = useState(
       }
       max={toDate || undefined}
       className="form-input"
-      style={dateInputStyle}
+      style={{ ...dateInputStyle, width: "100%", boxSizing: "border-box" }}
       disabled={saving}
     />
   </div>
 
-  <div style={dateFilterFieldStyle}>
+  <div style={{ ...dateFilterFieldStyle, minWidth: 0 }}>
     <label style={dateFilterLabelStyle}>
       To
     </label>
@@ -914,7 +952,7 @@ const [toDate, setToDate] = useState(
       }
       min={fromDate || undefined}
       className="form-input"
-      style={dateInputStyle}
+      style={{ ...dateInputStyle, width: "100%", boxSizing: "border-box" }}
       disabled={saving}
     />
   </div>
@@ -924,7 +962,7 @@ const [toDate, setToDate] = useState(
             type="button"
             onClick={openAddForm}
             className="btn btn-primary"
-            style={{ whiteSpace: "nowrap" }}
+            style={{ whiteSpace: "nowrap", width: isMobile ? "100%" : "auto", justifyContent: "center" }}
             disabled={saving}
           >
             + Add Entry
@@ -933,8 +971,12 @@ const [toDate, setToDate] = useState(
       </div>
 
 {/* FILTERS */}
-<div style={filterBarStyle}>
-  <div style={filterFieldStyle}>
+<div style={{
+  ...filterBarStyle,
+  display: "grid",
+  gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(170px, 220px))",
+}}>
+  <div style={{ ...filterFieldStyle, minWidth: 0 }}>
     <label style={filterLabelStyle}>
       Feed Type
     </label>
@@ -945,7 +987,7 @@ const [toDate, setToDate] = useState(
         setFeedTypeFilter(event.target.value)
       }
       className="form-input"
-      style={filterSelectStyle}
+      style={{ ...filterSelectStyle, width: "100%", minWidth: 0 }}
     >
       <option value="">
         All Feed Types
@@ -962,7 +1004,7 @@ const [toDate, setToDate] = useState(
     </select>
   </div>
 
-  <div style={filterFieldStyle}>
+  <div style={{ ...filterFieldStyle, minWidth: 0 }}>
     <label style={filterLabelStyle}>
       Shed
     </label>
@@ -973,7 +1015,7 @@ const [toDate, setToDate] = useState(
         setShedFilter(event.target.value)
       }
       className="form-input"
-      style={filterSelectStyle}
+      style={{ ...filterSelectStyle, width: "100%", minWidth: 0 }}
     >
       <option value="">
         All Sheds
@@ -998,7 +1040,7 @@ const [toDate, setToDate] = useState(
         setFeedTypeFilter("");
         setShedFilter("");
       }}
-      style={clearFiltersButtonStyle}
+      style={{ ...clearFiltersButtonStyle, gridColumn: isMobile ? "1 / -1" : "auto", width: isMobile ? "100%" : "auto" }}
     >
       Clear Filters
     </button>
@@ -1007,10 +1049,17 @@ const [toDate, setToDate] = useState(
 
 
       {/* SUMMARY */}
-      <div style={summaryGridStyle}>
+      <div style={{
+        ...summaryGridStyle,
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: isMobile ? "0.75rem" : "1rem",
+      }}>
   <SummaryCard
     label="Total Feed"
     value={`${feedMetrics.total} kg`}
+    wide={isMobile}
   />
 
   <SummaryCard
@@ -1035,7 +1084,49 @@ const [toDate, setToDate] = useState(
 </div>
 
       {/* TABLE */}
-      <div style={tableCardStyle}>
+      <div style={{
+        ...tableCardStyle,
+        height: useCompactRecords ? "auto" : tableCardStyle.height,
+        minHeight: useCompactRecords ? 0 : tableCardStyle.minHeight,
+      }}>
+        <PaginationBar
+          recordCount={filteredRows.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+        />
+
+        {useCompactRecords ? (
+          <div style={mobileListStyle}>
+            {loading ? (
+              <div style={mobileEmptyStyle}>Loading feeding records...</div>
+            ) : loadError ? (
+              <div style={{ ...mobileEmptyStyle, color: "#b91c1c" }}>
+                <div>{loadError}</div>
+                <button
+                  type="button"
+                  onClick={() => loadData({ forceRefresh: true }).catch((error) => showToast("error", error?.message || "Unable to refresh Feeding records."))}
+                  className="btn btn-secondary"
+                  style={{ marginTop: "0.75rem" }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredRows.length === 0 ? (
+              <div style={mobileEmptyStyle}>No feeding entries found for the selected date range.</div>
+            ) : (
+              paginatedRows.map((row) => (
+                <FeedingRecordCard
+                  key={row.id}
+                  row={row}
+                  onView={() => handleRowClick(row)}
+                  onEdit={() => openEditForm(row)}
+                />
+              ))
+            )}
+          </div>
+        ) : (
         <div style={tableScrollStyle}>
           <table style={tableStyle}>
             <thead style={tableHeadStyle}>
@@ -1129,7 +1220,7 @@ const [toDate, setToDate] = useState(
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row) => (
+                paginatedRows.map((row) => (
                   <tr
                     key={row.id}
                     style={tableRowStyle}
@@ -1207,16 +1298,28 @@ const [toDate, setToDate] = useState(
             </tbody>
           </table>
         </div>
+        )}
+
+        {filteredRows.length > 0 && (
+          <PaginationBar
+            recordCount={filteredRows.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            isFooter
+          />
+        )}
       </div>
 
       {/* ADD / EDIT MODAL */}
       {showForm && (
         <div
-          style={overlayStyle}
+          style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }}
           onClick={closeForm}
         >
           <div
-            style={modalStyle}
+            style={{ ...modalStyle, maxWidth: isMobile ? "100%" : "650px", maxHeight: isMobile ? "100dvh" : "90vh", borderRadius: isMobile ? 0 : "12px" }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -1392,13 +1495,13 @@ const [toDate, setToDate] = useState(
       {/* DETAILS MODAL */}
       {selectedEntry && (
         <div
-          style={overlayStyle}
+          style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }}
           onClick={() =>
             setSelectedEntry(null)
           }
         >
           <div
-            style={modalStyle}
+            style={{ ...modalStyle, maxWidth: isMobile ? "100%" : "650px", maxHeight: isMobile ? "100dvh" : "90vh", borderRadius: isMobile ? 0 : "12px" }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -1551,9 +1654,96 @@ function NumberField({
   );
 }
 
-function SummaryCard({ label, value }) {
+function PaginationBar({
+  recordCount,
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+  isFooter = false,
+}) {
   return (
-    <div style={summaryCardStyle}>
+    <div style={{ ...paginationBarStyle, ...(isFooter ? paginationFooterStyle : {}) }}>
+      <div style={paginationInfoStyle}>
+        Records: <strong>{recordCount}</strong>
+        <span aria-hidden="true"> | </span>
+        Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+      </div>
+      <div style={paginationActionsStyle}>
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          style={{ ...paginationButtonStyle, ...(currentPage <= 1 ? paginationDisabledStyle : {}) }}
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= totalPages}
+          style={{ ...paginationButtonStyle, ...(currentPage >= totalPages ? paginationDisabledStyle : {}) }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FeedingRecordCard({ row, onView, onEdit }) {
+  return (
+    <article style={mobileCardStyle} onClick={onView}>
+      <div style={mobileCardHeaderStyle}>
+        <div style={{ minWidth: 0 }}>
+          <div style={mobileCardLabelStyle}>Date</div>
+          <div style={mobileCardTitleStyle}>{formatDisplayDate(row.date)}</div>
+          <span style={feedTypeBadgeStyle}>{row.feedType}</span>
+        </div>
+        <div style={mobileTotalBoxStyle}>
+          <div style={mobileCardLabelStyle}>Total Feed</div>
+          <div style={mobileTotalValueStyle}>{row.totalKg} kg</div>
+        </div>
+      </div>
+
+      <div style={mobileCardGridStyle}>
+        {SHED_CONFIG.map((shed) => (
+          <div key={shed.key} style={{ minWidth: 0 }}>
+            <div style={mobileCardLabelStyle}>{shed.label}</div>
+            <div style={mobileCardValueStyle}>{row[shed.key] || 0} kg</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={mobileCardActionsStyle}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => {
+            event.stopPropagation();
+            onView();
+          }}
+        >
+          View
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit();
+          }}
+        >
+          Edit
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function SummaryCard({ label, value, wide = false }) {
+  return (
+    <div style={{ ...summaryCardStyle, ...(wide ? { gridColumn: "1 / -1" } : {}) }}>
       <div style={summaryLabelStyle}>
         {label}
       </div>
@@ -1731,6 +1921,127 @@ const tableCardStyle = {
   background: "#ffffff",
   border: "1px solid #e5e7eb",
   borderRadius: "10px",
+};
+
+const paginationBarStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "0.75rem",
+  padding: "0.75rem 1rem",
+  borderBottom: "1px solid #e5e7eb",
+  background: "#ffffff",
+};
+
+const paginationFooterStyle = {
+  borderTop: "1px solid #e5e7eb",
+  borderBottom: "none",
+};
+
+const paginationInfoStyle = {
+  color: "#6b7280",
+  fontSize: "0.8rem",
+};
+
+const paginationActionsStyle = {
+  display: "flex",
+  gap: "0.5rem",
+};
+
+const paginationButtonStyle = {
+  minWidth: "58px",
+  padding: "0.5rem 0.7rem",
+  border: "1px solid #d1d5db",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#374151",
+  cursor: "pointer",
+  fontSize: "0.8rem",
+  fontWeight: 700,
+};
+
+const paginationDisabledStyle = {
+  opacity: 0.5,
+  cursor: "not-allowed",
+};
+
+const mobileListStyle = {
+  display: "grid",
+  gap: "0.75rem",
+  padding: "0.75rem",
+};
+
+const mobileEmptyStyle = {
+  padding: "2.5rem 1rem",
+  textAlign: "center",
+  color: "#6b7280",
+};
+
+const mobileCardStyle = {
+  display: "grid",
+  gap: "0.85rem",
+  minWidth: 0,
+  padding: "0.9rem",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  cursor: "pointer",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "0.75rem",
+  paddingBottom: "0.75rem",
+  borderBottom: "1px solid #f3f4f6",
+};
+
+const mobileCardLabelStyle = {
+  color: "#6b7280",
+  fontSize: "0.68rem",
+  fontWeight: 700,
+  textTransform: "uppercase",
+};
+
+const mobileCardTitleStyle = {
+  margin: "3px 0 6px",
+  color: "#111827",
+  fontSize: "0.95rem",
+  fontWeight: 800,
+};
+
+const mobileTotalBoxStyle = {
+  textAlign: "right",
+  flexShrink: 0,
+};
+
+const mobileTotalValueStyle = {
+  marginTop: "3px",
+  color: "#166534",
+  fontSize: "0.95rem",
+  fontWeight: 800,
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
+const mobileCardValueStyle = {
+  marginTop: "2px",
+  color: "#1f2937",
+  fontSize: "0.82rem",
+  fontWeight: 600,
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "0.5rem",
 };
 
 const tableScrollStyle = {
@@ -1988,4 +2299,3 @@ const infoToastStyle = {
   border: "1px solid #93c5fd",
   color: "#1d4ed8",
 };
-

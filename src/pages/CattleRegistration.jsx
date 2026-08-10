@@ -53,6 +53,7 @@ export default function CattleRegistration() {
   const location = useLocation(); 
 
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState({ show: false, type: "info", message: "" });
  
   const [birthRecords, setBirthRecords] = useState([]); 
   
@@ -63,6 +64,20 @@ export default function CattleRegistration() {
   
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+  };
+
+  useEffect(() => {
+    if (!toast.show || toast.type === "loading") return undefined;
+
+    const timer = window.setTimeout(() => {
+      setToast((current) => ({ ...current, show: false }));
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [toast.show, toast.type, toast.message]);
 
   const [form, setForm] = useState({
     cattleId: "", govtId: "", name: "", gender: "", category: "",
@@ -262,10 +277,11 @@ if (name === "fatherSource") {
       if (fileData.secure_url) {
         setForm(prev => ({ ...prev, photo: fileData.secure_url }));
       } else {
-        alert("Upload failed.");
+        showToast("error", "Photo upload failed. Please try again.");
       }
     } catch (err) {
-      alert("Error uploading image");
+      console.error("Photo upload failed", err);
+      showToast("error", "Photo upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -283,23 +299,20 @@ if (name === "fatherSource") {
   const ageYears = Number(form.ageYears || 0);
   const ageMonthsPart = Number(form.ageMonthsPart || 0);
   const totalAgeMonths = ageYears * 12 + ageMonthsPart;
+  const isBornAtGoshala = form.typeOfAdmission === "Born at Goshala";
 
   // Age validation
 // For Born at Goshala, age is auto-calculated from birth record.
 // Do not block registration if linked birth record exists.
-if (form.admissionType !== "Born at Goshala") {
-  const years = Number(form.ageYears || form.admissionAgeYears || 0);
-  const months = Number(form.ageMonths || form.admissionAgeMonths || 0);
-
-  if (years === 0 && months === 0) {
-    alert("Please enter valid age. Years and months cannot both be 0.");
+if (!isBornAtGoshala) {
+  if (totalAgeMonths <= 0) {
+    showToast("error", "Please enter a valid age. Years and months cannot both be 0.");
     return;
   }
 }
 
-  const isBornAtGoshala = form.typeOfAdmission === "Born at Goshala";
-
   setLoading(true);
+  showToast("loading", "Registering cattle, please wait...");
 
   try {
     const payload = {
@@ -329,9 +342,9 @@ if (form.admissionType !== "Born at Goshala") {
       admissionDate: form.admissionDate,
       admissionType: form.typeOfAdmission,
       admissionAgeMonths:
-  form.admissionType === "Born at Goshala"
-    ? String(form.admissionAgeMonths || calculatedAgeMonths || "")
-    : String((Number(form.ageYears || 0) * 12) + Number(form.ageMonths || 0)),
+        isBornAtGoshala
+          ? String(form.ageMonths || calculateAge(form.admissionDate) || "0")
+          : String(totalAgeMonths),
 
       sourcePartyName: form.sourceName,
       sourcePartyAddress: form.sourceAddress,
@@ -357,16 +370,22 @@ if (form.admissionType !== "Born at Goshala") {
 
     const response = await addCattle(payload);
 
-    alert(
-      `SUCCESS: Cattle Registered!\nInternal ID: ${
-        response?.id || response?.internalId || "Generated"
-      }`
+    if (response?.success === false) {
+      throw new Error(response.error || response.message || "Unable to register cattle.");
+    }
+
+    const internalId = response?.id || response?.internalId || response?.data?.internalId;
+    showToast(
+      "success",
+      internalId
+        ? `Cattle registered successfully. Internal ID: ${internalId}`
+        : "Cattle registered successfully."
     );
 
-    navigate("/cattle/master");
+    window.setTimeout(() => navigate("/cattle/master"), 1200);
   } catch (error) {
     console.error("Registration failed:", error);
-    alert("Failed to register cattle. Please try again.");
+    showToast("error", error?.message || "Failed to register cattle. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -382,9 +401,9 @@ if (form.admissionType !== "Born at Goshala") {
   return (
   <div style={pageWrapStyle}>
     <ProgressToast
-      show={loading}
-      type="loading"
-      message="Registering cattle, please wait..."
+      show={toast.show}
+      type={toast.type}
+      message={toast.message}
     />
       
       <PageHeader

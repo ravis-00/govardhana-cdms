@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   getSponsors,
   addSponsor,
@@ -276,20 +276,20 @@ function isCattleCategory(category) {
     "cattle sponsorship";
 }
 
-function pageSlice(rows, currentPage) {
+function pageSlice(rows, currentPage, pageSize = ITEMS_PER_PAGE) {
   const startIndex =
-    (currentPage - 1) * ITEMS_PER_PAGE;
+    (currentPage - 1) * pageSize;
 
   return rows.slice(
     startIndex,
-    startIndex + ITEMS_PER_PAGE
+    startIndex + pageSize
   );
 }
 
-function pageCount(rows) {
+function pageCount(rows, pageSize = ITEMS_PER_PAGE) {
   return Math.max(
     1,
-    Math.ceil(rows.length / ITEMS_PER_PAGE)
+    Math.ceil(rows.length / pageSize)
   );
 }
 
@@ -310,6 +310,12 @@ export default function DattuYojana() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 640
+  );
+  const initialLoadStartedRef = useRef(false);
+  const cattleLoadedRef = useRef(false);
+  const paymentsLoadedRef = useRef(false);
 
   const [sponsorSearch, setSponsorSearch] =
     useState("");
@@ -383,7 +389,17 @@ const [showSponsorOptions, setShowSponsorOptions] =
   });
 
   useEffect(() => {
-    loadAllData();
+    if (initialLoadStartedRef.current) return;
+    initialLoadStartedRef.current = true;
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(window.innerWidth <= 640);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
@@ -426,28 +442,17 @@ const [showSponsorOptions, setShowSponsorOptions] =
     paymentToDate,
   ]);
 
-  async function loadAllData() {
+  async function loadInitialData() {
     setLoading(true);
 
     try {
-      const [
-        sponsorResponse,
-        sponsorshipResponse,
-        paymentResponse,
-        cattleResponse,
-      ] = await Promise.all([
+      const [sponsorResponse, sponsorshipResponse] = await Promise.all([
         getSponsors(),
         getSponsorships(),
-        getSponsorshipPayments(),
-        fetchCattle(),
       ]);
 
       setSponsors(normalizeApiList(sponsorResponse));
-      setSponsorships(
-        normalizeApiList(sponsorshipResponse)
-      );
-      setPayments(normalizeApiList(paymentResponse));
-      setCattle(normalizeApiList(cattleResponse));
+      setSponsorships(normalizeApiList(sponsorshipResponse));
     } catch (error) {
       console.error(
         "Unable to load sponsorship management data:",
@@ -461,6 +466,36 @@ const [showSponsorOptions, setShowSponsorOptions] =
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function ensureTabData(tabName) {
+    if (tabName === "Sponsorships" && !cattleLoadedRef.current) {
+      cattleLoadedRef.current = true;
+      setLoading(true);
+      try {
+        const response = await fetchCattle();
+        setCattle(normalizeApiList(response));
+      } catch (error) {
+        cattleLoadedRef.current = false;
+        showToast("error", error?.message || "Unable to load cattle data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (tabName === "Payments" && !paymentsLoadedRef.current) {
+      paymentsLoadedRef.current = true;
+      setLoading(true);
+      try {
+        const response = await getSponsorshipPayments();
+        setPayments(normalizeApiList(response));
+      } catch (error) {
+        paymentsLoadedRef.current = false;
+        showToast("error", error?.message || "Unable to load payment data");
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -495,6 +530,7 @@ const [showSponsorOptions, setShowSponsorOptions] =
     }
 
     setActiveTab(tabName);
+    ensureTabData(tabName);
     setSelectedRecord(null);
     closeModal();
   }
@@ -1548,33 +1584,42 @@ const sponsorshipSummary = useMemo(() => {
     paymentToDate,
   ]);
 
+  const pageSize = isCompact ? 10 : ITEMS_PER_PAGE;
+
   const sponsorTotalPages =
-    pageCount(filteredSponsors);
+    pageCount(filteredSponsors, pageSize);
 
   const sponsorshipTotalPages =
-    pageCount(filteredSponsorships);
+    pageCount(filteredSponsorships, pageSize);
 
   const paymentTotalPages =
-    pageCount(filteredPayments);
+    pageCount(filteredPayments, pageSize);
 
   const displayedSponsors = useMemo(
-    () => pageSlice(filteredSponsors, sponsorPage),
-    [filteredSponsors, sponsorPage]
+    () => pageSlice(filteredSponsors, sponsorPage, pageSize),
+    [filteredSponsors, sponsorPage, pageSize]
   );
 
   const displayedSponsorships = useMemo(
     () =>
       pageSlice(
         filteredSponsorships,
-        sponsorshipPage
+        sponsorshipPage,
+        pageSize
       ),
-    [filteredSponsorships, sponsorshipPage]
+    [filteredSponsorships, sponsorshipPage, pageSize]
   );
 
   const displayedPayments = useMemo(
-    () => pageSlice(filteredPayments, paymentPage),
-    [filteredPayments, paymentPage]
+    () => pageSlice(filteredPayments, paymentPage, pageSize),
+    [filteredPayments, paymentPage, pageSize]
   );
+
+  useEffect(() => {
+    setSponsorPage(1);
+    setSponsorshipPage(1);
+    setPaymentPage(1);
+  }, [pageSize]);
 
   useEffect(() => {
     if (sponsorPage > sponsorTotalPages) {
@@ -1777,6 +1822,107 @@ const sponsorshipSummary = useMemo(() => {
           grid-template-columns:
             minmax(0, 1fr);
         }
+
+        .responsive-register {
+          display: block;
+          width: 100%;
+          min-width: 0 !important;
+          border-collapse: separate !important;
+        }
+
+        .responsive-register thead {
+          display: none;
+        }
+
+        .responsive-register tbody {
+          display: grid;
+          gap: 0.75rem;
+          padding: 0.75rem;
+          background: #f8fafc;
+        }
+
+        .responsive-register tbody tr {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.7rem 0.85rem;
+          padding: 0.85rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          background: #ffffff !important;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        }
+
+        .responsive-register tbody tr::after {
+          content: "Tap to view details";
+          grid-column: 1 / -1;
+          padding-top: 0.6rem;
+          border-top: 1px solid #e2e8f0;
+          color: #ea580c;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-align: right;
+        }
+
+        .responsive-register tbody tr:has(td[colspan])::after {
+          display: none;
+        }
+
+        .responsive-register td {
+          display: block;
+          min-width: 0;
+          padding: 0 !important;
+          border: 0 !important;
+          white-space: normal !important;
+          overflow-wrap: anywhere;
+          font-size: 0.8rem;
+        }
+
+        .responsive-register td::before {
+          display: block;
+          margin-bottom: 0.18rem;
+          color: #64748b;
+          font-size: 0.62rem;
+          font-weight: 750;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+        }
+
+        .responsive-register td[colspan] {
+          grid-column: 1 / -1;
+          padding: 2rem 0.75rem !important;
+          text-align: center;
+        }
+
+        .responsive-register td[colspan]::before {
+          display: none;
+        }
+
+        .sponsor-register td:nth-child(1)::before { content: "Sponsor ID"; }
+        .sponsor-register td:nth-child(2)::before { content: "Sponsor"; }
+        .sponsor-register td:nth-child(3)::before { content: "Contact"; }
+        .sponsor-register td:nth-child(4)::before { content: "Location"; }
+        .sponsor-register td:nth-child(5)::before { content: "Preferred Contact"; }
+        .sponsor-register td:nth-child(6)::before { content: "Status"; }
+
+        .sponsorship-register td:nth-child(1)::before { content: "Sponsorship ID"; }
+        .sponsorship-register td:nth-child(2)::before { content: "Sponsor"; }
+        .sponsorship-register td:nth-child(3)::before { content: "Category"; }
+        .sponsorship-register td:nth-child(4)::before { content: "Scheme"; }
+        .sponsorship-register td:nth-child(5)::before { content: "Period"; }
+        .sponsorship-register td:nth-child(6)::before { content: "Committed"; }
+        .sponsorship-register td:nth-child(7)::before { content: "Received"; }
+        .sponsorship-register td:nth-child(8)::before { content: "Balance"; }
+        .sponsorship-register td:nth-child(9)::before { content: "Status"; }
+
+        .payment-register td:nth-child(1)::before { content: "Payment ID"; }
+        .payment-register td:nth-child(2)::before { content: "Date"; }
+        .payment-register td:nth-child(3)::before { content: "Sponsor"; }
+        .payment-register td:nth-child(4)::before { content: "Sponsorship"; }
+        .payment-register td:nth-child(5)::before { content: "Amount"; }
+        .payment-register td:nth-child(6)::before { content: "Mode"; }
+        .payment-register td:nth-child(7)::before { content: "Receipt"; }
+        .payment-register td:nth-child(8)::before { content: "Reference"; }
+        .payment-register td:nth-child(9)::before { content: "Received By"; }
       }
 
       @media (max-width: 380px) {
@@ -1999,11 +2145,11 @@ const sponsorshipSummary = useMemo(() => {
             </div>
 
 <div className="sponsorship-table-hint">
-  Swipe sideways to view all columns
+  Tap a card to view complete details
 </div>
 
             <div style={tableScrollStyle}>
-              <table style={tableStyle}>
+              <table className="responsive-register sponsor-register" style={tableStyle}>
                 <thead>
                   <tr>
                     <th style={thStyle}>Sponsor ID</th>
@@ -2294,11 +2440,12 @@ const sponsorshipSummary = useMemo(() => {
             </div>
 
 <div className="sponsorship-table-hint">
-  Swipe sideways to view all columns
+  Tap a card to view complete details
 </div>
 
             <div style={tableScrollStyle}>
               <table
+                className="responsive-register sponsorship-register"
                 style={{
                   ...tableStyle,
                   minWidth: "1150px",
@@ -2657,10 +2804,11 @@ const sponsorshipSummary = useMemo(() => {
             </div>
 
 <div className="sponsorship-table-hint">
-  Swipe sideways to view all columns
+  Tap a card to view complete details
 </div>
             <div style={tableScrollStyle}>
               <table
+                className="responsive-register payment-register"
                 style={{
                   ...tableStyle,
                   minWidth: "1100px",
@@ -4689,20 +4837,9 @@ function SummaryItem({ label, value }) {
   );
 }
 
-const pageStyle = {
-  padding: "24px 28px",
-  maxWidth: "1440px",
-  margin: "0 auto",
-};
 
-const headerStyle = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: "16px",
-  flexWrap: "wrap",
-  marginBottom: "18px",
-};
+
+
 
 const headerActionsStyle = {
   display: "flex",
@@ -4724,18 +4861,7 @@ const pageSubtitleStyle = {
   color: "#64748b",
 };
 
-const tabsContainerStyle = {
-  display: "flex",
-  gap: "6px",
-  padding: "5px",
-  marginBottom: "18px",
-  width: "fit-content",
-  maxWidth: "100%",
-  overflowX: "auto",
-  background: "#f1f5f9",
-  border: "1px solid #e2e8f0",
-  borderRadius: "10px",
-};
+
 
 const tabButtonStyle = {
   padding: "9px 18px",
@@ -4755,13 +4881,7 @@ const activeTabButtonStyle = {
   boxShadow: "0 1px 3px rgba(15, 23, 42, 0.12)",
 };
 
-const metricsGridStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "repeat(auto-fit, minmax(190px, 1fr))",
-  gap: "14px",
-  marginBottom: "18px",
-};
+
 
 const metricCardStyle = {
   background: "#ffffff",
@@ -4826,19 +4946,7 @@ const filterSubtitleStyle = {
   color: "#64748b",
 };
 
-const filterGridStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "minmax(220px, 2fr) repeat(2, minmax(160px, 1fr))",
-  gap: "12px",
-};
 
-const paymentFilterGridStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "minmax(220px, 2fr) repeat(3, minmax(150px, 1fr))",
-  gap: "12px",
-};
 
 const tableCardStyle = {
   background: "#ffffff",
@@ -5083,12 +5191,7 @@ const sectionDescriptionStyle = {
   color: "#64748b",
 };
 
-const formGridStyle = {
-  display: "grid",
-  gridTemplateColumns:
-    "repeat(auto-fit, minmax(230px, 1fr))",
-  gap: "14px",
-};
+
 
 const labelStyle = {
   display: "block",

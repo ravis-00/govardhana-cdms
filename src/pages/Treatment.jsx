@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   getTreatments,
   addTreatment,
@@ -65,6 +70,15 @@ const DISEASE_OPTIONS = [
 export default function Treatment() {
   const initialDateRange = getCurrentMonthDateRange();
 
+  const [isCompact, setIsCompact] = useState(
+    () =>
+      typeof window !== "undefined"
+        ? window.innerWidth <= 820
+        : false
+  );
+
+  const initialLoadStartedRef = useRef(false);
+
 const [fromDate, setFromDate] = useState(initialDateRange.fromDate);
 const [toDate, setToDate] = useState(initialDateRange.toDate);
   const [rows, setRows] = useState([]);
@@ -84,6 +98,7 @@ const [error, setError] = useState("");
 const [searchTerm, setSearchTerm] = useState("");
 const [diseaseFilter, setDiseaseFilter] = useState("");
 const [doctorFilter, setDoctorFilter] = useState("");
+const [currentPage, setCurrentPage] = useState(1);
 
 
   
@@ -98,8 +113,29 @@ const [medicineSearch, setMedicineSearch] = useState("");
 
   // --- FETCH DATA ---
   useEffect(() => {
+    if (initialLoadStartedRef.current) {
+      return;
+    }
+
+    initialLoadStartedRef.current = true;
     loadData();
-  }, []); 
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(
+        window.innerWidth <= 820
+      );
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () =>
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+  }, []);
 
   async function loadData() {
   try {
@@ -343,6 +379,40 @@ const filteredRows = useMemo(() => {
   diseaseFilter,
   doctorFilter,
 ]);
+
+const pageSize = isCompact ? 10 : 20;
+
+const totalPages = Math.max(
+  1,
+  Math.ceil(filteredRows.length / pageSize)
+);
+
+useEffect(() => {
+  setCurrentPage(1);
+}, [
+  searchTerm,
+  diseaseFilter,
+  doctorFilter,
+  fromDate,
+  toDate,
+  pageSize,
+]);
+
+useEffect(() => {
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages);
+  }
+}, [currentPage, totalPages]);
+
+const paginatedRows = useMemo(() => {
+  const startIndex =
+    (currentPage - 1) * pageSize;
+
+  return filteredRows.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+}, [filteredRows, currentPage, pageSize]);
 
 const metrics = useMemo(() => {
   const today = new Date().toISOString().slice(0, 10);
@@ -860,6 +930,30 @@ function validateCattleId(value = form.cattleId) {
       max-width: 760px;
     }
 
+    .clinical-overlay {
+      box-sizing: border-box;
+    }
+
+    .clinical-mobile-list {
+      display: none;
+    }
+
+    .clinical-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #ffffff;
+    }
+
+    .clinical-pagination:last-child {
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 0;
+    }
+
     @media (max-width: 1024px) {
       .clinical-metric-grid {
         grid-template-columns:
@@ -889,9 +983,20 @@ function validateCattleId(value = form.cattleId) {
         gap: 0.75rem;
       }
 
+      .clinical-metric-grid > :last-child {
+        grid-column: 1 / -1;
+      }
+
       .clinical-filter-grid {
         grid-template-columns:
-          minmax(0, 1fr);
+          repeat(2, minmax(0, 1fr));
+      }
+
+      .clinical-filter-grid > :first-child,
+      .clinical-filter-grid > :nth-child(4),
+      .clinical-filter-grid > :nth-child(5),
+      .clinical-filter-grid > :nth-child(6) {
+        grid-column: 1 / -1;
       }
 
       .clinical-filter-action {
@@ -902,21 +1007,72 @@ function validateCattleId(value = form.cattleId) {
         width: 100%;
       }
 
-      .clinical-table-scroll-hint {
-        display: block;
+      .clinical-add-button {
+        width: 100%;
       }
 
       .clinical-table-card {
-        min-height: 320px;
+        min-height: 0;
         max-height: none;
+      }
+
+      .clinical-desktop-table {
+        display: none !important;
+      }
+
+      .clinical-mobile-list {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: #f8fafc;
+      }
+
+      .clinical-pagination {
+        align-items: stretch;
       }
 
       .clinical-modal {
         height: 100dvh;
         max-width: none !important;
         max-height: 100dvh !important;
-        padding: 1rem !important;
+        padding: 0 !important;
         border-radius: 0 !important;
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .clinical-overlay {
+        padding: 0 !important;
+        align-items: stretch !important;
+      }
+
+      .clinical-modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        flex-shrink: 0;
+        margin: 0 !important;
+        padding: 1rem !important;
+        background: #ffffff;
+      }
+
+      .clinical-modal-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 1rem;
+      }
+
+      .clinical-modal-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin: 0 !important;
+        padding: 0.85rem 1rem;
+        background: #ffffff;
+        box-shadow:
+          0 -6px 16px rgba(15, 23, 42, 0.08);
       }
     }
 
@@ -938,7 +1094,7 @@ function validateCattleId(value = form.cattleId) {
     <button
       type="button"
       onClick={openFormForAdd}
-      className="btn btn-primary"
+      className="btn btn-primary clinical-add-button"
       style={{ whiteSpace: "nowrap" }}
     >
       + Add Clinical Record
@@ -1089,10 +1245,122 @@ function validateCattleId(value = form.cattleId) {
     flexDirection: "column",
   }}
 >
-  <div className="clinical-table-scroll-hint">
-    Swipe sideways to view all columns
+  {!loading && filteredRows.length > 0 && (
+    <ClinicalPagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      pageSize={pageSize}
+      totalRecords={filteredRows.length}
+      onPrevious={() =>
+        setCurrentPage((page) =>
+          Math.max(1, page - 1)
+        )
+      }
+      onNext={() =>
+        setCurrentPage((page) =>
+          Math.min(totalPages, page + 1)
+        )
+      }
+    />
+  )}
+
+  <div className="clinical-mobile-list">
+    {loading ? (
+      <div style={mobileEmptyStyle}>
+        Loading clinical records...
+      </div>
+    ) : paginatedRows.length === 0 ? (
+      <div style={mobileEmptyStyle}>
+        No clinical records match the selected filters.
+      </div>
+    ) : (
+      paginatedRows.map((row, index) => {
+        const medicineCount = String(
+          row.medicine || ""
+        )
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean).length;
+
+        return (
+          <article
+            key={
+              row.id ||
+              `${row.cattleId}-${row.date}-${index}`
+            }
+            style={mobileRecordCardStyle}
+          >
+            <div style={mobileCardHeaderStyle}>
+              <div>
+                <div style={mobileLabelStyle}>
+                  Visit Date
+                </div>
+                <strong>
+                  {formatDateDisplay(row.date)}
+                </strong>
+              </div>
+
+              <div style={{ textAlign: "right" }}>
+                <div style={mobileLabelStyle}>
+                  Cattle ID
+                </div>
+                <strong>{row.cattleId || "-"}</strong>
+              </div>
+            </div>
+
+            <div style={mobileCardGridStyle}>
+              <MobileClinicalItem
+                label="Diagnosis / Symptoms"
+                value={row.diseaseSymptoms}
+              />
+
+              <MobileClinicalItem
+                label="Doctor"
+                value={row.doctorName}
+              />
+
+              <MobileClinicalItem
+                label="Medicines"
+                value={
+                  medicineCount > 0
+                    ? `${medicineCount} medicine${
+                        medicineCount > 1 ? "s" : ""
+                      }`
+                    : "-"
+                }
+              />
+
+              <MobileClinicalItem
+                label="Remarks"
+                value={row.remarks}
+              />
+            </div>
+
+            <div style={mobileCardActionsStyle}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSelectedEntry(row)}
+              >
+                View
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => openFormForEdit(row)}
+              >
+                Edit
+              </button>
+            </div>
+          </article>
+        );
+      })
+    )}
   </div>
+
   <div
+    className="clinical-desktop-table"
     style={{
       flex: 1,
       overflowY: "auto",
@@ -1157,7 +1425,7 @@ function validateCattleId(value = form.cattleId) {
             </td>
           </tr>
         ) : (
-          filteredRows.map((row, index) => {
+          paginatedRows.map((row, index) => {
             const medicineCount = String(row.medicine || "")
               .split(",")
               .map((item) => item.trim())
@@ -1247,12 +1515,32 @@ function validateCattleId(value = form.cattleId) {
       </tbody>
     </table>
   </div>
+
+  {!loading && filteredRows.length > 0 && (
+    <ClinicalPagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      pageSize={pageSize}
+      totalRecords={filteredRows.length}
+      onPrevious={() =>
+        setCurrentPage((page) =>
+          Math.max(1, page - 1)
+        )
+      }
+      onNext={() =>
+        setCurrentPage((page) =>
+          Math.min(totalPages, page + 1)
+        )
+      }
+    />
+  )}
 </div>
 
       {/* Add/Edit Modal */}
       {/* Add/Edit Clinical Record Modal */}
 {showForm && (
   <div
+    className="clinical-overlay"
     style={overlayStyle}
     onClick={() => {
       if (!loading) setShowForm(false);
@@ -1267,7 +1555,10 @@ function validateCattleId(value = form.cattleId) {
   }}
       onClick={(event) => event.stopPropagation()}
     >
-      <div style={modalHeaderStyle}>
+      <div
+        className="clinical-modal-header"
+        style={modalHeaderStyle}
+      >
         <div>
           <h2 style={{ margin: 0, fontSize: "1.3rem", color: "#0f172a" }}>
             {mode === "add"
@@ -1298,6 +1589,7 @@ function validateCattleId(value = form.cattleId) {
       </div>
 
       <form
+        className="clinical-modal-body"
         onSubmit={handleSubmit}
         style={{
           display: "grid",
@@ -1577,7 +1869,10 @@ function validateCattleId(value = form.cattleId) {
           </div>
         </SectionCard>
 
-        <div style={modalActionsStyle}>
+        <div
+          className="clinical-modal-actions"
+          style={modalActionsStyle}
+        >
           <button
             type="button"
             onClick={() => setShowForm(false)}
@@ -1622,6 +1917,7 @@ function validateCattleId(value = form.cattleId) {
       {/* Clinical Record Details Modal */}
 {selectedEntry && (
   <div
+    className="clinical-overlay"
     style={overlayStyle}
     onClick={() => setSelectedEntry(null)}
   >
@@ -1633,7 +1929,10 @@ function validateCattleId(value = form.cattleId) {
   }}
       onClick={(event) => event.stopPropagation()}
     >
-      <div style={modalHeaderStyle}>
+      <div
+        className="clinical-modal-header"
+        style={modalHeaderStyle}
+      >
         <div>
           <h2
             style={{
@@ -1670,6 +1969,7 @@ function validateCattleId(value = form.cattleId) {
       </div>
 
       <div
+        className="clinical-modal-body"
         style={{
           display: "grid",
           gap: "1rem",
@@ -1800,7 +2100,10 @@ function validateCattleId(value = form.cattleId) {
         </SectionCard>
       </div>
 
-      <div style={modalActionsStyle}>
+      <div
+        className="clinical-modal-actions"
+        style={modalActionsStyle}
+      >
         <button
           type="button"
           onClick={() => {
@@ -2064,6 +2367,128 @@ const toastCloseStyle = {
   lineHeight: 1,
   padding: 0,
 };
+
+const mobileEmptyStyle = {
+  padding: "2rem 1rem",
+  textAlign: "center",
+  color: "#64748b",
+};
+
+const mobileRecordCardStyle = {
+  padding: "0.9rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow:
+    "0 1px 2px rgba(15, 23, 42, 0.05)",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "0.75rem",
+  paddingBottom: "0.7rem",
+  marginBottom: "0.7rem",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
+const mobileLabelStyle = {
+  color: "#64748b",
+  fontSize: "0.68rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const mobileValueStyle = {
+  marginTop: "0.2rem",
+  color: "#0f172a",
+  fontSize: "0.84rem",
+  lineHeight: 1.35,
+  overflowWrap: "anywhere",
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "0.5rem",
+  paddingTop: "0.8rem",
+  marginTop: "0.8rem",
+  borderTop: "1px solid #f1f5f9",
+};
+
+function MobileClinicalItem({ label, value }) {
+  return (
+    <div>
+      <div style={mobileLabelStyle}>{label}</div>
+      <div style={mobileValueStyle}>
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function ClinicalPagination({
+  currentPage,
+  totalPages,
+  pageSize,
+  totalRecords,
+  onPrevious,
+  onNext,
+}) {
+  const firstRecord =
+    totalRecords === 0
+      ? 0
+      : (currentPage - 1) * pageSize + 1;
+
+  const lastRecord = Math.min(
+    currentPage * pageSize,
+    totalRecords
+  );
+
+  return (
+    <div className="clinical-pagination">
+      <span
+        style={{
+          color: "#64748b",
+          fontSize: "0.8rem",
+        }}
+      >
+        Records {firstRecord}–{lastRecord} of{" "}
+        {totalRecords} | Page {currentPage} of{" "}
+        {totalPages}
+      </span>
+
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={currentPage <= 1}
+          onClick={onPrevious}
+        >
+          Prev
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={currentPage >= totalPages}
+          onClick={onNext}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function MultiSelectChecklist({
   options,
