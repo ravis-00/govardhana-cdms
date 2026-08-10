@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { getPedigree, getPedigreeList } from "../api/masterApi"; 
 
 export default function PedigreeViewer() {
@@ -7,6 +7,13 @@ export default function PedigreeViewer() {
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
+  const initialLoadStartedRef = useRef(false);
+  const treeCacheRef = useRef(new Map());
+  const treeRequestRef = useRef(0);
   
   // Tree State
   const [selectedId, setSelectedId] = useState(null);
@@ -19,11 +26,14 @@ export default function PedigreeViewer() {
 
   // --- EFFECTS ---
   useEffect(() => {
+    if (initialLoadStartedRef.current) return;
+    initialLoadStartedRef.current = true;
     loadList();
   }, []);
 
   useEffect(() => {
   const handleResize = () => {
+    setIsCompact(window.innerWidth <= 768);
     if (
       window.innerWidth <= 768 &&
       !selectedId
@@ -68,6 +78,8 @@ export default function PedigreeViewer() {
 
   const handleRefresh = () => {
     setSearchTerm(""); 
+    setCurrentPage(1);
+    treeCacheRef.current.clear();
     loadList();        
   };
 
@@ -78,21 +90,32 @@ export default function PedigreeViewer() {
 
   useEffect(() => {
     if (!selectedId) return;
+    const cached = treeCacheRef.current.get(selectedId);
+    if (cached) {
+      setTreeData(cached);
+      setTreeError(null);
+      setTreeLoading(false);
+      return;
+    }
+    const requestId = ++treeRequestRef.current;
     async function loadTree() {
       setTreeLoading(true);
       setTreeData(null);
       setTreeError(null);
       try {
         const res = await getPedigree(selectedId);
+        if (requestId !== treeRequestRef.current) return;
         if (res.success) {
+           treeCacheRef.current.set(selectedId, res.data);
            setTreeData(res.data);
         } else {
            setTreeError(res.error || "Could not load pedigree.");
         }
       } catch (err) {
+        if (requestId !== treeRequestRef.current) return;
         setTreeError(err.message || "Network error loading tree.");
       } finally {
-        setTreeLoading(false);
+        if (requestId === treeRequestRef.current) setTreeLoading(false);
       }
     }
     loadTree();
@@ -108,6 +131,21 @@ export default function PedigreeViewer() {
       (c.id && String(c.id).toLowerCase().includes(lower))
     );
   }, [cattleList, searchTerm]);
+
+  const pageSize = isCompact ? 12 : 40;
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
+  const pagedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const handlePrint = () => {
     if (treeData) {
@@ -133,7 +171,7 @@ export default function PedigreeViewer() {
       
       {/* --- CSS STYLES (Scoped) --- */}
       <style>{`
-  ..pedigree-layout {
+  .pedigree-layout {
   width: 100%;
   height: calc(
     100dvh -
@@ -362,6 +400,17 @@ export default function PedigreeViewer() {
       transform: translateX(-105%);
     }
 
+    .pedigree-list-header {
+      padding: 1rem !important;
+    }
+
+    .pedigree-list-item {
+      min-height: 64px;
+      padding: 0.8rem !important;
+      border: 1px solid #e5e7eb !important;
+      background: #ffffff !important;
+    }
+
     .pedigree-main {
   position: absolute;
   inset: 0;
@@ -585,7 +634,7 @@ export default function PedigreeViewer() {
 
       {/* --- SIDEBAR --- */}
       <aside className={`pedigree-sidebar no-print ${mobileView === 'tree' ? 'hidden' : ''}`}>
-        <div style={{ padding: "1.5rem", borderBottom: "1px solid #f3f4f6", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div className="pedigree-list-header" style={{ padding: "1.5rem", borderBottom: "1px solid #f3f4f6", display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
              <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#111827" }}>🧬 Pedigree Viewer</h2>
              <button onClick={handleRefresh} style={{ border:"none", background:"transparent", cursor:"pointer", fontSize:"1.2rem" }} title="Refresh List">🔄</button>
@@ -603,6 +652,12 @@ export default function PedigreeViewer() {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+          {!listLoading && !listError && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", padding: "0 0.25rem 0.65rem", color: "#6b7280", fontSize: "0.75rem" }}>
+              <span>{filteredList.length} cattle</span>
+              <span>Page {currentPage} of {totalPages}</span>
+            </div>
+          )}
           {listLoading ? (
             <div style={{ textAlign: "center", color: "#6b7280", marginTop: "20px" }}>Loading List...</div>
           ) : listError ? (
@@ -613,9 +668,10 @@ export default function PedigreeViewer() {
           ) : filteredList.length === 0 ? (
             <div style={{ textAlign: "center", color: "#9ca3af", marginTop: "20px" }}>No cattle found.</div>
           ) : (
-            filteredList.map((cow) => (
+            pagedList.map((cow) => (
               <div 
                 key={cow.id} 
+                className="pedigree-list-item"
                 onClick={() => handleSelect(cow.id)}
                 style={{
                   padding: "14px", marginBottom: "8px", borderRadius: "8px", cursor: "pointer",
@@ -642,6 +698,14 @@ export default function PedigreeViewer() {
             ))
           )}
         </div>
+
+        {!listLoading && !listError && filteredList.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", padding: "0.75rem 1rem", borderTop: "1px solid #e5e7eb", background: "#ffffff" }}>
+            <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.45 : 1 }}>Prev</button>
+            <span style={{ color: "#6b7280", fontSize: "0.75rem" }}>{(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredList.length)} of {filteredList.length}</span>
+            <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.45 : 1 }}>Next</button>
+          </div>
+        )}
       </aside>
 
       {/* --- MAIN PANEL (Tree) --- */}
@@ -942,6 +1006,19 @@ const secondaryButtonStyle = {
   padding: "8px 16px", borderRadius: "8px", border: "1px solid #d1d5db",
   background: "#ffffff", color: "#374151", fontSize: "0.9rem", fontWeight: 600,
   cursor: "pointer", transition: "background 0.2s", whiteSpace: "nowrap"
+};
+
+const paginationButtonStyle = {
+  minWidth: "64px",
+  minHeight: "38px",
+  padding: "0.45rem 0.75rem",
+  border: "1px solid #d1d5db",
+  borderRadius: "7px",
+  background: "#ffffff",
+  color: "#374151",
+  fontSize: "0.78rem",
+  fontWeight: 650,
+  cursor: "pointer",
 };
 
 

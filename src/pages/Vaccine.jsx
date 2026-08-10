@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   getPreventiveCareLog,
   addPreventiveCare,
@@ -577,6 +582,16 @@ export default function Vaccine() {
   const initialRange =
     getCurrentMonthDateRange();
 
+  const [isCompact, setIsCompact] =
+    useState(() =>
+      typeof window !== "undefined"
+        ? window.innerWidth <= 820
+        : false
+    );
+
+  const initialLoadStartedRef =
+    useRef(false);
+
   const [rows, setRows] =
     useState([]);
 
@@ -628,7 +643,12 @@ export default function Vaccine() {
     useState(1);
 
   const [pageSize, setPageSize] =
-    useState(DEFAULT_PAGE_SIZE);
+    useState(() =>
+      typeof window !== "undefined" &&
+      window.innerWidth <= 820
+        ? DEFAULT_PAGE_SIZE
+        : 20
+    );
 
   const [showForm, setShowForm] =
     useState(false);
@@ -652,8 +672,40 @@ export default function Vaccine() {
     });
 
   useEffect(() => {
+    if (initialLoadStartedRef.current) {
+      return;
+    }
+
+    initialLoadStartedRef.current = true;
     loadPageData();
   }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(
+        window.innerWidth <= 820
+      );
+    }
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    return () =>
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+  }, []);
+
+  useEffect(() => {
+    setPageSize(
+      isCompact
+        ? DEFAULT_PAGE_SIZE
+        : 20
+    );
+  }, [isCompact]);
 
   async function loadPageData() {
     try {
@@ -1590,6 +1642,10 @@ export default function Vaccine() {
       max-width: 900px;
     }
 
+    .preventive-mobile-list {
+      display: none;
+    }
+
     @media (max-width: 1200px) {
       .preventive-metric-grid {
         grid-template-columns:
@@ -1633,7 +1689,16 @@ export default function Vaccine() {
 
       .preventive-filter-grid {
         grid-template-columns:
-          minmax(0, 1fr);
+          repeat(2, minmax(0, 1fr));
+      }
+
+      .preventive-filter-grid > :first-child,
+      .preventive-filter-grid > :nth-child(4),
+      .preventive-filter-grid > :nth-child(5),
+      .preventive-filter-grid > :nth-child(6),
+      .preventive-filter-grid > :nth-child(7),
+      .preventive-filter-grid > :nth-child(8) {
+        grid-column: 1 / -1;
       }
 
       .preventive-filter-action {
@@ -1644,13 +1709,24 @@ export default function Vaccine() {
         width: 100%;
       }
 
-      .preventive-table-scroll-hint {
-        display: block;
+      .preventive-add-button {
+        width: 100%;
       }
 
       .preventive-table-card {
-        min-height: 320px;
+        min-height: 0;
         max-height: none;
+      }
+
+      .preventive-desktop-table {
+        display: none !important;
+      }
+
+      .preventive-mobile-list {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: #f8fafc;
       }
 
       .preventive-modal-grid {
@@ -1663,8 +1739,44 @@ export default function Vaccine() {
         height: 100dvh;
         max-width: none !important;
         max-height: 100dvh !important;
-        padding: 1rem !important;
+        padding: 0 !important;
         border-radius: 0 !important;
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .preventive-overlay {
+        padding: 0 !important;
+        align-items: stretch !important;
+      }
+
+      .preventive-modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        flex-shrink: 0;
+        margin: 0 !important;
+        padding: 1rem !important;
+        background: #ffffff;
+      }
+
+      .preventive-modal-body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 1rem;
+      }
+
+      .preventive-modal-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin: 0 !important;
+        padding: 0.85rem 1rem;
+        background: #ffffff;
+        box-shadow:
+          0 -6px 16px rgba(15, 23, 42, 0.08);
       }
 
       .preventive-pagination {
@@ -1692,7 +1804,7 @@ export default function Vaccine() {
             onClick={
               openFormForAdd
             }
-            className="btn btn-primary"
+            className="btn btn-primary preventive-add-button"
             style={{
               whiteSpace:
                 "nowrap",
@@ -2140,7 +2252,7 @@ export default function Vaccine() {
         </div>
       </div>
 
-      <div
+<div
   className="card preventive-table-card"
   style={{
     ...tableCardStyle,
@@ -2148,10 +2260,116 @@ export default function Vaccine() {
     maxHeight: undefined,
   }}
 >
-  <div className="preventive-table-scroll-hint">
-    Swipe sideways to view all columns
+  <div className="preventive-mobile-list">
+    {loading ? (
+      <div style={mobileEmptyStyle}>
+        Loading preventive care records...
+      </div>
+    ) : paginatedRows.length === 0 ? (
+      <div style={mobileEmptyStyle}>
+        No preventive care records match the selected filters.
+      </div>
+    ) : (
+      paginatedRows.map((row, index) => (
+        <article
+          key={
+            row.eventId ||
+            `${row.eventDate}-${index}`
+          }
+          style={mobileRecordCardStyle}
+        >
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={mobileLabelStyle}>Date</div>
+              <strong>
+                {formatDisplayDate(row.eventDate)}
+              </strong>
+              <div style={secondaryCellTextStyle}>
+                {row.eventId}
+              </div>
+            </div>
+
+            <CareTypeBadge
+              value={row.careTypeName}
+            />
+          </div>
+
+          <div style={mobileCardGridStyle}>
+            <MobilePreventiveItem
+              label="Medicine"
+              value={row.medicineName}
+              helper={
+                row.dosage || row.dosageUnit
+                  ? `Dose: ${row.dosage || "-"} ${
+                      row.dosageUnit || ""
+                    }`
+                  : ""
+              }
+            />
+
+            <MobilePreventiveItem
+              label="Target Group"
+              value={row.targetGroup}
+              helper={row.administrationRoute}
+            />
+
+            <MobilePreventiveItem
+              label="Coverage"
+              value={`${row.administeredCount} of ${row.eligibleCount}`}
+              helper={`Excluded: ${row.excludedCount}`}
+            />
+
+            <div>
+              <div style={mobileLabelStyle}>
+                Next Schedule
+              </div>
+              <div style={mobileValueStyle}>
+                {formatDisplayDate(row.nextDueDate) || "-"}
+              </div>
+              <div style={{ marginTop: "0.3rem" }}>
+                <DueStatusBadge status={row.dueStatus} />
+              </div>
+            </div>
+
+            <div>
+              <div style={mobileLabelStyle}>
+                Event Status
+              </div>
+              <div style={{ marginTop: "0.3rem" }}>
+                <RecordStatusBadge value={row.status} />
+              </div>
+            </div>
+
+            <MobilePreventiveItem
+              label="Doctor"
+              value={row.doctorName}
+            />
+          </div>
+
+          <div style={mobileCardActionsStyle}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setSelectedEntry(row)}
+            >
+              View
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => openFormForEdit(row)}
+            >
+              Edit
+            </button>
+          </div>
+        </article>
+      ))
+    )}
   </div>
+
         <div
+          className="preventive-desktop-table"
           style={
             tableScrollStyle
           }
@@ -2506,11 +2724,50 @@ export default function Vaccine() {
             </tbody>
           </table>
         </div>
+
+        {!loading && filteredRows.length > 0 && (
+          <div style={mobilePaginationFooterStyle}>
+            <span style={pageIndicatorStyle}>
+              Records {firstVisibleRecord}–{lastVisibleRecord} of{" "}
+              {filteredRows.length} | Page {currentPage} of{" "}
+              {totalPages}
+            </span>
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage <= 1}
+                onClick={() =>
+                  setCurrentPage((page) =>
+                    Math.max(1, page - 1)
+                  )
+                }
+              >
+                Prev
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() =>
+                  setCurrentPage((page) =>
+                    Math.min(totalPages, page + 1)
+                  )
+                }
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ADD / EDIT MODAL */}
       {showForm && (
         <div
+          className="preventive-overlay"
           style={overlayStyle}
           onClick={
             closeForm
@@ -2527,6 +2784,7 @@ export default function Vaccine() {
             }
           >
             <div
+              className="preventive-modal-header"
               style={
                 modalHeaderStyle
               }
@@ -2569,6 +2827,7 @@ export default function Vaccine() {
             </div>
 
             <form
+              className="preventive-modal-body"
               onSubmit={
                 handleSubmit
               }
@@ -3016,6 +3275,7 @@ export default function Vaccine() {
               </SectionCard>
 
               <div
+                className="preventive-modal-actions"
                 style={
                   modalActionsStyle
                 }
@@ -3057,6 +3317,7 @@ export default function Vaccine() {
       {/* DETAILS MODAL */}
       {selectedEntry && (
         <div
+          className="preventive-overlay"
           style={overlayStyle}
           onClick={() =>
             setSelectedEntry(
@@ -3075,6 +3336,7 @@ export default function Vaccine() {
             }
           >
             <div
+              className="preventive-modal-header"
               style={
                 modalHeaderStyle
               }
@@ -3123,6 +3385,7 @@ export default function Vaccine() {
             </div>
 
             <div
+              className="preventive-modal-body"
               style={{
                 display:
                   "grid",
@@ -3338,6 +3601,7 @@ export default function Vaccine() {
             </div>
 
             <div
+              className="preventive-modal-actions"
               style={
                 modalActionsStyle
               }
@@ -3383,6 +3647,26 @@ export default function Vaccine() {
 // =============================================================================
 // SMALL COMPONENTS
 // =============================================================================
+
+function MobilePreventiveItem({
+  label,
+  value,
+  helper,
+}) {
+  return (
+    <div>
+      <div style={mobileLabelStyle}>{label}</div>
+      <div style={mobileValueStyle}>
+        {value || "-"}
+      </div>
+      {helper && (
+        <div style={mobileHelperStyle}>
+          {helper}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Field({
   label,
@@ -3589,6 +3873,81 @@ function CountBadge({
 
 
 
+
+const mobileEmptyStyle = {
+  padding: "2rem 1rem",
+  textAlign: "center",
+  color: "#64748b",
+};
+
+const mobileRecordCardStyle = {
+  padding: "0.9rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow:
+    "0 1px 2px rgba(15, 23, 42, 0.05)",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "0.75rem",
+  paddingBottom: "0.7rem",
+  marginBottom: "0.7rem",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
+const mobileLabelStyle = {
+  color: "#64748b",
+  fontSize: "0.68rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const mobileValueStyle = {
+  marginTop: "0.2rem",
+  color: "#0f172a",
+  fontSize: "0.84rem",
+  lineHeight: 1.35,
+  overflowWrap: "anywhere",
+};
+
+const mobileHelperStyle = {
+  marginTop: "0.15rem",
+  color: "#64748b",
+  fontSize: "0.72rem",
+  lineHeight: 1.3,
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "0.5rem",
+  paddingTop: "0.8rem",
+  marginTop: "0.8rem",
+  borderTop: "1px solid #f1f5f9",
+};
+
+const mobilePaginationFooterStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "0.75rem",
+  padding: "0.8rem 1rem",
+  borderTop: "1px solid #e2e8f0",
+  background: "#ffffff",
+};
 
 const twoColumnGridStyle = {
   display: "grid",

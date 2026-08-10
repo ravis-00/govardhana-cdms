@@ -57,6 +57,29 @@ const PREGNANCY_STATUS_OPTIONS = [
   "Unknown",
 ];
 
+// Reuse an in-flight or completed birth-detail request. This prevents
+// React development mode from issuing the same Apps Script request twice
+// when the cattle-detail modal effect is mounted more than once.
+const birthDetailsRequestCache = new Map();
+
+function getCachedBirthDetails(linkedBirthId) {
+  const cacheKey = String(linkedBirthId || "").trim();
+  if (!cacheKey) return Promise.resolve(null);
+
+  if (!birthDetailsRequestCache.has(cacheKey)) {
+    const request = getBirthDetailsById(cacheKey)
+      .then((response) => response?.data || response || null)
+      .catch((error) => {
+        birthDetailsRequestCache.delete(cacheKey);
+        throw error;
+      });
+
+    birthDetailsRequestCache.set(cacheKey, request);
+  }
+
+  return birthDetailsRequestCache.get(cacheKey);
+}
+
 // --- HELPER: Get Robust ID ---
 function getRowId(row) {
   if (!row) return "";
@@ -457,6 +480,10 @@ const [searchText, setSearchText] = useState("");
 const [actionMenuId, setActionMenuId] = useState(null);
 const [reactivationRow, setReactivationRow] = useState(null);
 const loadRequestIdRef = useRef(0);
+const initialLoadStartedRef = useRef(false);
+const [isCompact, setIsCompact] = useState(
+  () => typeof window !== "undefined" && window.innerWidth <= 640
+);
   const loadData = async () => {
   const requestId = ++loadRequestIdRef.current;
 
@@ -526,7 +553,19 @@ const loadRequestIdRef = useRef(0);
   }
 };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (initialLoadStartedRef.current) return;
+    initialLoadStartedRef.current = true;
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(window.innerWidth <= 640);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
   setTypeFilter("All");
@@ -576,7 +615,8 @@ const matchType =
   });
 }, [rows, statusFilter, breedFilter, genderFilter, typeFilter, searchText, exitLogs]);
 
-  const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
+  const pageSize = isCompact ? 10 : ITEMS_PER_PAGE;
+  const totalPages = Math.ceil(filteredRows.length / pageSize);
   const sortedRows = useMemo(() => {
   return [...filteredRows].sort((a, b) => {
     const idA = Number(String(getRowId(a)).replace(/\D/g, "")) || 0;
@@ -586,11 +626,12 @@ const matchType =
 }, [filteredRows]);
 
 const displayedRows = useMemo(() => {
-  const start = (currentPage - 1) * ITEMS_PER_PAGE;
-  return sortedRows.slice(start, start + ITEMS_PER_PAGE);
-}, [sortedRows, currentPage]);
+  const start = (currentPage - 1) * pageSize;
+  return sortedRows.slice(start, start + pageSize);
+}, [sortedRows, currentPage, pageSize]);
 
   useEffect(() => { setCurrentPage(1); }, [statusFilter, breedFilter, genderFilter, typeFilter, searchText]);
+  useEffect(() => { setCurrentPage(1); }, [pageSize]);
   useEffect(() => {
   setActionMenuId(null);
 }, [currentPage, statusFilter, breedFilter, genderFilter, typeFilter, searchText]);
@@ -2251,6 +2292,90 @@ const printFarmerHandoverCertificate = (row) => {
     overflowX: "hidden",
   }}
 >
+<style>{`
+  @media (max-width: 640px) {
+    .master-cattle-table {
+      display: block;
+      width: 100%;
+      min-width: 0 !important;
+      border-collapse: separate !important;
+    }
+
+    .master-cattle-table thead {
+      display: none;
+    }
+
+    .master-cattle-table tbody {
+      display: grid;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: #f8fafc;
+    }
+
+    .master-cattle-table tbody tr {
+      display: grid;
+      grid-template-columns: 72px repeat(2, minmax(0, 1fr));
+      gap: 0.7rem;
+      padding: 0.8rem;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 10px;
+      background: #ffffff !important;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    .master-cattle-table tbody tr:has(td[colspan]) {
+      display: block;
+    }
+
+    .master-cattle-table td {
+      display: block;
+      min-width: 0;
+      padding: 0 !important;
+      border: 0 !important;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      font-size: 0.8rem;
+    }
+
+    .master-cattle-table td::before {
+      display: block;
+      margin-bottom: 0.15rem;
+      color: #64748b;
+      font-size: 0.6rem;
+      font-weight: 750;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .master-cattle-table td:nth-child(1) {
+      grid-row: span 2;
+    }
+    .master-cattle-table td:nth-child(1)::before { content: "Photo"; }
+    .master-cattle-table td:nth-child(2) {
+      grid-column: 2 / -1;
+    }
+    .master-cattle-table td:nth-child(2)::before { content: "Cattle"; }
+    .master-cattle-table td:nth-child(3)::before { content: "Breed / Colour"; }
+    .master-cattle-table td:nth-child(4)::before { content: "Gender"; }
+    .master-cattle-table td:nth-child(5)::before { content: "Status"; }
+    .master-cattle-table td:nth-child(6)::before { content: "Type"; }
+    .master-cattle-table td:nth-child(7) {
+      grid-column: 1 / -1;
+      padding-top: 0.6rem !important;
+      border-top: 1px solid #e2e8f0 !important;
+    }
+    .master-cattle-table td:nth-child(7)::before { content: "Actions"; text-align: left; }
+
+    .master-cattle-table td[colspan] {
+      padding: 2rem 0.75rem !important;
+      text-align: center;
+    }
+
+    .master-cattle-table td[colspan]::before {
+      display: none;
+    }
+  }
+`}</style>
       
  {/* HEADER */}
 <div style={{ marginBottom: "1.25rem" }}>
@@ -2264,7 +2389,7 @@ const printFarmerHandoverCertificate = (row) => {
     }
     action={
       isAdmin ? (
-        <Link to="/cattle/register" style={primaryBtnStyle}>
+        <Link to="/cattle/register" style={{ ...primaryBtnStyle, ...(isCompact ? compactFullWidthStyle : {}) }}>
           <span>+</span> Add New
         </Link>
       ) : null
@@ -2319,7 +2444,7 @@ const printFarmerHandoverCertificate = (row) => {
 
   {/* FILTERS */}
 <div style={filterPanelStyle}>
-  <div style={filterGridStyle}>
+  <div style={{ ...filterGridStyle, ...(isCompact ? compactFilterGridStyle : {}) }}>
     <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={filterInputStyle}>
       {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
     </select>
@@ -2364,11 +2489,11 @@ const printFarmerHandoverCertificate = (row) => {
     </div>
   </div>
 
-  <div style={filterActionsStyle}>
+  <div style={{ ...filterActionsStyle, ...(isCompact ? compactFilterActionsStyle : {}) }}>
     <button
       type="button"
       onClick={handleClearFilters}
-      style={clearFiltersBtnStyle}
+      style={{ ...clearFiltersBtnStyle, ...(isCompact ? compactFullWidthStyle : {}) }}
     >
       Clear Filters
     </button>
@@ -2377,7 +2502,7 @@ const printFarmerHandoverCertificate = (row) => {
 </div>
 
 {filteredRows.length > 0 && (
-  <div style={topPaginationStyle}>
+  <div style={{ ...topPaginationStyle, ...(isCompact ? compactPaginationStyle : {}) }}>
     <button onClick={handlePrev} disabled={currentPage === 1} style={pageBtnStyle}>
       ‹ Prev
     </button>
@@ -2401,17 +2526,18 @@ const printFarmerHandoverCertificate = (row) => {
     ...cardStyle,
     display: "flex",
     flexDirection: "column",
-    height: "calc(100vh - 220px)",
+    height: isCompact ? "auto" : "calc(100vh - 220px)",
   }}
 >
         <div
   style={{
     flex: 1,
-    overflowY: "auto",
+    overflowY: isCompact ? "visible" : "auto",
     overflowX: "auto",
   }}
 >
   <table
+    className="master-cattle-table"
     style={{
       width: "100%",
       borderCollapse: "collapse",
@@ -3093,11 +3219,10 @@ const [birthDetailsError, setBirthDetailsError] = useState("");
       setBirthDetailsLoading(true);
       setBirthDetailsError("");
 
-      const response = await getBirthDetailsById(linkedId);
+      const details = await getCachedBirthDetails(linkedId);
 
       if (cancelled) return;
 
-      const details = response?.data || response || null;
       setBirthDetails(details);
     } catch (err) {
       if (cancelled) return;
@@ -4895,6 +5020,21 @@ const topPaginationStyle = {
   gap: "0.5rem",
   marginBottom: "0.5rem",
   width: "100%",
+};
+const compactFilterGridStyle = {
+  gridTemplateColumns: "minmax(0, 1fr)",
+};
+const compactFilterActionsStyle = {
+  display: "block",
+};
+const compactFullWidthStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  justifyContent: "center",
+};
+const compactPaginationStyle = {
+  justifyContent: "space-between",
+  flexWrap: "nowrap",
 };
 const largePhotoContainerStyle = { width: "100%", height: "300px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "12px", border: "1px solid #e5e7eb", marginBottom: "1.5rem" };
 const largePhotoStyle = { width: "100%", height: "100%", objectFit: "contain" };

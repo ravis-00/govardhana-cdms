@@ -17,7 +17,8 @@ import {
 // CONSTANTS
 // =========================================================
 
-const PAGE_SIZE = 10;
+const MOBILE_PAGE_SIZE = 10;
+const DESKTOP_PAGE_SIZE = 20;
 
 const WASTE_TYPE_OPTIONS = [
   "Dung (Gomaya)",
@@ -315,6 +316,13 @@ function getWasteBadgeStyle(wasteType) {
 // =========================================================
 
 export default function BioWaste() {
+  const [isCompact, setIsCompact] =
+    useState(() =>
+      typeof window !== "undefined"
+        ? window.innerWidth <= 820
+        : false
+    );
+
   const [rows, setRows] =
     useState([]);
 
@@ -411,6 +419,25 @@ export default function BioWaste() {
 
   useEffect(() => {
     loadSheds();
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsCompact(
+        window.innerWidth <= 820
+      );
+    }
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    return () =>
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
   }, []);
 
   useEffect(() => {
@@ -771,12 +798,16 @@ export default function BioWaste() {
   // PAGINATION
   // =======================================================
 
+  const pageSize = isCompact
+    ? MOBILE_PAGE_SIZE
+    : DESKTOP_PAGE_SIZE;
+
   const totalPages =
     Math.max(
       1,
       Math.ceil(
         filteredRows.length /
-          PAGE_SIZE
+          pageSize
       )
     );
 
@@ -801,15 +832,16 @@ export default function BioWaste() {
     useMemo(() => {
       const startIndex =
         (currentPage - 1) *
-        PAGE_SIZE;
+        pageSize;
 
       return filteredRows.slice(
         startIndex,
-        startIndex + PAGE_SIZE
+        startIndex + pageSize
       );
     }, [
       filteredRows,
       currentPage,
+      pageSize,
     ]);
 
 
@@ -1147,7 +1179,14 @@ export default function BioWaste() {
   // =======================================================
 
   return (
-    <div style={pageStyle}>
+    <div
+      style={{
+        ...pageStyle,
+        ...(isCompact
+          ? compactPageStyle
+          : {}),
+      }}
+    >
       {toast.show && (
         <div
           role="status"
@@ -1191,7 +1230,14 @@ export default function BioWaste() {
 
       {/* PAGE HEADER */}
 
-      <div style={headerStyle}>
+      <div
+        style={{
+          ...headerStyle,
+          ...(isCompact
+            ? compactHeaderStyle
+            : {}),
+        }}
+      >
         <div>
           <h1 style={pageTitleStyle}>
             Waste Management
@@ -1207,7 +1253,12 @@ export default function BioWaste() {
           type="button"
           onClick={openAddModal}
           className="btn btn-primary"
-          style={{ whiteSpace: "nowrap" }}
+          style={{
+            whiteSpace: "nowrap",
+            ...(isCompact
+              ? { width: "100%" }
+              : {}),
+          }}
         >
           + Add Entry
         </button>
@@ -1216,11 +1267,23 @@ export default function BioWaste() {
 
       {/* KPI CARDS */}
 
-      <div style={kpiGridStyle}>
+      <div
+        style={{
+          ...kpiGridStyle,
+          ...(isCompact
+            ? compactKpiGridStyle
+            : {}),
+        }}
+      >
         <KpiCard
           label="Records"
           value={filteredRows.length}
           helper="Filtered entries"
+          style={
+            isCompact
+              ? { gridColumn: "1 / -1" }
+              : undefined
+          }
         />
 
         <KpiCard
@@ -1263,7 +1326,14 @@ export default function BioWaste() {
         className="card"
         style={filterCardStyle}
       >
-        <div style={filterGridStyle}>
+        <div
+          style={{
+            ...filterGridStyle,
+            ...(isCompact
+              ? compactFilterGridStyle
+              : {}),
+          }}
+        >
           <FilterField label="From Date">
             <input
               type="date"
@@ -1293,7 +1363,10 @@ export default function BioWaste() {
             />
           </FilterField>
 
-          <FilterField label="Waste Type">
+          <FilterField
+            label="Waste Type"
+            fullWidth={isCompact}
+          >
             <select
               value={wasteTypeFilter}
               onChange={(event) =>
@@ -1320,7 +1393,10 @@ export default function BioWaste() {
             </select>
           </FilterField>
 
-          <FilterField label="Source Shed">
+          <FilterField
+            label="Source Shed"
+            fullWidth={isCompact}
+          >
             <select
               value={shedFilter}
               onChange={(event) =>
@@ -1347,7 +1423,10 @@ export default function BioWaste() {
             </select>
           </FilterField>
 
-          <FilterField label="Destination">
+          <FilterField
+            label="Destination"
+            fullWidth={isCompact}
+          >
             <select
               value={destinationFilter}
               onChange={(event) =>
@@ -1374,7 +1453,10 @@ export default function BioWaste() {
             </select>
           </FilterField>
 
-          <FilterField label="Search">
+          <FilterField
+            label="Search"
+            fullWidth={isCompact}
+          >
             <input
               type="search"
               value={searchText}
@@ -1389,7 +1471,14 @@ export default function BioWaste() {
           </FilterField>
         </div>
 
-        <div style={filterFooterStyle}>
+        <div
+          style={{
+            ...filterFooterStyle,
+            ...(isCompact
+              ? compactFilterFooterStyle
+              : {}),
+          }}
+        >
           <span style={resultCountStyle}>
             Showing {filteredRows.length} of{" "}
             {rows.length} records
@@ -1399,6 +1488,11 @@ export default function BioWaste() {
             type="button"
             onClick={clearFilters}
             className="btn btn-secondary"
+            style={
+              isCompact
+                ? { width: "100%" }
+                : undefined
+            }
           >
             Clear Filters
           </button>
@@ -1412,10 +1506,123 @@ export default function BioWaste() {
         className="card"
         style={tableCardStyle}
       >
+        {!loading &&
+          filteredRows.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalRecords={filteredRows.length}
+              onPrevious={() =>
+                setCurrentPage((page) =>
+                  Math.max(1, page - 1)
+                )
+              }
+              onNext={() =>
+                setCurrentPage((page) =>
+                  Math.min(
+                    totalPages,
+                    page + 1
+                  )
+                )
+              }
+            />
+          )}
+
         <div style={tableScrollStyle}>
           {loading ? (
             <div style={loadingStyle}>
               Loading Waste Management records...
+            </div>
+          ) : isCompact ? (
+            <div style={mobileCardListStyle}>
+              {paginatedRows.length === 0 ? (
+                <div style={emptyStateStyle}>
+                  No Waste Management records found for
+                  the selected filters.
+                </div>
+              ) : (
+                paginatedRows.map((row) => (
+                  <article
+                    key={
+                      row.transactionId ||
+                      `${row.date}-${row.rowIndex}`
+                    }
+                    style={mobileRecordCardStyle}
+                  >
+                    <div style={mobileCardHeaderStyle}>
+                      <div>
+                        <div style={mobileCardLabelStyle}>
+                          Date
+                        </div>
+                        <strong>
+                          {formatDisplayDate(row.date)}
+                        </strong>
+                      </div>
+
+                      <span
+                        style={{
+                          ...wasteBadgeStyle,
+                          ...getWasteBadgeStyle(
+                            row.wasteType
+                          ),
+                        }}
+                      >
+                        {row.wasteType}
+                      </span>
+                    </div>
+
+                    <div style={mobileCardGridStyle}>
+                      <MobileDataItem
+                        label="Quantity"
+                        value={`${roundQuantity(
+                          row.quantity
+                        )} ${row.unit}`}
+                        strong
+                      />
+
+                      <MobileDataItem
+                        label="Source Shed(s)"
+                        value={row.sourceShed}
+                      />
+
+                      <MobileDataItem
+                        label="Destination"
+                        value={row.destination}
+                      />
+
+                      <MobileDataItem
+                        label="Sender / Receiver"
+                        value={`${row.sender || "-"} / ${
+                          row.receiver || "-"
+                        }`}
+                      />
+                    </div>
+
+                    <div style={mobileCardActionsStyle}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() =>
+                          setSelectedEntry(row)
+                        }
+                      >
+                        View
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() =>
+                          openEditModal(row)
+                        }
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
           ) : (
             <table style={tableStyle}>
@@ -1535,51 +1742,25 @@ export default function BioWaste() {
 
         {!loading &&
           filteredRows.length > 0 && (
-            <div style={paginationStyle}>
-              <span style={paginationTextStyle}>
-                Page {currentPage} of{" "}
-                {totalPages}
-              </span>
-
-              <div style={paginationButtonGroupStyle}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={currentPage <= 1}
-                  onClick={() =>
-                    setCurrentPage(
-                      (page) =>
-                        Math.max(
-                          1,
-                          page - 1
-                        )
-                    )
-                  }
-                >
-                  Previous
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={
-                    currentPage >=
-                    totalPages
-                  }
-                  onClick={() =>
-                    setCurrentPage(
-                      (page) =>
-                        Math.min(
-                          totalPages,
-                          page + 1
-                        )
-                    )
-                  }
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalRecords={filteredRows.length}
+              onPrevious={() =>
+                setCurrentPage((page) =>
+                  Math.max(1, page - 1)
+                )
+              }
+              onNext={() =>
+                setCurrentPage((page) =>
+                  Math.min(
+                    totalPages,
+                    page + 1
+                  )
+                )
+              }
+            />
           )}
       </div>
 
@@ -1588,11 +1769,21 @@ export default function BioWaste() {
 
       {showModal && (
         <div
-          style={overlayStyle}
+          style={{
+            ...overlayStyle,
+            ...(isCompact
+              ? compactOverlayStyle
+              : {}),
+          }}
           onClick={closeFormModal}
         >
           <div
-            style={modalStyle}
+            style={{
+              ...modalStyle,
+              ...(isCompact
+                ? compactModalStyle
+                : {}),
+            }}
             onClick={(event) =>
               event.stopPropagation()
             }
@@ -1600,7 +1791,14 @@ export default function BioWaste() {
             aria-modal="true"
             aria-labelledby="bio-waste-form-title"
           >
-            <div style={modalHeaderStyle}>
+            <div
+              style={{
+                ...modalHeaderStyle,
+                ...(isCompact
+                  ? compactModalHeaderStyle
+                  : {}),
+              }}
+            >
               <div>
                 <h2
                   id="bio-waste-form-title"
@@ -1630,7 +1828,12 @@ export default function BioWaste() {
 
             <form
               onSubmit={handleSubmit}
-              style={formStyle}
+              style={{
+                ...formStyle,
+                ...(isCompact
+                  ? compactFormStyle
+                  : {}),
+              }}
             >
               <div className="responsive-grid">
                 <Field label="Date">
@@ -1767,7 +1970,14 @@ export default function BioWaste() {
                 />
               </Field>
 
-              <div style={modalFooterStyle}>
+              <div
+                style={{
+                  ...modalFooterStyle,
+                  ...(isCompact
+                    ? compactModalFooterStyle
+                    : {}),
+                }}
+              >
                 <button
                   type="button"
                   onClick={closeFormModal}
@@ -1801,18 +2011,35 @@ export default function BioWaste() {
 
       {selectedEntry && (
         <div
-          style={overlayStyle}
+          style={{
+            ...overlayStyle,
+            ...(isCompact
+              ? compactOverlayStyle
+              : {}),
+          }}
           onClick={() =>
             setSelectedEntry(null)
           }
         >
           <div
-            style={detailModalStyle}
+            style={{
+              ...detailModalStyle,
+              ...(isCompact
+                ? compactDetailModalStyle
+                : {}),
+            }}
             onClick={(event) =>
               event.stopPropagation()
             }
           >
-            <div style={modalHeaderStyle}>
+            <div
+              style={{
+                ...modalHeaderStyle,
+                ...(isCompact
+                  ? compactModalHeaderStyle
+                  : {}),
+              }}
+            >
               <div>
                 <h2 style={modalTitleStyle}>
                   Waste Management Details
@@ -1837,7 +2064,14 @@ export default function BioWaste() {
               </button>
             </div>
 
-            <div style={detailGridStyle}>
+            <div
+              style={{
+                ...detailGridStyle,
+                ...(isCompact
+                  ? compactDetailGridStyle
+                  : {}),
+              }}
+            >
               <DetailItem
                 label="Transaction ID"
                 value={
@@ -1903,7 +2137,14 @@ export default function BioWaste() {
               />
             </div>
 
-            <div style={modalFooterStyle}>
+            <div
+              style={{
+                ...modalFooterStyle,
+                ...(isCompact
+                  ? compactDetailFooterStyle
+                  : {}),
+              }}
+            >
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -2090,11 +2331,15 @@ function KpiCard({
   label,
   value,
   helper,
+  style,
 }) {
   return (
     <div
       className="card"
-      style={kpiCardStyle}
+      style={{
+        ...kpiCardStyle,
+        ...style,
+      }}
     >
       <div style={kpiLabelStyle}>
         {label}
@@ -2114,14 +2359,97 @@ function KpiCard({
 function FilterField({
   label,
   children,
+  fullWidth = false,
 }) {
   return (
-    <div>
+    <div
+      style={
+        fullWidth
+          ? { gridColumn: "1 / -1" }
+          : undefined
+      }
+    >
       <label style={filterLabelStyle}>
         {label}
       </label>
 
       {children}
+    </div>
+  );
+}
+
+function MobileDataItem({
+  label,
+  value,
+  strong = false,
+}) {
+  return (
+    <div>
+      <div style={mobileCardLabelStyle}>
+        {label}
+      </div>
+
+      <div
+        style={{
+          ...mobileCardValueStyle,
+          ...(strong
+            ? { fontWeight: 700 }
+            : {}),
+        }}
+      >
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function PaginationControls({
+  currentPage,
+  totalPages,
+  pageSize,
+  totalRecords,
+  onPrevious,
+  onNext,
+}) {
+  const firstRecord =
+    totalRecords === 0
+      ? 0
+      : (currentPage - 1) *
+          pageSize +
+        1;
+
+  const lastRecord = Math.min(
+    currentPage * pageSize,
+    totalRecords
+  );
+
+  return (
+    <div style={paginationStyle}>
+      <span style={paginationTextStyle}>
+        Records {firstRecord}–{lastRecord} of{" "}
+        {totalRecords} | Page {currentPage} of{" "}
+        {totalPages}
+      </span>
+
+      <div style={paginationButtonGroupStyle}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={currentPage <= 1}
+          onClick={onPrevious}
+        >
+          Prev
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={currentPage >= totalPages}
+          onClick={onNext}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
@@ -2194,6 +2522,10 @@ const pageStyle = {
   boxSizing: "border-box",
 };
 
+const compactPageStyle = {
+  padding: "1rem",
+};
+
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
@@ -2201,6 +2533,11 @@ const headerStyle = {
   flexWrap: "wrap",
   gap: "1rem",
   marginBottom: "1.25rem",
+};
+
+const compactHeaderStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
 };
 
 const pageTitleStyle = {
@@ -2222,6 +2559,12 @@ const kpiGridStyle = {
     "repeat(auto-fit, minmax(180px, 1fr))",
   gap: "1rem",
   marginBottom: "1rem",
+};
+
+const compactKpiGridStyle = {
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
 };
 
 const kpiCardStyle = {
@@ -2264,6 +2607,12 @@ const filterGridStyle = {
   alignItems: "end",
 };
 
+const compactFilterGridStyle = {
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
 const filterFooterStyle = {
   marginTop: "0.9rem",
   paddingTop: "0.85rem",
@@ -2273,6 +2622,10 @@ const filterFooterStyle = {
   alignItems: "center",
   flexWrap: "wrap",
   gap: "0.75rem",
+};
+
+const compactFilterFooterStyle = {
+  alignItems: "stretch",
 };
 
 const filterLabelStyle = {
@@ -2296,6 +2649,63 @@ const tableCardStyle = {
 const tableScrollStyle = {
   width: "100%",
   overflowX: "auto",
+};
+
+const mobileCardListStyle = {
+  display: "grid",
+  gap: "0.75rem",
+  padding: "0.75rem",
+  background: "#f8fafc",
+};
+
+const mobileRecordCardStyle = {
+  padding: "0.9rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "#ffffff",
+  boxShadow:
+    "0 1px 2px rgba(15, 23, 42, 0.05)",
+};
+
+const mobileCardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "0.75rem",
+  paddingBottom: "0.7rem",
+  marginBottom: "0.7rem",
+  borderBottom: "1px solid #f1f5f9",
+};
+
+const mobileCardGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(2, minmax(0, 1fr))",
+  gap: "0.75rem",
+};
+
+const mobileCardLabelStyle = {
+  color: "#64748b",
+  fontSize: "0.68rem",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const mobileCardValueStyle = {
+  marginTop: "0.2rem",
+  color: "#0f172a",
+  fontSize: "0.84rem",
+  overflowWrap: "anywhere",
+};
+
+const mobileCardActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "0.5rem",
+  paddingTop: "0.8rem",
+  marginTop: "0.8rem",
+  borderTop: "1px solid #f1f5f9",
 };
 
 const tableStyle = {
@@ -2387,6 +2797,11 @@ const overlayStyle = {
   alignItems: "center",
 };
 
+const compactOverlayStyle = {
+  padding: 0,
+  alignItems: "stretch",
+};
+
 const modalStyle = {
   width: "100%",
   maxWidth: "720px",
@@ -2397,6 +2812,22 @@ const modalStyle = {
   background: "#ffffff",
   boxShadow:
     "0 24px 60px rgba(15, 23, 42, 0.25)",
+};
+
+const compactModalStyle = {
+  maxWidth: "none",
+  maxHeight: "100dvh",
+  height: "100dvh",
+  padding: 0,
+  borderRadius: 0,
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
+};
+
+const compactDetailModalStyle = {
+  ...compactModalStyle,
+  overflowY: "auto",
 };
 
 const detailModalStyle = {
@@ -2412,6 +2843,16 @@ const modalHeaderStyle = {
   paddingBottom: "1rem",
   marginBottom: "1.1rem",
   borderBottom: "1px solid #e5e7eb",
+};
+
+const compactModalHeaderStyle = {
+  position: "sticky",
+  top: 0,
+  zIndex: 20,
+  flexShrink: 0,
+  marginBottom: 0,
+  padding: "1rem",
+  background: "#ffffff",
 };
 
 const modalTitleStyle = {
@@ -2441,6 +2882,13 @@ const formStyle = {
   gap: "1rem",
 };
 
+const compactFormStyle = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  padding: "1rem",
+};
+
 const quantityUnitGridStyle = {
   display: "grid",
   gridTemplateColumns:
@@ -2467,11 +2915,38 @@ const modalFooterStyle = {
   gap: "0.75rem",
 };
 
+const compactModalFooterStyle = {
+  position: "sticky",
+  bottom: 0,
+  zIndex: 20,
+  margin: "0 -1rem -1rem",
+  padding: "0.85rem 1rem",
+  background: "#ffffff",
+  boxShadow:
+    "0 -6px 16px rgba(15, 23, 42, 0.08)",
+};
+
+const compactDetailFooterStyle = {
+  position: "sticky",
+  bottom: 0,
+  zIndex: 20,
+  marginTop: "auto",
+  padding: "0.85rem 1rem",
+  background: "#ffffff",
+  boxShadow:
+    "0 -6px 16px rgba(15, 23, 42, 0.08)",
+};
+
 const detailGridStyle = {
   display: "grid",
   gridTemplateColumns:
     "repeat(auto-fit, minmax(220px, 1fr))",
   gap: "0.9rem",
+};
+
+const compactDetailGridStyle = {
+  gridTemplateColumns: "1fr",
+  padding: "1rem",
 };
 
 const detailItemStyle = {
