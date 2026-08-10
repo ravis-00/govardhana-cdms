@@ -3,6 +3,11 @@ import { getPedigree, getPedigreeList } from "../api/masterApi";
 
 export default function PedigreeViewer() {
   // --- STATE ---
+  const requestedCattleIdRef = useRef(
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("cattleId") || ""
+      : ""
+  );
   const [cattleList, setCattleList] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
@@ -16,13 +21,17 @@ export default function PedigreeViewer() {
   const treeRequestRef = useRef(0);
   
   // Tree State
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(
+    requestedCattleIdRef.current || null
+  );
   const [treeData, setTreeData] = useState(null);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState(null);
 
   // Responsive State
-  const [mobileView, setMobileView] = useState("list"); // 'list' or 'tree'
+  const [mobileView, setMobileView] = useState(
+    requestedCattleIdRef.current ? "tree" : "list"
+  ); // 'list' or 'tree'
 
   // --- EFFECTS ---
   useEffect(() => {
