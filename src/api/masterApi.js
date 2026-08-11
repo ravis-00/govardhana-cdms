@@ -20,10 +20,24 @@ export function setSessionToken(token) {
 }
 
 export function clearSessionToken() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SESSION_TOKEN_KEY);
-}
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return;
+  }
 
+  window.localStorage.removeItem(
+    SESSION_TOKEN_KEY
+  );
+
+  /*
+   * Do not retain operational data after authentication is
+   * removed.
+   */
+  clearCattleDataMemoryCache();
+  clearDashboardSummaryMemoryCache();
+}
 /*
  * Prevent accidental duplicate Dashboard requests.
  *
@@ -36,11 +50,118 @@ export function clearSessionToken() {
  * It does not introduce long-term browser caching or stale data.
  */
 let dashboardSummaryInFlight = null;
+
+/*
+ * Reuse the Dashboard response while the current application
+ * session remains open.
+ *
+ * Backend writes clear both the frontend and Apps Script caches.
+ */
+const DASHBOARD_MEMORY_CACHE_MS =
+  10 * 60 * 1000;
+
+let dashboardSummaryMemoryCache =
+  null;
+
+let dashboardSummaryMemoryCachedAt =
+  0;
+
 let feedingInFlight = null;
 let usersInFlight = null;
-
+let newBornInFlight = null;
+let sessionValidationInFlight = null;
 let shedsInFlight = null;
 const bioWasteInFlight = new Map();
+
+/*
+ * Short-lived Master Cattle memory cache.
+ *
+ * This exists only while the current JavaScript application
+ * remains open. It is not written to localStorage or
+ * sessionStorage.
+ */
+const CATTLE_MEMORY_CACHE_MS =
+  2 * 60 * 1000;
+
+let cattleInFlight = null;
+let cattleMemoryCache = null;
+let cattleMemoryCachedAt = 0;
+
+let cattleExitLogInFlight = null;
+let cattleExitLogMemoryCache = null;
+let cattleExitLogMemoryCachedAt = 0;
+
+
+/**
+ * Clears the current browser application's Dashboard response.
+ */
+function clearDashboardSummaryMemoryCache() {
+  dashboardSummaryMemoryCache =
+    null;
+
+  dashboardSummaryMemoryCachedAt =
+    0;
+}
+
+/**
+ * Clears Dashboard memory after a successful operation that can
+ * change a Dashboard metric.
+ */
+async function runWithDashboardCacheInvalidation(
+  request
+) {
+  const response =
+    await request;
+
+  clearDashboardSummaryMemoryCache();
+
+  return response;
+}
+
+/**
+ * Clears all in-memory data used by Master Cattle.
+ */
+function clearCattleDataMemoryCache() {
+  cattleMemoryCache = null;
+  cattleMemoryCachedAt = 0;
+
+  cattleExitLogMemoryCache = null;
+  cattleExitLogMemoryCachedAt = 0;
+}
+
+/**
+ * Checks whether a memory-cache value is still fresh.
+ */
+function isFreshMemoryCache(
+  value,
+  cachedAt
+) {
+  return (
+    value !== null &&
+    cachedAt > 0 &&
+    Date.now() - cachedAt <
+      CATTLE_MEMORY_CACHE_MS
+  );
+}
+
+/**
+ * Clears Master Cattle caches after a successful write.
+ */
+async function runWithCattleCacheInvalidation(
+  request
+) {
+  const response =
+    await request;
+
+  /*
+   * Cattle changes can affect both Master Cattle and Dashboard
+   * totals, gender counts, breeds, births and mortality.
+   */
+  clearCattleDataMemoryCache();
+  clearDashboardSummaryMemoryCache();
+
+  return response;
+}
 
 // =========================================================================
 // HELPERS (Do not modify unless changing core logic)
@@ -66,35 +187,239 @@ function buildUrl(action, params = {}) {
   return url.toString();
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 45000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+async function fetchWithTimeout(
+  url,
+  options = {},
+  timeoutMs = 45000
+) {
+  const controller =
+    new AbortController();
+
+  let timedOut = false;
+
+  const timeoutId = setTimeout(
+    () => {
+      timedOut = true;
+      controller.abort();
+    },
+    timeoutMs
+  );
+
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (timedOut) {
+      const timeoutError = new Error(
+        `Request timed out after ${Math.round(
+          timeoutMs / 1000
+        )} seconds. Please retry.`
+      );
+
+      timeoutError.code =
+        "REQUEST_TIMEOUT";
+
+      throw timeoutError;
+    }
+
+    if (
+      error?.name === "AbortError"
+    ) {
+      const abortError = new Error(
+        "Request was cancelled. Please retry."
+      );
+
+      abortError.code =
+        "REQUEST_ABORTED";
+
+      throw abortError;
+    }
+
+    /*
+     * Browser fetch normally throws TypeError for DNS,
+     * connection and redirect-chain failures.
+     */
+    if (error instanceof TypeError) {
+      const networkError = new Error(
+        "Unable to complete the server request. Please check the connection and retry."
+      );
+
+      networkError.code =
+        "NETWORK_ERROR";
+
+      throw networkError;
+    }
+
+    throw error;
   } finally {
-    clearTimeout(id);
+    clearTimeout(timeoutId);
   }
 }
 
-async function handleResponse(res) {
+async function handleResponse(
+  res
+) {
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} – ${text || res.statusText || "Network error"}`);
+    const text = await res
+      .text()
+      .catch(() => "");
+
+    const httpError = new Error(
+      `HTTP ${res.status} – ${
+        text ||
+        res.statusText ||
+        "Network error"
+      }`
+    );
+
+    httpError.code =
+      "HTTP_ERROR";
+
+    httpError.status =
+      res.status;
+
+    throw httpError;
   }
-  const json = await res.json().catch(() => {
-    throw new Error("Invalid JSON response from server");
-  });
-  if (json && json.success === false) {
-  throw new Error(json.error || json.message || "Server returned success:false");
+
+  const json = await res
+    .json()
+    .catch(() => {
+      const jsonError = new Error(
+        "Invalid JSON response from server"
+      );
+
+      jsonError.code =
+        "INVALID_JSON";
+
+      throw jsonError;
+    });
+
+  if (
+    json &&
+    json.success === false
+  ) {
+    const serverError = new Error(
+      json.error ||
+      json.message ||
+      "Server returned success:false"
+    );
+
+    serverError.code =
+      "SERVER_RESPONSE_ERROR";
+
+    throw serverError;
+  }
+
+  return json;
 }
 
-return json;
+function isRetryableReadError(
+  error
+) {
+  if (
+    error?.code ===
+      "REQUEST_TIMEOUT" ||
+    error?.code ===
+      "NETWORK_ERROR"
+  ) {
+    return true;
+  }
+
+  /*
+   * Apps Script can occasionally return a temporary 404 from
+   * its redirected echo URL. Retry that response once.
+   */
+  if (
+    error?.code ===
+      "HTTP_ERROR" &&
+    [
+      404,
+      408,
+      429,
+      500,
+      502,
+      503,
+      504,
+    ].includes(error.status)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
-async function getRequest(action, params) {
-  const url = buildUrl(action, params);
-  const res = await fetchWithTimeout(url, { method: "GET", cache: "no-cache" });
-  return handleResponse(res);
+function waitBeforeRetry(
+  delayMs
+) {
+  return new Promise(
+    (resolve) => {
+      setTimeout(
+        resolve,
+        delayMs
+      );
+    }
+  );
+}
+
+async function getRequest(
+  action,
+  params = {},
+  options = {}
+) {
+  const url = buildUrl(
+    action,
+    params
+  );
+
+  const timeoutMs =
+    options.timeoutMs ||
+    45000;
+
+  const maxRetries =
+    options.maxRetries ??
+    1;
+
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const res =
+        await fetchWithTimeout(
+          url,
+          {
+            method: "GET",
+            cache: "no-cache",
+          },
+          timeoutMs
+        );
+
+      return await handleResponse(
+        res
+      );
+    } catch (error) {
+      const shouldRetry =
+        attempt < maxRetries &&
+        isRetryableReadError(
+          error
+        );
+
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      attempt += 1;
+
+      /*
+       * Short pause before the single retry gives a transient
+       * Apps Script redirect or execution failure time to clear.
+       */
+      await waitBeforeRetry(
+        500
+      );
+    }
+  }
 }
 
 async function postRequest(
@@ -167,29 +492,51 @@ export async function getDashboardSummary(
     options.forceRefresh === true;
 
   /*
-   * A force refresh must always create a fresh request.
+   * Return the current application's cached Dashboard response
+   * without starting another Apps Script request.
    */
-  if (forceRefresh) {
-    return getRequest(
-      "getDashboardSummary",
-      {
-        forceRefresh: true,
-      }
-    );
+  if (
+    !forceRefresh &&
+    isFreshMemoryCache(
+      dashboardSummaryMemoryCache,
+      dashboardSummaryMemoryCachedAt
+    )
+  ) {
+    return dashboardSummaryMemoryCache;
   }
 
   /*
-   * Reuse the currently running request so React does not
-   * accidentally call the same expensive endpoint twice.
+   * Reuse an existing request if Dashboard is mounted more than
+   * once while the same request is still running.
    */
-  if (dashboardSummaryInFlight) {
+  if (
+    !forceRefresh &&
+    dashboardSummaryInFlight
+  ) {
     return dashboardSummaryInFlight;
   }
 
+  const request = getRequest(
+    "getDashboardSummary",
+    forceRefresh
+      ? { forceRefresh: true }
+      : {}
+  ).then((response) => {
+    dashboardSummaryMemoryCache =
+      response;
+
+    dashboardSummaryMemoryCachedAt =
+      Date.now();
+
+    return response;
+  });
+
+  if (forceRefresh) {
+    return request;
+  }
+
   dashboardSummaryInFlight =
-    getRequest(
-      "getDashboardSummary"
-    ).finally(() => {
+    request.finally(() => {
       dashboardSummaryInFlight =
         null;
     });
@@ -198,12 +545,100 @@ export async function getDashboardSummary(
 }
 
 // 1. CATTLE MANAGEMENT
-export async function getCattle() { return getRequest("getCattle"); }
-export async function getActiveCattle() { return getRequest("getActiveCattle"); }
-export async function getCattleById(id) { return getRequest("getCattleById", { id }); }
-export async function addCattle(payload) { return postRequest("addCattle", payload); }
-export async function updateCattle(payload) { return postRequest("updateCattle", payload); }
-export async function updateCattleTag(payload) { return postRequest("updateCattleTag", payload); }
+
+export async function getCattle(
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  if (
+    !forceRefresh &&
+    isFreshMemoryCache(
+      cattleMemoryCache,
+      cattleMemoryCachedAt
+    )
+  ) {
+    return cattleMemoryCache;
+  }
+
+  /*
+   * Reuse a request already in progress.
+   */
+  if (
+    !forceRefresh &&
+    cattleInFlight
+  ) {
+    return cattleInFlight;
+  }
+
+  const request = getRequest(
+    "getCattle"
+  ).then((response) => {
+    cattleMemoryCache = response;
+    cattleMemoryCachedAt =
+      Date.now();
+
+    return response;
+  });
+
+  if (forceRefresh) {
+    return request;
+  }
+
+  cattleInFlight =
+    request.finally(() => {
+      cattleInFlight = null;
+    });
+
+  return cattleInFlight;
+}
+
+export async function getActiveCattle() {
+  return getRequest(
+    "getActiveCattle"
+  );
+}
+
+export async function getCattleById(id) {
+  return getRequest(
+    "getCattleById",
+    { id }
+  );
+}
+
+export async function addCattle(
+  payload
+) {
+  return runWithCattleCacheInvalidation(
+    postRequest(
+      "addCattle",
+      payload
+    )
+  );
+}
+
+export async function updateCattle(
+  payload
+) {
+  return runWithCattleCacheInvalidation(
+    postRequest(
+      "updateCattle",
+      payload
+    )
+  );
+}
+
+export async function updateCattleTag(
+  payload
+) {
+  return runWithCattleCacheInvalidation(
+    postRequest(
+      "updateCattleTag",
+      payload
+    )
+  );
+}
 
 export async function getTagHistoryByCattle(internalId) {
   return getRequest("getTagHistoryByCattle", { internalId });
@@ -221,20 +656,110 @@ export async function getPedigreeList() { return getRequest("getPedigreeList"); 
 export async function getPedigree(searchQuery) { return getRequest("getPedigree", { searchQuery }); }
 
 // Exit & Deregister
-export async function getCattleExitLog(params = {}) { return getRequest("getCattleExitLog", params); }
-export async function deregisterCattle(payload) { return postRequest("deregisterCattle", payload); }
+export async function getCattleExitLog(
+  params = {},
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh === true;
+
+  if (
+    !forceRefresh &&
+    isFreshMemoryCache(
+      cattleExitLogMemoryCache,
+      cattleExitLogMemoryCachedAt
+    )
+  ) {
+    return cattleExitLogMemoryCache;
+  }
+
+  if (
+    !forceRefresh &&
+    cattleExitLogInFlight
+  ) {
+    return cattleExitLogInFlight;
+  }
+
+  const request = getRequest(
+    "getCattleExitLog",
+    params
+  ).then((response) => {
+    cattleExitLogMemoryCache =
+      response;
+
+    cattleExitLogMemoryCachedAt =
+      Date.now();
+
+    return response;
+  });
+
+  if (forceRefresh) {
+    return request;
+  }
+
+  cattleExitLogInFlight =
+    request.finally(() => {
+      cattleExitLogInFlight = null;
+    });
+
+  return cattleExitLogInFlight;
+}
+
+export async function deregisterCattle(
+  payload
+) {
+  return runWithCattleCacheInvalidation(
+    postRequest(
+      "deregisterCattle",
+      payload
+    )
+  );
+}
 
 // 2. NEW BORN & BREEDING
 export async function getNewBorn() {
-  return getRequest("getNewBorn");
+  /*
+   * Reuse a simultaneous request triggered by React development
+   * Strict Mode or multiple components.
+   *
+   * This is in-flight deduplication only. It does not retain
+   * birth records after the request finishes, so refresh-after-
+   * save always obtains current data.
+   */
+  if (newBornInFlight) {
+    return newBornInFlight;
+  }
+
+  newBornInFlight =
+    getRequest(
+      "getNewBorn"
+    ).finally(() => {
+      newBornInFlight = null;
+    });
+
+  return newBornInFlight;
 }
 
-export async function addNewBorn(payload) {
-  return postRequest("addNewBorn", payload);
+export async function addNewBorn(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addNewBorn",
+      payload
+    )
+  );
 }
 
-export async function updateNewBorn(payload) {
-  return postRequest("updateNewBorn", payload);
+export async function updateNewBorn(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateNewBorn",
+      payload
+    )
+  );
 }
 
 export async function getUnregisteredBirths() {
@@ -246,8 +771,27 @@ export async function getBirthDetailsById(birthId) {
 }
 // 3. MILK PRODUCTION & DISTRIBUTION
 export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
-export async function addMilkProduction(payload) { return postRequest("addMilkProduction", payload); }
-export async function updateMilkProduction(payload) { return postRequest("updateMilkYield", payload); } 
+export async function addMilkProduction(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addMilkProduction",
+      payload
+    )
+  );
+}
+
+export async function updateMilkProduction(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateMilkYield",
+      payload
+    )
+  );
+}
 
 export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
 export async function calculateMilkOutPass(params = {}) {
@@ -256,8 +800,27 @@ export async function calculateMilkOutPass(params = {}) {
     params
   );
 }
-export async function addMilkDistribution(payload) { return postRequest("addMilkDistribution", payload); }
-export async function updateMilkDistribution(payload) { return postRequest("updateMilkDistribution", payload); }
+export async function addMilkDistribution(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addMilkDistribution",
+      payload
+    )
+  );
+}
+
+export async function updateMilkDistribution(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateMilkDistribution",
+      payload
+    )
+  );
+}
 
 // 4. BIO WASTE
 
@@ -355,19 +918,27 @@ export async function getFeeding(
   return feedingInFlight;
 }
 
-export async function addFeeding(payload) {
-  return postRequest(
-    "addFeeding",
-    payload,
-    90000
+export async function addFeeding(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addFeeding",
+      payload,
+      90000
+    )
   );
 }
 
-export async function updateFeeding(payload) {
-  return postRequest(
-    "updateFeeding",
-    payload,
-    90000
+export async function updateFeeding(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateFeeding",
+      payload,
+      90000
+    )
   );
 }
 
@@ -379,12 +950,26 @@ export async function getPreventiveCareLog(params = {}) {
   return getRequest("getPreventiveCareLog", params);
 }
 
-export async function addPreventiveCare(payload) {
-  return postRequest("addPreventiveCare", payload);
+export async function addPreventiveCare(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addPreventiveCare",
+      payload
+    )
+  );
 }
 
-export async function updatePreventiveCare(payload) {
-  return postRequest("updatePreventiveCare", payload);
+export async function updatePreventiveCare(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updatePreventiveCare",
+      payload
+    )
+  );
 }
 
 // Temporary aliases until Vaccine.jsx is fully migrated
@@ -422,8 +1007,15 @@ export async function getDeathRecords(fromDate = "", toDate = "") {
   return getRequest("getDeathRecords", { fromDate, toDate });
 }
 
-export async function updateDeathRecord(payload) {
-  return postRequest("updateDeathRecord", payload);
+export async function updateDeathRecord(
+  payload
+) {
+  return runWithCattleCacheInvalidation(
+    postRequest(
+      "updateDeathRecord",
+      payload
+    )
+  );
 }
 
 export async function getMedicines() {
@@ -451,21 +1043,86 @@ export async function getDattuYojana() {
   return getRequest("getDattuYojana");
 }
 
-export async function addDattuYojana(payload) {
-  return postRequest("addDattuYojana", payload);
+export async function addDattuYojana(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addDattuYojana",
+      payload
+    )
+  );
 }
 
-export async function updateDattuYojana(payload) {
-  return postRequest("updateDattuYojana", payload);
+export async function updateDattuYojana(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateDattuYojana",
+      payload
+    )
+  );
 }
 
 // 8. AUTH & USERS
-export async function loginUser(email, password) {
-  return postRequest("login", { email, password });
+export async function loginUser(
+  email,
+  password
+) {
+  const response =
+    await postRequest(
+      "login",
+      {
+        email,
+        password,
+      }
+    );
+
+  /*
+   * A successful login may include the already-cached Dashboard
+   * summary. Prime the frontend memory cache so Dashboard does
+   * not start a second Apps Script request.
+   */
+  if (
+    response?.success === true &&
+    response?.dashboardSummary
+      ?.success === true &&
+    response.dashboardSummary.data
+  ) {
+    dashboardSummaryMemoryCache =
+      response.dashboardSummary;
+
+    dashboardSummaryMemoryCachedAt =
+      Date.now();
+  }
+
+  return response;
 }
 
 export async function validateSession() {
-  return authenticatedPostRequest("validateSession");
+  /*
+   * React development Strict Mode may start session restoration
+   * twice during the same initial mount. Reuse only the request
+   * currently in progress.
+   *
+   * No authentication result is retained after completion.
+   */
+  if (
+    sessionValidationInFlight
+  ) {
+    return sessionValidationInFlight;
+  }
+
+  sessionValidationInFlight =
+    authenticatedPostRequest(
+      "validateSession"
+    ).finally(() => {
+      sessionValidationInFlight =
+        null;
+    });
+
+  return sessionValidationInFlight;
 }
 
 export async function logoutUser() {
@@ -583,36 +1240,54 @@ export const addShed = async (data) => { return postRequest("addShed", data); };
 export const updateShed = async (data) => { return postRequest("updateShed", data); };
 export const deleteShed = async (data) => { return postRequest("deleteShed", data); };
 
-export const reactivateCattle = (payload) => {
-  return postRequest("reactivateCattle", payload);
-};
+export const reactivateCattle =
+  async (payload) => {
+    return runWithCattleCacheInvalidation(
+      postRequest(
+        "reactivateCattle",
+        payload
+      )
+    );
+  };
 
 // Sponsorship Register
 export async function getSponsorships() {
   return getRequest("getSponsorships");
 }
 
-export async function addSponsorship(payload) {
-  return postRequest(
-    "addSponsorship",
-    payload,
-    90000
+export async function addSponsorship(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addSponsorship",
+      payload,
+      90000
+    )
   );
 }
 
-export async function updateSponsorship(payload) {
-  return postRequest(
-    "updateSponsorship",
-    payload,
-    90000
+export async function updateSponsorship(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateSponsorship",
+      payload,
+      90000
+    )
   );
 }
 
-export async function cancelSponsorship(payload) {
-  return postRequest(
-    "cancelSponsorship",
-    payload,
-    90000
+export async function cancelSponsorship(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "cancelSponsorship",
+      payload,
+      90000
+    )
   );
 }
 
