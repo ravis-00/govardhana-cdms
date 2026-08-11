@@ -7,7 +7,7 @@ import {
   reactivateCattle,
   getBirthDetailsById,
 } from "../api/masterApi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import rashtrotthanaLogo from "../assets/Logo.png";
 import PageHeader from "../components/common/PageHeader";
@@ -465,6 +465,7 @@ function openCertificateDocument(html) {
   }, 60000);
 }
 export default function MasterCattle() {
+  const navigate = useNavigate();
   const { user } = useAuth(); 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2727,7 +2728,7 @@ if (isDeactiveRow && row.tag === "632643") {
               style={actionMenuItemStyle}
               onClick={() => {
                 setActionMenuId(null);
-                alert("Pedigree shortcut will be connected next.");
+                navigate(`/pedigree?cattleId=${encodeURIComponent(safeId)}`);
               }}
             >
               🌳 Pedigree
