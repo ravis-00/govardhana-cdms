@@ -486,69 +486,111 @@ const [isCompact, setIsCompact] = useState(
   () => typeof window !== "undefined" && window.innerWidth <= 640
 );
   const loadData = async () => {
-  const requestId = ++loadRequestIdRef.current;
+  const requestId =
+    ++loadRequestIdRef.current;
 
   try {
     setLoading(true);
     setError("");
 
-    // These requests are independent, so load them in parallel.
-    const [cattleResult, exitLogResult] = await Promise.allSettled([
-      fetchCattle(),
-      getCattleExitLog(),
-    ]);
+    /*
+     * Exit history is supplementary.
+     *
+     * Start it immediately, but do not make the cattle table
+     * wait for it. Lifecycle types and certificate information
+     * will update when the exit history becomes available.
+     */
+    getCattleExitLog()
+      .then((exitResponse) => {
+        if (
+          requestId !==
+          loadRequestIdRef.current
+        ) {
+          return;
+        }
 
-    // Ignore an older request if a newer refresh has already started.
-    if (requestId !== loadRequestIdRef.current) {
+        const exitData =
+          Array.isArray(exitResponse)
+            ? exitResponse
+            : Array.isArray(
+                  exitResponse?.data
+                )
+              ? exitResponse.data
+              : [];
+
+        setExitLogs(exitData);
+      })
+      .catch((exitError) => {
+        if (
+          requestId !==
+          loadRequestIdRef.current
+        ) {
+          return;
+        }
+
+        console.warn(
+          "Exit log could not be loaded. Master cattle data remains available.",
+          exitError
+        );
+
+        setExitLogs([]);
+      });
+
+    /*
+     * Cattle data is essential.
+     *
+     * Await only this request so the page becomes usable as
+     * soon as the cattle list is available.
+     */
+    const cattleResponse =
+      await fetchCattle();
+
+    if (
+      requestId !==
+      loadRequestIdRef.current
+    ) {
       return;
     }
 
-    // Cattle data is essential for this page.
-    if (cattleResult.status === "rejected") {
-      throw cattleResult.reason;
-    }
-
-    const cattleResponse = cattleResult.value;
-
-    const cattleData = Array.isArray(cattleResponse)
-      ? cattleResponse
-      : Array.isArray(cattleResponse?.data)
-        ? cattleResponse.data
-        : [];
+    const cattleData =
+      Array.isArray(cattleResponse)
+        ? cattleResponse
+        : Array.isArray(
+              cattleResponse?.data
+            )
+          ? cattleResponse.data
+          : [];
 
     setRows(cattleData);
 
-    // Exit log is supplementary.
-    // If it fails, keep Master Cattle usable with an empty log list.
-    if (exitLogResult.status === "fulfilled") {
-      const exitResponse = exitLogResult.value;
-
-      const exitData = Array.isArray(exitResponse)
-        ? exitResponse
-        : Array.isArray(exitResponse?.data)
-          ? exitResponse.data
-          : [];
-
-      setExitLogs(exitData);
-    } else {
-      console.warn(
-        "Exit log could not be loaded. Master cattle data remains available.",
-        exitLogResult.reason
-      );
-
-      setExitLogs([]);
-    }
   } catch (err) {
-    if (requestId !== loadRequestIdRef.current) {
+    if (
+      requestId !==
+      loadRequestIdRef.current
+    ) {
       return;
     }
 
-    console.error("Master cattle load failed:", err);
+    console.error(
+      "Master cattle load failed:",
+      err
+    );
+
     setRows([]);
-    setExitLogs([]);
-    setError(err?.message || "Failed to load cattle data");
+    setError(
+      err?.message ||
+      "Failed to load cattle data"
+    );
+
   } finally {
-    if (requestId === loadRequestIdRef.current) {
+    if (
+      requestId ===
+      loadRequestIdRef.current
+    ) {
+      /*
+       * Stop the page-level loader when cattle data finishes.
+       * The supplementary exit-log request may still continue.
+       */
       setLoading(false);
     }
   }
@@ -3001,8 +3043,57 @@ function GenderText({ gender }) {
   );
 }
 
+/**
+ * Returns an optimized Cloudinary URL for cattle-table thumbnails.
+ *
+ * Original URLs remain unchanged for:
+ * - Detail panels
+ * - Certificates
+ * - Printing
+ *
+ * Non-Cloudinary URLs are returned unchanged.
+ */
+function getCattleThumbnailUrl(url) {
+  const value =
+    String(url || "").trim();
+
+  if (
+    !value ||
+    !value.includes(
+      "res.cloudinary.com"
+    ) ||
+    !value.includes(
+      "/image/upload/"
+    )
+  ) {
+    return value;
+  }
+
+  /*
+   * Request a 96×96 source for a 48×48 displayed thumbnail.
+   * The additional resolution keeps it sharp on high-density
+   * mobile and laptop screens.
+   */
+  return value.replace(
+    "/image/upload/",
+    "/image/upload/f_auto,q_auto:eco,c_fill,g_auto,w_96,h_96/"
+  );
+}
+
 function CattleThumb({ url }) {
-  const [hasError, setHasError] = useState(false);
+  const [hasError, setHasError] =
+    useState(false);
+
+  const thumbnailUrl =
+    getCattleThumbnailUrl(url);
+
+  /*
+   * Reset the error state if React reuses this component
+   * for a different cattle photo.
+   */
+  useEffect(() => {
+    setHasError(false);
+  }, [thumbnailUrl]);
 
   const placeholder = (
     <div
@@ -3011,7 +3102,8 @@ function CattleThumb({ url }) {
         height: "48px",
         borderRadius: "10px",
         background: "#f8fafc",
-        border: "1px dashed #cbd5e1",
+        border:
+          "1px dashed #cbd5e1",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -3019,26 +3111,54 @@ function CattleThumb({ url }) {
         color: "#94a3b8",
       }}
     >
-      <div style={{ fontSize: "1.1rem", lineHeight: 1 }}>🐄</div>
-      <div style={{ fontSize: "0.55rem", marginTop: "2px" }}>No Photo</div>
+      <div
+        style={{
+          fontSize: "1.1rem",
+          lineHeight: 1,
+        }}
+      >
+        🐄
+      </div>
+
+      <div
+        style={{
+          fontSize: "0.55rem",
+          marginTop: "2px",
+        }}
+      >
+        No Photo
+      </div>
     </div>
   );
 
-  if (!url || hasError) return placeholder;
+  if (
+    !thumbnailUrl ||
+    hasError
+  ) {
+    return placeholder;
+  }
 
   return (
     <img
-      src={url}
+      src={thumbnailUrl}
       alt="Cattle"
+      width="48"
+      height="48"
+      loading="lazy"
+      decoding="async"
+      fetchPriority="low"
       style={{
         width: "48px",
         height: "48px",
         objectFit: "cover",
         borderRadius: "10px",
-        border: "1px solid #e2e8f0",
+        border:
+          "1px solid #e2e8f0",
         background: "#f8fafc",
       }}
-      onError={() => setHasError(true)}
+      onError={() =>
+        setHasError(true)
+      }
     />
   );
 }
