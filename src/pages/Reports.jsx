@@ -519,15 +519,16 @@ columns: [
     },
   ],
 },
-  {
+    {
     id: "milk",
     label: "Daily Milk Report",
     shortLabel: "Milk",
     category: "operations",
     description:
-      "Daily milk production and distribution summary.",
+      "Daily milk yield, outgoing, good milk, colostrum and free-milk reconciliation.",
     dateRequired: true,
     filters: [],
+
     columns: [
       {
         label: "Sl.No",
@@ -538,33 +539,27 @@ columns: [
         key: "date",
       },
       {
-        label: "AM Yield",
+        label:
+          "Morning Milk Yield",
         key: "amYield",
         numeric: true,
       },
       {
-        label: "AM Good",
+        label:
+          "Morning Outgoing",
+        key: "amOutgoing",
+        numeric: true,
+      },
+      {
+        label:
+          "Morning Good Milk",
         key: "amGood",
         numeric: true,
       },
       {
-        label: "AM Colostrum",
+        label:
+          "Colostrum Milk",
         key: "amCol",
-        numeric: true,
-      },
-      {
-        label: "PM Yield",
-        key: "pmYield",
-        numeric: true,
-      },
-      {
-        label: "PM Good",
-        key: "pmGood",
-        numeric: true,
-      },
-      {
-        label: "PM Colostrum",
-        key: "pmCol",
         numeric: true,
       },
       {
@@ -573,46 +568,84 @@ columns: [
         numeric: true,
       },
       {
-        label: "Workers",
-        key: "workers",
+        label:
+          "Evening Milk Yield",
+        key: "pmYield",
         numeric: true,
       },
       {
-        label: "Calves/Bulls",
-        key: "bulls",
+        label:
+          "Evening Outgoing",
+        key: "pmOutgoing",
         numeric: true,
       },
       {
-        label: "Total Yield",
+        label:
+          "Free to Workers and Guests",
+        key:
+          "freeWorkersGuests",
+        numeric: true,
+      },
+      {
+        label:
+          "Total Milk Yield",
         key: "totalYield",
         numeric: true,
       },
       {
-        label: "Total Dist",
-        key: "totalLeftByProd",
+        label:
+          "Total Outgoing",
+        key: "totalOutgoing",
+        numeric: true,
+      },
+      {
+        label:
+          "Total Good Milk",
+        key: "totalGoodMilk",
+        numeric: true,
+      },
+      {
+        label:
+          "Total Colostrum Milk",
+        key:
+          "totalColostrum",
+        numeric: true,
+      },
+      {
+        label:
+          "Total Free Milk",
+        key: "totalFree",
         numeric: true,
       },
     ],
   },
-  {
+    {
     id: "govardhana",
-    label: "Govardhana Outgoing",
-    shortLabel: "Outgoing",
+    label:
+      "Samvardhana Outgoing",
+    shortLabel:
+      "Samvardhana",
     category: "operations",
-    description:
-      "Milk and by-product quantities and calculated values.",
+        description:
+      "Valued internal transfers to MSGP/Krushi and external milk or by-product sales.",
     dateRequired: true,
 
-filters: [
-  {
-    id: "sector",
-    label: "Sector",
-    rowKey: "sector",
-    allLabel: "All Sectors",
-  },
-],
+    filters: [
+      {
+        id: "layout",
+        label:
+          "Layout / Destination",
+        rowKey:
+          "destinationType",
+        allLabel:
+          "Detailed Ledger",
+      },
+    ],
 
-columns: [
+    /*
+     * Default detailed-ledger layout.
+     */
+    columns: [
       {
         label: "Sl.No",
         key: "slno",
@@ -622,49 +655,521 @@ columns: [
         key: "date",
       },
       {
-        label: "Invoice",
-        key: "invoice",
+        label:
+          "Outgoing ID",
+        key: "outgoingId",
       },
       {
-        label: "Sector",
-        key: "sector",
+        label:
+          "Movement Type",
+        key: "movementType",
       },
       {
-        label: "Milk (Kg)",
-        key: "milkQty",
+        label:
+          "Destination",
+        key: "destination",
+      },
+      {
+        label:
+          "Receipt No.",
+        key: "receiptNo",
+      },
+      {
+        label:
+          "Milk Qty",
+        key: "totalMilkQty",
         numeric: true,
       },
       {
-        label: "Milk (Rs)",
-        key: "milkRs",
+        label:
+          "Gaumaya Qty",
+        key: "gaumayaQty",
         numeric: true,
       },
       {
-        label: "Dung (Kg)",
-        key: "dungQty",
+        label:
+          "Gaumutra Qty",
+        key: "gaumutraQty",
         numeric: true,
       },
       {
-        label: "Dung (Rs)",
-        key: "dungRs",
+        label:
+          "Compost Qty",
+        key: "compostQty",
         numeric: true,
       },
       {
-        label: "Urine (L)",
-        key: "urineQty",
+        label:
+          "Slurry Qty",
+        key: "slurryQty",
         numeric: true,
       },
       {
-        label: "Urine (Rs)",
-        key: "urineRs",
-        numeric: true,
-      },
-      {
-        label: "Total (Rs)",
+        label:
+          "Total Amount",
         key: "totalAmount",
         numeric: true,
       },
+      {
+        label: "Bill No.",
+        key: "billNo",
+      },
+      {
+        label:
+          "Bill Date",
+        key: "billDate",
+      },
+      {
+        label:
+          "Billed Amount",
+        key: "billedAmount",
+        numeric: true,
+      },
+      {
+        label: "Remarks",
+        key: "remarks",
+      },
     ],
+
+    /*
+     * Destination-specific layouts use the same backend rows.
+     * Reports.jsx will select one of these column sets using
+     * the Layout / Destination filter.
+     */
+    columnLayouts: {
+      MSGP: [
+        {
+          label: "Sl.No",
+          key: "slno",
+        },
+        {
+          label: "Date",
+          key: "date",
+        },
+        {
+          label:
+            "Receipt No.",
+          key: "receiptNo",
+        },
+        {
+          label:
+            "Milk Sale",
+          key: "milkSaleQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Milk Canteen",
+          key:
+            "milkCanteenQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Milk Ginnu",
+          key: "milkGinnuQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Total Milk",
+          key: "totalMilkQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Milk Unit",
+          key: "milkUnit",
+        },
+        {
+          label:
+            "Milk Rate",
+          key: "milkRate",
+        },
+        {
+          label:
+            "Milk Amount",
+          key: "milkAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumaya Qty",
+          key: "gaumayaQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumaya Unit",
+          key: "gaumayaUnit",
+        },
+        {
+          label:
+            "Gaumaya Rate",
+          key: "gaumayaRate",
+        },
+        {
+          label:
+            "Gaumaya Amount",
+          key:
+            "gaumayaAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumutra Qty",
+          key: "gaumutraQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumutra Unit",
+          key: "gaumutraUnit",
+        },
+        {
+          label:
+            "Gaumutra Rate",
+          key: "gaumutraRate",
+        },
+        {
+          label:
+            "Gaumutra Amount",
+          key:
+            "gaumutraAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Total Amount",
+          key: "totalAmount",
+          numeric: true,
+        },
+      ],
+
+      Krushi: [
+        {
+          label: "Sl.No",
+          key: "slno",
+        },
+        {
+          label: "Date",
+          key: "date",
+        },
+        {
+          label:
+            "Receipt No.",
+          key: "receiptNo",
+        },
+        {
+          label:
+            "Gaumaya Qty",
+          key: "gaumayaQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumaya Unit",
+          key: "gaumayaUnit",
+        },
+        {
+          label:
+            "Gaumaya Rate",
+          key: "gaumayaRate",
+        },
+        {
+          label:
+            "Gaumaya Amount",
+          key:
+            "gaumayaAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumutra Qty",
+          key: "gaumutraQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumutra Unit",
+          key: "gaumutraUnit",
+        },
+        {
+          label:
+            "Gaumutra Rate",
+          key: "gaumutraRate",
+        },
+        {
+          label:
+            "Gaumutra Amount",
+          key:
+            "gaumutraAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Compost Qty",
+          key: "compostQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Compost Unit",
+          key: "compostUnit",
+        },
+        {
+          label:
+            "Compost Rate",
+          key: "compostRate",
+        },
+        {
+          label:
+            "Compost Amount",
+          key:
+            "compostAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Slurry Qty",
+          key: "slurryQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Slurry Unit",
+          key: "slurryUnit",
+        },
+        {
+          label:
+            "Slurry Rate",
+          key: "slurryRate",
+        },
+        {
+          label:
+            "Slurry Amount",
+          key:
+            "slurryAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Total Amount",
+          key: "totalAmount",
+          numeric: true,
+        },
+      ],
+
+            "External Party": [
+        {
+          label: "Sl.No",
+          key: "slno",
+        },
+        {
+          label: "Date",
+          key: "date",
+        },
+        {
+          label:
+            "Receipt No.",
+          key: "receiptNo",
+        },
+        {
+          label:
+            "Party Name",
+          key: "partyName",
+        },
+
+        /*
+         * External Milk Sale
+         */
+        {
+          label:
+            "Milk Qty",
+          key: "milkSaleQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Milk Unit",
+          key: "milkUnit",
+        },
+        {
+          label:
+            "Milk Rate",
+          key: "milkRate",
+        },
+        {
+          label:
+            "Milk Amount",
+          key: "milkAmount",
+          numeric: true,
+        },
+
+        /*
+         * Compost
+         */
+        {
+          label:
+            "Compost Qty",
+          key: "compostQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Compost Unit",
+          key: "compostUnit",
+        },
+        {
+          label:
+            "Compost Rate",
+          key: "compostRate",
+        },
+        {
+          label:
+            "Compost Amount",
+          key:
+            "compostAmount",
+          numeric: true,
+        },
+
+        /*
+         * Gaumaya
+         */
+        {
+          label:
+            "Gaumaya Qty",
+          key: "gaumayaQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumaya Unit",
+          key: "gaumayaUnit",
+        },
+        {
+          label:
+            "Gaumaya Rate",
+          key: "gaumayaRate",
+        },
+        {
+          label:
+            "Gaumaya Amount",
+          key:
+            "gaumayaAmount",
+          numeric: true,
+        },
+
+        /*
+         * Gaumutra
+         */
+        {
+          label:
+            "Gaumutra Qty",
+          key: "gaumutraQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Gaumutra Unit",
+          key: "gaumutraUnit",
+        },
+        {
+          label:
+            "Gaumutra Rate",
+          key: "gaumutraRate",
+        },
+        {
+          label:
+            "Gaumutra Amount",
+          key:
+            "gaumutraAmount",
+          numeric: true,
+        },
+
+        /*
+         * Slurry
+         */
+        {
+          label:
+            "Slurry Qty",
+          key: "slurryQty",
+          numeric: true,
+        },
+        {
+          label:
+            "Slurry Unit",
+          key: "slurryUnit",
+        },
+        {
+          label:
+            "Slurry Rate",
+          key: "slurryRate",
+        },
+        {
+          label:
+            "Slurry Amount",
+          key: "slurryAmount",
+          numeric: true,
+        },
+
+        /*
+         * Billing calculation
+         */
+        {
+          label:
+            "Material Subtotal",
+          key: "subtotalAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Tax Amount",
+          key: "taxAmount",
+          numeric: true,
+        },
+        {
+          label:
+            "Transport Charges",
+          key:
+            "transportCharges",
+          numeric: true,
+        },
+        {
+          label:
+            "Other Charges",
+          key: "otherCharges",
+          numeric: true,
+        },
+        {
+          label:
+            "Other Charges Remarks",
+          key:
+            "otherChargesRemarks",
+        },
+        {
+          label:
+            "Discount Amount",
+          key: "discountAmount",
+          numeric: true,
+        },
+        {
+          label: "Bill No.",
+          key: "billNo",
+        },
+        {
+          label:
+            "Bill Date",
+          key: "billDate",
+        },
+        {
+          label:
+            "Final Billed Amount",
+          key: "billedAmount",
+          numeric: true,
+        },
+      ],
+    },
   },
   {
   id: "dattu",
@@ -932,6 +1437,44 @@ export default function Reports() {
     );
   }, [activeReportId]);
 
+    /*
+   * Samvardhana Outgoing changes its columns according to
+   * the selected MSGP, Krushi or External Party layout.
+   * Other reports continue using their normal columns.
+   */
+  const activeColumns =
+    useMemo(() => {
+      const selectedLayout =
+        String(
+          reportFilters.layout ||
+          "",
+        ).trim();
+
+      if (
+        selectedLayout &&
+        activeReport.columnLayouts &&
+        activeReport.columnLayouts[
+          selectedLayout
+        ]
+      ) {
+        return (
+          activeReport
+            .columnLayouts[
+              selectedLayout
+            ]
+        );
+      }
+
+      return (
+        activeReport[
+          "columns"
+        ] || []
+      );
+    }, [
+      activeReport,
+      reportFilters.layout,
+    ]);
+
   const visibleReports = useMemo(() => {
     const searchText = reportSearch
       .trim()
@@ -1015,10 +1558,11 @@ export default function Reports() {
   const filterDefinitions =
     activeReport.filters || [];
 
-  return rows.filter((row) => {
+    const matchingRows =
+    rows.filter((row) => {
     const matchesSearch =
       !searchText ||
-      activeReport.columns.some(
+      activeColumns.some(
         (column) =>
           String(
             row[column.key] ?? "",
@@ -1058,12 +1602,24 @@ export default function Reports() {
         },
       );
 
-    return matchesDynamicFilters;
+        return matchesDynamicFilters;
   });
+
+  /*
+   * Renumber after search and layout filtering so every
+   * displayed/exported report starts from Sl.No 1.
+   */
+  return matchingRows.map(
+    (row, index) => ({
+      ...row,
+      slno: index + 1,
+    }),
+  );
 }, [
   rows,
   tableSearch,
-  activeReport,
+  activeColumns,
+  activeReport.filters,
   reportFilters,
 ]);
 
@@ -1079,7 +1635,7 @@ export default function Reports() {
 
     const sums = {};
 
-    activeReport.columns.forEach(
+    activeColumns.forEach(
       (column) => {
         if (!column.numeric) {
           return;
@@ -1109,9 +1665,10 @@ export default function Reports() {
     );
 
     return sums;
-  }, [
+    }, [
     filteredRows,
     activeReport,
+    activeColumns,
   ]);
 
   const totalPages = Math.max(
@@ -1137,38 +1694,7 @@ export default function Reports() {
     rowsPerPage,
   ]);
 
-  const reportStatistics = useMemo(() => {
-    const availableReports =
-      REPORT_TYPES.length;
-
-    const categories =
-      REPORT_CATEGORIES.filter(
-        (category) =>
-          REPORT_TYPES.some(
-            (report) =>
-              report.category ===
-              category.id,
-          ),
-      ).length;
-
-    const currentRecords =
-      filteredRows.length;
-
-    return {
-      availableReports,
-      categories,
-      currentRecords,
-      generated:
-        hasGenerated &&
-        rows.length >= 0
-          ? 1
-          : 0,
-    };
-  }, [
-    filteredRows.length,
-    hasGenerated,
-    rows.length,
-  ]);
+  
 
   const pageStart =
     filteredRows.length === 0
@@ -1321,7 +1847,7 @@ function handleReportFilterChange(
     setError("");
 
     const headers =
-      activeReport.columns.map(
+      activeColumns.map(
         (column) =>
           escapeCsvValue(
             column.label,
@@ -1330,7 +1856,7 @@ function handleReportFilterChange(
 
     const dataRows =
       filteredRows.map((row) =>
-        activeReport.columns
+        activeColumns
           .map((column) =>
             escapeCsvValue(
               row[column.key] ?? "",
@@ -1390,7 +1916,7 @@ function handleReportFilterChange(
     .map(
       (row) => `
         <tr>
-          ${activeReport.columns
+          ${activeColumns
             .map(
               (column) =>
                 `<td>${escapeHtml(
@@ -1414,7 +1940,7 @@ function handleReportFilterChange(
   ) {
     totalRowHtml = `
       <tr class="total-row">
-        ${activeReport.columns
+        ${activeColumns
           .map((column) => {
             if (column.key === "slno") {
               return "<td>Total</td>";
@@ -1435,6 +1961,328 @@ function handleReportFilterChange(
       </tr>
     `;
   }
+
+    const isExternalPartyPrint =
+    activeReport.id ===
+      "govardhana" &&
+    reportFilters.layout ===
+      "External Party";
+
+
+  function materialDetail(
+    row,
+    quantityKey,
+    unitKey,
+    rateKey,
+  ) {
+    const quantity = Number(
+      row[quantityKey],
+    );
+
+    if (
+      !Number.isFinite(quantity) ||
+      quantity === 0
+    ) {
+      return "-";
+    }
+
+    const unit =
+      row[unitKey] || "";
+
+    const rate =
+      row[rateKey];
+
+    return [
+      quantity,
+      unit,
+      rate !== "" &&
+      rate !== null &&
+      rate !== undefined
+        ? `@ ${rate}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+
+  function buildExternalPrintTable(
+    title,
+    columns,
+  ) {
+    const bodyRows =
+      filteredRows
+        .map(
+          (row) => `
+            <tr>
+              ${columns
+                .map(
+                  (column) =>
+                    `<td>${escapeHtml(
+                      column.value
+                        ? column.value(
+                            row,
+                          )
+                        : safeCellValue(
+                            row[
+                              column.key
+                            ],
+                          ),
+                    )}</td>`,
+                )
+                .join("")}
+            </tr>
+          `,
+        )
+        .join("");
+
+    const totalCells =
+      columns
+        .map(
+          (
+            column,
+            index,
+          ) => {
+            if (index === 0) {
+              return "<td>Total</td>";
+            }
+
+            if (
+              column.totalKey &&
+              totals[
+                column.totalKey
+              ] !== undefined
+            ) {
+              return `<td>${escapeHtml(
+                totals[
+                  column.totalKey
+                ],
+              )}</td>`;
+            }
+
+            return "<td></td>";
+          },
+        )
+        .join("");
+
+    return `
+      <div class="section-title">
+        ${escapeHtml(title)}
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            ${columns
+              .map(
+                (column) =>
+                  `<th>${escapeHtml(
+                    column.label,
+                  )}</th>`,
+              )
+              .join("")}
+          </tr>
+        </thead>
+
+        <tbody>
+          ${bodyRows}
+
+          <tr class="total-row">
+            ${totalCells}
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+
+  const externalMaterialColumns = [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Date",
+      key: "date",
+    },
+    {
+      label: "Receipt No.",
+      key: "receiptNo",
+    },
+    {
+      label: "Party",
+      key: "partyName",
+    },
+    {
+      label: "Milk Qty / Rate",
+      value: (row) =>
+        materialDetail(
+          row,
+          "milkSaleQty",
+          "milkUnit",
+          "milkRate",
+        ),
+    },
+    {
+      label: "Milk Amount",
+      key: "milkAmount",
+      totalKey: "milkAmount",
+    },
+    {
+      label: "Compost Qty / Rate",
+      value: (row) =>
+        materialDetail(
+          row,
+          "compostQty",
+          "compostUnit",
+          "compostRate",
+        ),
+    },
+    {
+      label: "Compost Amount",
+      key: "compostAmount",
+      totalKey:
+        "compostAmount",
+    },
+    {
+      label: "Gaumaya Qty / Rate",
+      value: (row) =>
+        materialDetail(
+          row,
+          "gaumayaQty",
+          "gaumayaUnit",
+          "gaumayaRate",
+        ),
+    },
+    {
+      label: "Gaumaya Amount",
+      key: "gaumayaAmount",
+      totalKey:
+        "gaumayaAmount",
+    },
+    {
+      label: "Gaumutra Qty / Rate",
+      value: (row) =>
+        materialDetail(
+          row,
+          "gaumutraQty",
+          "gaumutraUnit",
+          "gaumutraRate",
+        ),
+    },
+    {
+      label: "Gaumutra Amount",
+      key: "gaumutraAmount",
+      totalKey:
+        "gaumutraAmount",
+    },
+    {
+      label: "Slurry Qty / Rate",
+      value: (row) =>
+        materialDetail(
+          row,
+          "slurryQty",
+          "slurryUnit",
+          "slurryRate",
+        ),
+    },
+    {
+      label: "Slurry Amount",
+      key: "slurryAmount",
+      totalKey:
+        "slurryAmount",
+    },
+    {
+      label: "Material Subtotal",
+      key: "subtotalAmount",
+      totalKey:
+        "subtotalAmount",
+    },
+  ];
+
+
+  const externalBillingColumns = [
+    {
+      label: "Sl.No",
+      key: "slno",
+    },
+    {
+      label: "Date",
+      key: "date",
+    },
+    {
+      label: "Receipt No.",
+      key: "receiptNo",
+    },
+    {
+      label: "Party",
+      key: "partyName",
+    },
+    {
+      label: "Subtotal",
+      key: "subtotalAmount",
+      totalKey:
+        "subtotalAmount",
+    },
+    {
+      label: "Tax",
+      key: "taxAmount",
+      totalKey: "taxAmount",
+    },
+    {
+      label: "Transport",
+      key: "transportCharges",
+      totalKey:
+        "transportCharges",
+    },
+    {
+      label: "Other Charges",
+      key: "otherCharges",
+      totalKey:
+        "otherCharges",
+    },
+    {
+      label: "Other Charges Remarks",
+      key:
+        "otherChargesRemarks",
+    },
+    {
+      label: "Discount",
+      key: "discountAmount",
+      totalKey:
+        "discountAmount",
+    },
+    {
+      label: "Bill No.",
+      key: "billNo",
+    },
+    {
+      label: "Bill Date",
+      key: "billDate",
+    },
+    {
+      label: "Final Billed Amount",
+      key: "billedAmount",
+      totalKey:
+        "billedAmount",
+    },
+  ];
+
+
+  const externalPartyPrintHtml =
+    isExternalPartyPrint
+      ? [
+          buildExternalPrintTable(
+            "Material Sale Details",
+            externalMaterialColumns,
+          ),
+          buildExternalPrintTable(
+            "Billing Details",
+            externalBillingColumns,
+          ),
+        ].join("")
+      : "";
+
 
   const generatedText = lastGeneratedOn
     ? lastGeneratedOn.toLocaleString(
@@ -1533,6 +2381,13 @@ const originalDocumentTitle =
             border-top: 2px solid #334155;
           }
 
+            .section-title {
+            margin-top: 18px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #c2410c;
+          }
+          
           .footer {
             display: flex;
             justify-content: space-between;
@@ -1598,25 +2453,31 @@ const originalDocumentTitle =
           </div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              ${activeReport.columns
-                .map(
-                  (column) =>
-                    `<th>${escapeHtml(
-                      column.label,
-                    )}</th>`,
-                )
-                .join("")}
-            </tr>
-          </thead>
+                ${
+          isExternalPartyPrint
+            ? externalPartyPrintHtml
+            : `
+              <table>
+                <thead>
+                  <tr>
+                    ${activeColumns
+                      .map(
+                        (column) =>
+                          `<th>${escapeHtml(
+                            column.label,
+                          )}</th>`,
+                      )
+                      .join("")}
+                  </tr>
+                </thead>
 
-          <tbody>
-            ${rowsHtml}
-            ${totalRowHtml}
-          </tbody>
-        </table>
+                <tbody>
+                  ${rowsHtml}
+                  ${totalRowHtml}
+                </tbody>
+              </table>
+            `
+        }
 
         <div class="footer">
           <div class="signature">
@@ -2200,7 +3061,7 @@ const originalDocumentTitle =
     <table style={styles.table}>
             <thead>
               <tr>
-                {activeReport.columns.map(
+                {activeColumns.map(
                   (column) => (
                     <th
                       key={column.key}
@@ -2218,8 +3079,7 @@ const originalDocumentTitle =
                 <tr>
                   <td
                     colSpan={
-                      activeReport
-                        .columns.length
+                      activeColumns.length
                     }
                     style={
                       styles.stateCell
@@ -2232,8 +3092,7 @@ const originalDocumentTitle =
                 <tr>
                   <td
                     colSpan={
-                      activeReport
-                        .columns.length
+                      activeColumns.length
                     }
                     style={
                       styles.stateCell
@@ -2250,8 +3109,7 @@ const originalDocumentTitle =
                 <tr>
                   <td
                     colSpan={
-                      activeReport
-                        .columns.length
+                      activeColumns.length
                     }
                     style={
                       styles.stateCell
@@ -2273,7 +3131,7 @@ const originalDocumentTitle =
                           : styles.oddRow
                       }
                     >
-                      {activeReport.columns.map(
+                      {activeColumns.map(
                         (column) => (
                           <td
                             key={
@@ -2318,7 +3176,7 @@ const originalDocumentTitle =
                       styles.totalRow
                     }
                   >
-                    {activeReport.columns.map(
+                    {activeColumns.map(
                       (column) => (
                         <td
                           key={

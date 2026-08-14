@@ -1,14 +1,390 @@
-
----
-
-# 7. `docs/version_history.md`
-
-```markdown
 # Govardhana CDMS – Version History
 
 ## Last Updated
 
-23-Jul-2026
+14-Aug-2026
+
+---
+
+# v3.1 – Existing Reports Alignment and Outgoing Reconciliation
+
+Date: 14-Aug-2026
+
+Status: Unreleased development checkpoint
+
+Branch:
+
+`feature/existing-reports-alignment`
+
+## Highlights
+
+- Existing Daily Milk Report aligned with the gaushala Daily Milk Record.
+- Existing outgoing report rebuilt as Samvardhana Outgoing.
+- Added internal valued transfers to MSGP and Krushi.
+- Added external Milk and by-product sales.
+- Preserved cattle Sales Report as a separate cattle-only report.
+- Added destination-specific predefined report layouts.
+- Added external billing and automatic bill-number generation.
+- Added readable print/PDF layouts.
+- Preserved cancelled transactions for audit.
+
+## Data Model
+
+Added:
+
+- `samvardhana_outgoing`
+- `samvardhana_outgoing_items`
+
+Added billing fields:
+
+- Material subtotal
+- Tax
+- Transport charges
+- Other charges
+- Other-charge remarks
+- Discount
+- Final billed amount
+
+## Backend
+
+Added:
+
+- `Repo_SamvardhanaOutgoing.gs`
+- Get
+- Add
+- Update
+- Cancel
+- Header and item validation
+- Transaction and line IDs
+- Document locking
+- Duplicate-receipt protection
+- Rate snapshots
+- Optional source linkage
+- Safe item replacement
+- Failed-update rollback
+- Billing calculation
+- Automatic financial-year bill number
+- Bill-number preservation
+
+## Frontend
+
+Added:
+
+- `SamvardhanaOutgoing.jsx`
+- Protected route
+- Operations navigation
+- Search and filters
+- KPI cards
+- Add/Edit/Details/Cancel
+- Multi-material entry
+- Billing adjustments
+- Read-only generated bill number
+- Read-only calculated subtotal
+- Read-only final billed amount
+- Billing details
+- Responsive layouts
+
+## Reports
+
+Added or improved:
+
+- Daily Milk Report reconciliation
+- Detailed Samvardhana Ledger
+- MSGP layout
+- Krushi layout
+- External Party layout
+- Material subtotal and billing totals
+- CSV
+- Print/PDF
+- Two-table External Party PDF
+
+## Verification
+
+Verified:
+
+- Backend Add/Read/Update/Cancel
+- Safe item replacement
+- Daily Milk reconciliation
+- Automatic bill sequence
+- External billing
+- Bill-number preservation
+- Reports
+- CSV
+- Print/PDF
+- Frontend production build
+
+## Deployment Status
+
+- Not merged
+- Not deployed to Netlify
+
+---
+
+# Individual Cattle Milk Yield Enhancement
+
+Date: 12-Aug-2026
+
+Status: Completed checkpoint
+
+Branch:
+
+`feature/individual-cattle-milk-yield`
+
+Commit:
+
+`18b97ba`
+
+## Highlights
+
+- Lactation management
+- Individual-cattle yield entry
+- Cow History
+- Monthly Register
+- Per-cattle daily tracking
+- Selected breed/shed workflow
+- Two-decimal precision
+- Actual milked quantity
+
+## Deployment Status
+
+- Committed and pushed
+- Not merged
+- Not deployed
+
+---
+
+# Performance Improvement Sprint
+
+Date: Aug-2026
+
+Status: Completed
+
+## Highlights
+
+- Dashboard summary backend
+- Dashboard cache
+- Cache invalidation after writes
+- Reduced duplicate frontend requests
+- Optimized sheet reads
+- Improved cattle repository mapping
+- Improved feeding and milk loading
+- Lazy-loaded frontend routes
+- Timing and record-count diagnostics
+
+## Performance Target
+
+Approximately 3–8 seconds.
+
+---
+
+# Responsive Design and Device Compatibility
+
+Date: Aug-2026
+
+Status: Completed
+
+## Highlights
+
+- Responsive application shell
+- Mobile sidebar drawer
+- Responsive filters
+- Responsive tables
+- Responsive modals
+- Reports responsiveness
+- User Management responsiveness
+- Mobile Master Cattle improvements
+- Mobile, tablet, laptop and large-desktop support
+
+---
+
+# User Management and Authentication Enhancement
+
+Date: Aug-2026
+
+Status: Completed
+
+## Highlights
+
+- Email or mobile-number login
+- Role normalization
+- Protected routes
+- Viewer read-only access
+- Super Admin-only User Management
+- Super Admin-only Admin/Super Admin creation
+- Super Admin-only status control
+- Inactive-user restriction
+- Duplicate-email validation
+- Password exclusion from list APIs
+
+---
+
+# v3.0 – Reports and Analytics
+
+Released: 04-Aug-2026
+
+## Highlights
+
+- Reports & Analytics module
+- Predefined report catalogue
+- Dynamic filters
+- Search
+- Totals
+- Pagination
+- CSV
+- Print/PDF
+- Report-specific layouts
+
+## Reports
+
+- Cattle Register
+- Birth Report
+- Death Report
+- Cattle Sales Report
+- Incoming Report
+- Daily Milk Report
+- Govardhana Outgoing
+- Sponsorship Report
+
+## Deferred
+
+- Custom report builder
+- Advanced grouping
+- Management analytics
+
+---
+
+# v2.9 – Master Configuration
+
+Released: 03-Aug-2026
+
+## Highlights
+
+- Breeds
+- Medicines
+- Preventive Care Types
+- Rates
+- Sheds
+- Symptoms
+- Weight Standards
+- Duplicate validation
+- Active/inactive handling
+- Standard Add/Edit workflows
+
+---
+
+# v2.8 – Sponsorship Management
+
+Released: 01-Aug-2026
+
+## Highlights
+
+- Sponsor Register
+- Sponsorship Register
+- Sponsorship Payments
+- Sponsor profile management
+- Commitment management
+- Payment recording
+- Active Commitment KPI
+- High Value Sponsor KPI
+- Search and filters
+- Pagination
+- Responsive forms
+- Backend-generated IDs
+- Duplicate validation
+- Payment history
+
+## IDs
+
+- Sponsor: `SPN-######`
+- Sponsorship: `SPO-######`
+- Payment: `PAY-######`
+
+## Deferred
+
+- Sponsorship Scheme Master
+- Renewal workflow
+- Expiry notifications
+- Donor dashboard
+
+---
+
+# v2.7 – Waste Management
+
+Released: 29-Jul-2026
+
+## Highlights
+
+- Bio Waste modernization
+- Gaumaya, Gaumutra, Compost and Slurry
+- Source and destination tracking
+- Sender and receiver
+- Add/Edit
+- Search and filters
+- KPI cards
+- Pagination
+- Validation
+- Responsive modal
+
+---
+
+# v2.6 – Nutrition and Feeding
+
+Released: 29-Jul-2026
+
+## Highlights
+
+- Feeding Register modernization
+- Shed filter
+- Feed Type filter
+- Quantity metrics
+- Add/Edit
+- Search
+- Pagination
+- Responsive design
+
+---
+
+# v2.5 – Milk Operations
+
+Released: 26-Jul-2026
+
+## Highlights
+
+- Milk Production
+- Milk Distribution
+- Morning/evening production
+- Good milk and colostrum
+- Temple
+- Workers and guests
+- Calves/bulls
+- Canteen
+- Events
+- Out-pass
+- Add/Edit
+- Date filters
+- KPI cards
+
+## Sheets
+
+- `milk_production`
+- `milk_distribution`
+
+---
+
+# v2.4 – Veterinary Completion
+
+Released: 25-Jul-2026
+
+## Highlights
+
+- Clinical Records
+- Preventive Care
+- Mortality Register
+- Herd Exit integration
+- Veterinary navigation
+- Search and filtering
+- Add/Edit/Details
+- Responsive workflows
 
 ---
 
@@ -24,40 +400,26 @@ Released: 23-Jul-2026
 - Vitamin Supplementation
 - Mineral Supplementation
 - Other Preventive Treatment
-- Preventive Care Types Master
+- Preventive Care Types
 - Medicine integration
 - Coverage tracking
-- Next Schedule tracking
-- Event Status workflow
+- Next Schedule
+- Draft/Completed/Cancelled
 - Search and filters
 - KPI cards
-- Add, Edit and Details modals
-
-## Frontend
-
-- Replaced legacy Vaccine page
-- Added standard Preventive Care page
-- Added Care Type filter
-- Added Medicine filter
-- Added Event Status filter
-- Added Due Status filter
-- Added automatic excluded count
-- Added Event Status badges
-- Added Next Schedule badges
-- Added audit information
-- Added pagination
-- Added toast notifications
+- Add/Edit/Details
 
 ## Backend
 
-- Added `Repo_PreventiveCareLog.gs`
-- Added sequential `PC-######` IDs
-- Added header validation
-- Added backend record validation
-- Added date and medicine-expiry validation
-- Added audit fields
-- Added controller actions
-- Removed legacy vaccine repository functions
+- `Repo_PreventiveCareLog.gs`
+- Sequential `PC-######` IDs
+- Header validation
+- Record locking
+- Count validation
+- Date validation
+- Expiry validation
+- Audit fields
+- Controller actions
 
 ---
 
@@ -70,22 +432,15 @@ Released: Jul-2026
 - Clinical Records modernization
 - Standard page header
 - KPI cards
-- Date-range filtering
+- Date filters
 - Search and filters
-- Clickable rows
-- Details modal
-- Modern Add/Edit workflow
+- Row-click details
+- Add/Edit
 - Cattle validation
-- Searchable symptoms
-- Searchable medicines
+- Searchable symptoms and medicines
 - Doctor suggestions
-
-## Backend
-
-- Sequential `MED-#####` transaction IDs
-- Removed ARRAYFORMULA dependency
+- Sequential `MED-#####` IDs
 - Leading-zero protection
-- Add and Update workflow verification
 
 ## Deferred
 
@@ -104,26 +459,18 @@ Released: 03-Jul-2026
 ## Highlights
 
 - Birth Management
-- Parentage Tracking
-- Father Source
-- Father Breed
-- Automatic Calf Breed
-- Mother Validation
-- Registration Eligibility
-- Overdue Registration Tracking
-- KPI Dashboard
-- Search and Filters
+- Parentage tracking
+- Father source
+- Father breed
+- Automatic calf breed
+- Mother validation
+- Registration eligibility
+- Overdue registration
+- KPI cards
+- Search and filters
 - Pagination
-- Edit Birth Record
-- Photo Upload
-
-## Backend
-
-- Improved `birth_log`
-- Standardized validation
-- Improved parent and calf mapping
-- Removed blank-row issues
-- Removed debug logs
+- Edit
+- Photo upload
 
 ---
 
@@ -133,13 +480,13 @@ Released: Jun-2026
 
 ## Highlights
 
-- Cattle Registration redesign
-- SectionCard forms
-- Admission-type-specific sections
-- Dynamic form fields
-- Origin-data integration
-- Details modal improvements
-- Saving-state improvements
+- Registration redesign
+- Section-based forms
+- Admission-specific fields
+- Origin integration
+- Details modal
+- Validation
+- Saving states
 - Photo persistence
 
 ---
@@ -150,18 +497,13 @@ Released: 21-Jun-2026
 
 ## Highlights
 
-- Multiple Tag Management
+- Tag Management
 - Tag History
-- Historical Tag Search
-- Tag Change Count
+- Historical tag search
+- Tag Change count
 - Latest-first history
-- Confirmation Dialog
-
-## Backend
-
+- ConfirmDialog
 - `tag_history` integration
-- Active-tag update in `cattle_master`
-- Tag-history APIs
 
 ---
 
@@ -171,9 +513,9 @@ Released: 19-Jun-2026
 
 ## Highlights
 
-- Reactivation Workflow
-- Reactivation History
-- Reactivation Certificate
+- Reactivation workflow
+- Reactivation history
+- Reactivation certificate
 - Active-status restoration
 - Lifecycle-history preservation
 
@@ -206,7 +548,10 @@ Released: Jun-2026
 
 ---
 
-# Current Stable Development Version
+# Current Stable Development Checkpoints
+
+## Previous Preserved Checkpoint
 
 ```text
-v2.3-preventive-care
+feature/individual-cattle-milk-yield
+18b97ba

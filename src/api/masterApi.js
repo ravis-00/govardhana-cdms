@@ -427,17 +427,30 @@ async function postRequest(
   body,
   timeoutMs = 45000
 ) {
-  const url = buildUrl(action);
-  const payload = { action, ...body };
+  /*
+   * POST actions are carried only in the JSON body.
+   *
+   * Keeping ?action= in the Apps Script URL can occasionally
+   * cause a redirected request to reach doGet(), resulting in
+   * "Invalid GET Action" even though the original call was POST.
+   */
+  const url = BASE_URL;
+
+  const payload = {
+    action,
+    ...(body || {}),
+  };
 
   const res = await fetchWithTimeout(
     url,
     {
       method: "POST",
+      redirect: "follow",
       headers: {
-        "Content-Type": "text/plain;charset=utf-8",
+        "Content-Type":
+          "text/plain;charset=utf-8",
       },
-      body: JSON.stringify(payload ?? {}),
+      body: JSON.stringify(payload),
     },
     timeoutMs
   );
@@ -770,7 +783,17 @@ export async function getBirthDetailsById(birthId) {
   return getRequest("getBirthDetailsById", { birthId });
 }
 // 3. MILK PRODUCTION & DISTRIBUTION
-export async function getMilkProduction(params = {}) { return getRequest("getMilkProduction", params); }
+
+// Existing shed-level production
+export async function getMilkProduction(
+  params = {}
+) {
+  return getRequest(
+    "getMilkProduction",
+    params
+  );
+}
+
 export async function addMilkProduction(
   payload
 ) {
@@ -793,13 +816,25 @@ export async function updateMilkProduction(
   );
 }
 
-export async function getMilkDistribution(params = {}) { return getRequest("getMilkDistribution", params); }
-export async function calculateMilkOutPass(params = {}) {
+// Existing distribution
+export async function getMilkDistribution(
+  params = {}
+) {
+  return getRequest(
+    "getMilkDistribution",
+    params
+  );
+}
+
+export async function calculateMilkOutPass(
+  params = {}
+) {
   return getRequest(
     "calculateMilkOutPass",
     params
   );
 }
+
 export async function addMilkDistribution(
   payload
 ) {
@@ -821,6 +856,119 @@ export async function updateMilkDistribution(
     )
   );
 }
+
+// Individual cattle lactation
+export async function getEligibleMilkCattle(
+  payload = {}
+) {
+  return authenticatedPostRequest(
+    "getEligibleMilkCattle",
+    payload
+  );
+}
+
+export async function getCattleLactations(
+  payload = {}
+) {
+  return authenticatedPostRequest(
+    "getCattleLactations",
+    payload
+  );
+}
+
+export async function addCattleLactation(
+  payload
+) {
+  return authenticatedPostRequest(
+    "addCattleLactation",
+    payload
+  );
+}
+
+export async function updateCattleLactation(
+  payload
+) {
+  return authenticatedPostRequest(
+    "updateCattleLactation",
+    payload
+  );
+}
+
+export async function closeCattleLactation(
+  payload
+) {
+  return authenticatedPostRequest(
+    "closeCattleLactation",
+    payload
+  );
+}
+
+export async function cancelCattleLactation(
+  payload
+) {
+  return authenticatedPostRequest(
+    "cancelCattleLactation",
+    payload
+  );
+}
+
+// Individual cattle milk yield
+export async function getIndividualMilkEntrySheet(
+  payload = {}
+) {
+  return authenticatedPostRequest(
+    "getIndividualMilkEntrySheet",
+    payload
+  );
+}
+
+export async function getIndividualMilkYield(
+  payload = {}
+) {
+  return authenticatedPostRequest(
+    "getIndividualMilkYield",
+    payload
+  );
+}
+
+export async function getIndividualCowMonthlyRegister(
+  payload = {}
+) {
+  return authenticatedPostRequest(
+    "getIndividualCowMonthlyRegister",
+    payload
+  );
+}
+
+export async function saveIndividualMilkSession(
+  payload
+) {
+  return authenticatedPostRequest(
+    "saveIndividualMilkSession",
+    payload,
+    60000
+  );
+}
+
+export async function updateIndividualMilkYield(
+  payload
+) {
+  return authenticatedPostRequest(
+    "updateIndividualMilkYield",
+    payload
+  );
+}
+
+export async function cancelIndividualMilkYield(
+  payload
+) {
+  return authenticatedPostRequest(
+    "cancelIndividualMilkYield",
+    payload
+  );
+}
+
+// 4. BIO WASTE
 
 // 4. BIO WASTE
 
@@ -891,6 +1039,50 @@ export async function updateBioWaste(
     "updateBioWaste",
     payload,
     60000
+  );
+}
+
+// 4. SAMVARDHANA OUTGOING
+
+export async function getSamvardhanaOutgoing(
+  params = {}
+) {
+  return getRequest(
+    "getSamvardhanaOutgoing",
+    params
+  );
+}
+
+export async function addSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addSamvardhanaOutgoing",
+      payload
+    )
+  );
+}
+
+export async function updateSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateSamvardhanaOutgoing",
+      payload
+    )
+  );
+}
+
+export async function cancelSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "cancelSamvardhanaOutgoing",
+      payload
+    )
   );
 }
 

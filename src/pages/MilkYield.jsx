@@ -14,6 +14,9 @@ import {
   calculateMilkOutPass,
 } from "../api/masterApi";
 
+import IndividualMilkYield from
+  "../components/milk/IndividualMilkYield";
+
 // =========================================================
 // HELPERS
 // =========================================================
@@ -221,12 +224,17 @@ const [toDate, setToDate] =
   const useCompactRecords = viewportWidth <= 820;
   const recordsPerPage = useCompactRecords ? 10 : 20;
 
-  useEffect(() => {
+    useEffect(() => {
+    if (activeTab === "individual") {
+      return undefined;
+    }
+
     const timer = window.setTimeout(() => {
       loadData();
     }, 300);
 
-    return () => window.clearTimeout(timer);
+    return () =>
+      window.clearTimeout(timer);
   }, [fromDate, toDate, activeTab]);
 
   useEffect(() => {
@@ -282,7 +290,7 @@ if (fromDate > toDate) {
 }
 
     try {
-      
+
 
       if (activeTab === "production") {
         const response =
@@ -949,95 +957,110 @@ if (fromDate > toDate) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="btn btn-primary"
-          style={{ ...addButtonStyle, width: isMobile ? "100%" : "auto", justifyContent: "center" }}
-        >
-          + Add Entry
-        </button>
-      </div>
-
-      {/* KPI CARDS */}
-
-      <div style={{
-        ...kpiGridStyle,
-        gridTemplateColumns: isMobile
-          ? "repeat(2, minmax(0, 1fr))"
-          : "repeat(auto-fit, minmax(190px, 1fr))",
-        gap: isMobile ? "10px" : "14px",
-      }}>
-        {activeTab === "production" ? (
-          <>
-            <KpiCard
-              label="Today's Good Milk"
-              value={`${formatQuantity(
-                productionKpis.todayGoodMilk
-              )} L`}
-              helper="Current day"
-            />
-
-            <KpiCard
-              label="Monthly Good Milk"
-              value={`${formatQuantity(
-                productionKpis.totalGoodMilk
-              )} L`}
-              helper="AM + PM good milk"
-            />
-
-            <KpiCard
-              label="Average Per Day"
-              value={`${formatQuantity(
-                productionKpis.averagePerDay
-              )} L`}
-              helper="Monthly daily average"
-            />
-
-            <KpiCard
-              label="Monthly Colostrum"
-              value={`${formatQuantity(
-                productionKpis.totalColostrum
-              )} L`}
-              helper="Excluded from distribution"
-            />
-          </>
-        ) : (
-          <>
-            <KpiCard
-              label="Today's Distribution"
-              value={`${formatQuantity(
-                distributionKpis.todayDistributed
-              )} L`}
-              helper="Internal + Out Pass"
-            />
-
-            <KpiCard
-              label="Monthly Distribution"
-              value={`${formatQuantity(
-                distributionKpis.totalDistributed
-              )} L`}
-              helper="Total milk accounted"
-            />
-
-            <KpiCard
-              label="Internal Distribution"
-              value={`${formatQuantity(
-                distributionKpis.totalInternal
-              )} L`}
-              helper="Internal consumption"
-            />
-
-            <KpiCard
-              label="Out Pass Milk"
-              value={`${formatQuantity(
-                distributionKpis.totalOutPass
-              )} L`}
-              helper="Milk sent outside"
-            />
-          </>
+        {activeTab !== "individual" && (
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="btn btn-primary"
+            style={{
+              ...addButtonStyle,
+              width: isMobile
+                ? "100%"
+                : "auto",
+              justifyContent: "center",
+            }}
+          >
+            + Add Entry
+          </button>
         )}
       </div>
+
+             {/* KPI CARDS */}
+
+      {activeTab !== "individual" && (
+        <div
+          style={{
+            ...kpiGridStyle,
+            gridTemplateColumns:
+              isMobile
+                ? "repeat(2, minmax(0, 1fr))"
+                : "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: isMobile
+              ? "10px"
+              : "14px",
+          }}
+        >
+          {activeTab === "production" ? (
+            <>
+              <KpiCard
+                label="Today's Good Milk"
+                value={`${formatQuantity(
+                  productionKpis.todayGoodMilk
+                )} L`}
+                helper="Current day"
+              />
+
+              <KpiCard
+                label="Monthly Good Milk"
+                value={`${formatQuantity(
+                  productionKpis.totalGoodMilk
+                )} L`}
+                helper="AM + PM good milk"
+              />
+
+              <KpiCard
+                label="Average Per Day"
+                value={`${formatQuantity(
+                  productionKpis.averagePerDay
+                )} L`}
+                helper="Monthly daily average"
+              />
+
+              <KpiCard
+                label="Monthly Colostrum"
+                value={`${formatQuantity(
+                  productionKpis.totalColostrum
+                )} L`}
+                helper="Excluded from distribution"
+              />
+            </>
+          ) : (
+            <>
+              <KpiCard
+                label="Today's Distribution"
+                value={`${formatQuantity(
+                  distributionKpis.todayDistributed
+                )} L`}
+                helper="Internal + Out Pass"
+              />
+
+              <KpiCard
+                label="Monthly Distribution"
+                value={`${formatQuantity(
+                  distributionKpis.totalDistributed
+                )} L`}
+                helper="Total milk accounted"
+              />
+
+              <KpiCard
+                label="Internal Distribution"
+                value={`${formatQuantity(
+                  distributionKpis.totalInternal
+                )} L`}
+                helper="Internal consumption"
+              />
+
+              <KpiCard
+                label="Out Pass Milk"
+                value={`${formatQuantity(
+                  distributionKpis.totalOutPass
+                )} L`}
+                helper="Milk sent outside"
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {/* TAB BAR */}
 
@@ -1066,7 +1089,24 @@ if (fromDate > toDate) {
             setSearchText("");
           }}
         />
+
+        <TabButton
+          label="Individual Cattle Yield"
+          active={
+            activeTab === "individual"
+          }
+          onClick={() => {
+            setActiveTab("individual");
+            setSearchText("");
+            setLoadError("");
+          }}
+        />
       </div>
+
+      {activeTab === "individual" ? (
+        <IndividualMilkYield />
+      ) : (
+        <>
 
       {/* TOOLBAR */}
 
@@ -2095,6 +2135,8 @@ if (fromDate > toDate) {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* TOAST */}

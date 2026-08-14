@@ -72,8 +72,10 @@ export default function MainLayout() {
   );
 
   const [isMobileViewport, setIsMobileViewport] = useState(
-    () => window.innerWidth <= MOBILE_BREAKPOINT
-  );
+  () => window.innerWidth <= MOBILE_BREAKPOINT
+);
+
+const [expandedGroupId, setExpandedGroupId] = useState("");
 
   // ---------------------------------------------------------------------------
   // VIEWPORT CHANGE HANDLING
@@ -103,11 +105,32 @@ export default function MainLayout() {
   // CLOSE MOBILE DRAWER AFTER ROUTE CHANGE
   // ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    if (isMobileViewport) {
-      setIsSidebarOpen(false);
+    useEffect(() => {
+    if (!isMobileViewport) {
+      return undefined;
     }
-  }, [location.pathname, isMobileViewport]);
+
+    /*
+     * Defer the state update to the next animation frame.
+     * This closes the mobile drawer after programmatic route
+     * changes without synchronously setting state in an effect.
+     */
+    const frameId =
+      window.requestAnimationFrame(
+        () => {
+          setIsSidebarOpen(false);
+        }
+      );
+
+    return () => {
+      window.cancelAnimationFrame(
+        frameId
+      );
+    };
+  }, [
+    location.pathname,
+    isMobileViewport,
+  ]);
 
   // ---------------------------------------------------------------------------
   // PREVENT BACKGROUND SCROLL WHILE MOBILE DRAWER IS OPEN
@@ -181,164 +204,244 @@ export default function MainLayout() {
   // ---------------------------------------------------------------------------
 
   const menuGroups = [
-    {
-      title: "",
-      items: [
-        {
-          name: "Dashboard",
-          path: "/dashboard",
-          icon: Icons.dashboard,
-        },
-      ],
-    },
-    {
-      title: "HERD MANAGEMENT",
-      items: [
-        {
-          name: "Master Cattle Data",
-          path: "/cattle/master",
-          icon: Icons.cow,
-        },
-        {
-          name: "Cattle Registration",
-          path: "/cattle/register",
-          icon: Icons.cow,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Pedigree Viewer",
-          path: "/pedigree",
-          icon: Icons.pedigree,
-        },
-        {
-          name: "Calving Log",
-          path: "/newborn",
-          icon: Icons.cow,
-        },
-        {
-          name: "Tag Management",
-          path: "/new-tag",
-          icon: Icons.cow,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Herd Exit",
-          path: "/deregister",
-          icon: Icons.cow,
-          restricted: !isAdmin,
-        },
-      ],
-    },
-    {
-      title: "OPERATIONS",
-      items: [
-        {
-          name: "Milk Production",
-          path: "/milk-yield",
-          icon: Icons.milk,
-        },
-        {
-          name: "Nutrition",
-          path: "/feeding",
-          icon: Icons.milk,
-        },
-        {
-          name: "Waste Mgmt",
-          path: "/bio-waste",
-          icon: Icons.milk,
-        },
-      ],
-    },
-    {
-      title: "VETERINARY",
-      items: [
-        {
-          name: "Clinical Records",
-          path: "/treatment",
-          icon: Icons.health,
-        },
-        {
-          name: "Preventive Care",
-          path: "/vaccine",
-          icon: Icons.health,
-        },
-        {
-          name: "Mortality Register",
-          path: "/death-records",
-          icon: Icons.health,
-        },
-      ],
-    },
-    {
-      title: "MASTER CONFIGURATION",
-      items: [
-        {
-          name: "Breeds",
-          path: "/config/breeds",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Medicines",
-          path: "/config/medicines",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Preventive Care Master",
-          path: "/config/preventive-care",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Rates",
-          path: "/config/rates",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Weight Stds",
-          path: "/config/weight",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Symptoms",
-          path: "/config/symptoms",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-        {
-          name: "Sheds",
-          path: "/config/sheds",
-          icon: Icons.config,
-          restricted: !isAdmin,
-        },
-      ],
-    },
-    {
-      title: "FINANCE & ADMIN",
-      items: [
-        {
-          name: "Sponsorships",
-          path: "/dattu-yojana",
-          icon: Icons.admin,
-          restricted: isViewer,
-        },
-        {
-          name: "Reports",
-          path: "/reports",
-          icon: Icons.admin,
-        },
-        {
-          name: "User Management",
-          path: "/users",
-          icon: Icons.admin,
-          restricted: !isAdmin,
-        },
-      ],
-    },
-  ];
+  {
+    id: "dashboard",
+    title: "",
+    collapsible: false,
+    items: [
+      {
+        name: "Dashboard",
+        path: "/dashboard",
+        icon: Icons.dashboard,
+      },
+    ],
+  },
+  {
+    id: "herd-management",
+    title: "HERD MANAGEMENT",
+    collapsible: true,
+    items: [
+      {
+        name: "Master Cattle Data",
+        path: "/cattle/master",
+        icon: Icons.cow,
+      },
+      {
+        name: "Cattle Registration",
+        path: "/cattle/register",
+        icon: Icons.cow,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Pedigree Viewer",
+        path: "/pedigree",
+        icon: Icons.pedigree,
+      },
+      {
+        name: "Calving Log",
+        path: "/newborn",
+        icon: Icons.cow,
+      },
+      {
+        name: "Tag Management",
+        path: "/new-tag",
+        icon: Icons.cow,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Herd Exit",
+        path: "/deregister",
+        icon: Icons.cow,
+        restricted: !isAdmin,
+      },
+    ],
+  },
+  {
+    id: "daily-operations",
+    title: "DAILY OPERATIONS",
+    collapsible: true,
+    items: [
+      {
+        name: "Milk Production",
+        path: "/milk-yield",
+        icon: Icons.milk,
+      },
+      {
+        name: "Nutrition",
+        path: "/feeding",
+        icon: Icons.milk,
+      },
+      {
+        name: "Waste Mgmt",
+        path: "/bio-waste",
+        icon: Icons.milk,
+      },
+      {
+        name: "Samvardhana Outgoing",
+        path: "/samvardhana-outgoing",
+        icon: Icons.milk,
+        restricted: !isAdmin,
+      },
+    ],
+  },
+  {
+    id: "veterinary",
+    title: "VETERINARY",
+    collapsible: true,
+    items: [
+      {
+        name: "Clinical Records",
+        path: "/treatment",
+        icon: Icons.health,
+      },
+      {
+        name: "Preventive Care",
+        path: "/vaccine",
+        icon: Icons.health,
+      },
+      {
+        name: "Mortality Register",
+        path: "/death-records",
+        icon: Icons.health,
+      },
+    ],
+  },
+  {
+    id: "sponsorship-finance",
+    title: "SPONSORSHIP & FINANCE",
+    collapsible: true,
+    items: [
+      {
+        name: "Sponsorships",
+        path: "/dattu-yojana",
+        icon: Icons.admin,
+        restricted: isViewer,
+      },
+    ],
+  },
+  {
+    id: "reports-analytics",
+    title: "REPORTS & ANALYTICS",
+    collapsible: true,
+    items: [
+      {
+        name: "Reports",
+        path: "/reports",
+        icon: Icons.admin,
+      },
+    ],
+  },
+  {
+    id: "master-configuration",
+    title: "MASTER CONFIGURATION",
+    collapsible: true,
+    items: [
+      {
+        name: "Breeds",
+        path: "/config/breeds",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Medicines",
+        path: "/config/medicines",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Preventive Care Master",
+        path: "/config/preventive-care",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Rates",
+        path: "/config/rates",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Weight Stds",
+        path: "/config/weight",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Symptoms",
+        path: "/config/symptoms",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+      {
+        name: "Sheds",
+        path: "/config/sheds",
+        icon: Icons.config,
+        restricted: !isAdmin,
+      },
+    ],
+  },
+  {
+    id: "administration",
+    title: "ADMINISTRATION",
+    collapsible: true,
+    items: [
+      {
+        name: "User Management",
+        path: "/users",
+        icon: Icons.admin,
+        restricted: !isAdmin,
+      },
+    ],
+  },
+];
+
+const visibleMenuGroups = menuGroups
+  .map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => !item.restricted
+    ),
+  }))
+  .filter((group) => group.items.length > 0);
+
+const activeGroupId =
+  visibleMenuGroups.find((group) =>
+    group.items.some(
+      (item) =>
+        location.pathname === item.path ||
+        location.pathname.startsWith(
+          `${item.path}/`
+        )
+    )
+  )?.id || "";
+
+useEffect(() => {
+  if (!activeGroupId) {
+    return undefined;
+  }
+
+  const frameId =
+    window.requestAnimationFrame(() => {
+      setExpandedGroupId(
+        activeGroupId
+      );
+    });
+
+  return () => {
+    window.cancelAnimationFrame(
+      frameId
+    );
+  };
+}, [activeGroupId]);
+
+const toggleMenuGroup = (groupId) => {
+  setExpandedGroupId(
+    (currentGroupId) =>
+      currentGroupId === groupId
+        ? ""
+        : groupId
+  );
+};
 
   const sidebarClassName = [
     "sidebar",
@@ -436,49 +539,110 @@ export default function MainLayout() {
           {/* Navigation */}
 
           <nav aria-label="Primary navigation">
-            {menuGroups.map((group, groupIndex) => (
-              <div
-                key={`${group.title}-${groupIndex}`}
-                className="sidebar-menu-group"
-              >
-                {group.title && (
-                  <div className="sidebar-menu-heading">
-                    {group.title}
-                  </div>
-                )}
+  {visibleMenuGroups.map((group) => {
+    const isExpanded =
+      !group.collapsible ||
+      expandedGroupId === group.id;
 
-                {group.items.map((item) => {
-                  if (item.restricted) {
-                    return null;
-                  }
+    const containsActivePage =
+      group.id === activeGroupId;
 
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={closeMobileSidebar}
-                      className={({ isActive }) =>
-                        isActive ? "active" : ""
-                      }
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="18"
-                        height="18"
-                        fill="currentColor"
-                        className="sidebar-menu-icon"
-                        aria-hidden="true"
-                      >
-                        {item.icon}
-                      </svg>
+    const panelId =
+      `sidebar-group-${group.id}`;
 
-                      <span>{item.name}</span>
-                    </NavLink>
+    return (
+      <div
+        key={group.id}
+        className={[
+          "sidebar-menu-group",
+          containsActivePage
+            ? "sidebar-menu-group-active"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {group.collapsible && (
+          <button
+            type="button"
+            className={[
+              "sidebar-group-toggle",
+              isExpanded
+                ? "sidebar-group-toggle-expanded"
+                : "",
+              containsActivePage
+                ? "sidebar-group-toggle-active"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={() =>
+              toggleMenuGroup(group.id)
+            }
+            aria-expanded={isExpanded}
+            aria-controls={panelId}
+          >
+            <span className="sidebar-group-title">
+              {group.title}
+            </span>
+
+            <span
+              className="sidebar-group-chevron"
+              aria-hidden="true"
+            >
+              ›
+            </span>
+          </button>
+        )}
+
+        <div
+          id={panelId}
+          className={[
+            "sidebar-group-items",
+            isExpanded
+              ? "sidebar-group-items-expanded"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          hidden={!isExpanded}
+        >
+          {group.items.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => {
+                if (group.collapsible) {
+                  setExpandedGroupId(
+                    group.id
                   );
-                })}
-              </div>
-            ))}
-          </nav>
+                }
+
+                closeMobileSidebar();
+              }}
+              className={({ isActive }) =>
+                isActive ? "active" : ""
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="currentColor"
+                className="sidebar-menu-icon"
+                aria-hidden="true"
+              >
+                {item.icon}
+              </svg>
+
+              <span>{item.name}</span>
+            </NavLink>
+          ))}
+        </div>
+      </div>
+    );
+  })}
+</nav>
 
           {/* User and logout */}
 

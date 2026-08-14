@@ -54,6 +54,12 @@ const BioWaste = lazy(() =>
   import("./pages/BioWaste.jsx")
 );
 
+const SamvardhanaOutgoing = lazy(() =>
+  import(
+    "./pages/SamvardhanaOutgoing.jsx"
+  )
+);
+
 const Vaccine = lazy(() =>
   import("./pages/Vaccine.jsx")
 );
@@ -398,6 +404,23 @@ export default function App() {
               </LazyRoute>
             }
           />
+
+          <Route
+            path="/samvardhana-outgoing"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "Admin",
+                  "Super Admin",
+                ]}
+              >
+                <LazyRoute>
+                  <SamvardhanaOutgoing />
+                </LazyRoute>
+              </ProtectedRoute>
+            }
+          />
+
 
           {/* Veterinary */}
           <Route

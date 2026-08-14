@@ -354,7 +354,7 @@ p {
 .sidebar nav {
   flex: 1;
   min-height: 0;
-  padding: 1rem;
+  padding: 0.5rem 0.75rem;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -378,23 +378,106 @@ p {
 }
 
 .sidebar-menu-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .sidebar-menu-group:last-child {
   margin-bottom: 0;
 }
 
-.sidebar-menu-heading {
-  padding: 0 0.75rem;
-  margin-bottom: 0.5rem;
+.sidebar-group-toggle {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--sidebar-heading);
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
+.sidebar-group-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.sidebar-group-toggle:focus-visible {
+  outline: 2px solid rgba(251, 146, 60, 0.9);
+  outline-offset: 2px;
+}
+
+.sidebar-group-toggle-active {
+  color: #fb923c;
+}
+
+.sidebar-group-toggle-expanded {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.sidebar-group-toggle-expanded.sidebar-group-toggle-active {
+  color: #fb923c;
+}
+
+.sidebar-group-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebar-group-chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-group-toggle-expanded
+  .sidebar-group-chevron {
+  transform: rotate(90deg);
+}
+
+.sidebar-group-items {
+  padding-top: 0.25rem;
+}
+
+.sidebar-group-items[hidden] {
+  display: none;
+}
+
+.sidebar-menu-group-active {
+  position: relative;
+}
+
+.sidebar-menu-group-active::before {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -0.75rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background-color: var(--primary-color);
+  content: "";
+}
 .sidebar a {
   width: 100%;
   min-height: 44px;
