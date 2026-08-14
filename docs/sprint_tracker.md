@@ -2,11 +2,248 @@
 
 ## Current Version
 
-**v2.3-preventive-care**
+`v3.1-reports-alignment` — Unreleased
+
+## Current Branch
+
+`feature/existing-reports-alignment`
 
 ## Last Updated
 
-23-Jul-2026
+14-Aug-2026
+
+---
+
+# Current Sprint
+
+## Existing Reports Alignment and Outgoing Reconciliation
+
+Status: Development completed and locally verified
+
+Merge status: Not merged
+
+Netlify deployment: Not deployed
+
+### Previous Checkpoint Preserved
+
+- [x] Individual Cattle Milk Yield completed
+- [x] Locally verified
+- [x] Committed and pushed
+- [x] Branch preserved: `feature/individual-cattle-milk-yield`
+- [x] Commit preserved: `18b97ba`
+- [x] Not merged
+- [x] Not deployed
+
+### Existing Reports Review
+
+- [x] Reviewed Daily Milk Report
+- [x] Reviewed Govardhana Outgoing
+- [x] Reviewed cattle Sales Report
+- [x] Confirmed cattle Sales Report remains separate
+- [x] Confirmed Samvardhana business definition
+- [x] Confirmed MSGP internal-transfer workflow
+- [x] Confirmed Krushi internal-transfer workflow
+- [x] Confirmed External Party sales workflow
+- [x] Confirmed Milk may be sold externally
+- [x] Confirmed free Milk remains in Milk Distribution
+- [x] Confirmed cattle sales are external-only and separate
+
+### Data Model
+
+- [x] Created `samvardhana_outgoing`
+- [x] Created `samvardhana_outgoing_items`
+- [x] Added header/item relationship
+- [x] Added transaction IDs
+- [x] Added material-line IDs
+- [x] Added movement type
+- [x] Added destination type
+- [x] Added destination and party
+- [x] Added receipt/reference
+- [x] Added sender and receiver
+- [x] Added status
+- [x] Added audit fields
+- [x] Added material
+- [x] Added usage type
+- [x] Added quantity and unit
+- [x] Added rate snapshot
+- [x] Added line amount
+- [x] Added source type
+- [x] Added source transaction ID
+- [x] Added line remarks
+- [x] Added material subtotal
+- [x] Added tax
+- [x] Added transport charges
+- [x] Added other charges
+- [x] Added other-charge remarks
+- [x] Added discount
+- [x] Added final billed amount
+
+### Samvardhana Backend
+
+- [x] Created `Repo_SamvardhanaOutgoing.gs`
+- [x] Added GET
+- [x] Added Add
+- [x] Added Update
+- [x] Added Cancel
+- [x] Added controller routes
+- [x] Added frontend API methods
+- [x] Added header validation
+- [x] Added item validation
+- [x] Added header-based sheet mapping
+- [x] Added Apps Script locking
+- [x] Added transaction ID generation
+- [x] Added item-line ID generation
+- [x] Added duplicate-receipt validation
+- [x] Added rate snapshot handling
+- [x] Added multi-line item writes
+- [x] Added write verification
+- [x] Added safe item replacement
+- [x] Added failed-update rollback
+- [x] Added audit-field preservation
+- [x] Added cancellation status
+- [x] Excluded cancelled transactions from active reports
+- [x] Preserved cancelled transactions for audit
+
+### External Billing
+
+- [x] Added automatic material subtotal
+- [x] Added tax
+- [x] Added transport charges
+- [x] Added other charges
+- [x] Added mandatory other-charge remarks
+- [x] Added discount
+- [x] Added automatic final billed amount
+- [x] Added backend authoritative calculation
+- [x] Rejected false frontend billed amounts
+- [x] Added negative-value validation
+- [x] Added discount-limit validation
+- [x] Added automatic bill number
+- [x] Added financial-year sequence
+- [x] Preserved bill number during Edit
+- [x] Prevented cancelled bill-number reuse
+- [x] Defaulted bill date to transaction date
+
+### Samvardhana Frontend
+
+- [x] Created `SamvardhanaOutgoing.jsx`
+- [x] Added protected route
+- [x] Added Operations menu entry
+- [x] Restricted access to Admin/Super Admin
+- [x] Added search
+- [x] Added From/To dates
+- [x] Added Movement Type filter
+- [x] Added Destination filter
+- [x] Added Status filter
+- [x] Added KPI cards
+- [x] Added Add modal
+- [x] Added Edit modal
+- [x] Added Details modal
+- [x] Added Cancel confirmation
+- [x] Added multiple material lines
+- [x] Added Milk usage type
+- [x] Added source linkage
+- [x] Added material subtotal display
+- [x] Added billing adjustments
+- [x] Added read-only bill number
+- [x] Added read-only final billed amount
+- [x] Added billing breakdown in Details
+- [x] Used billed amount for External Sale value
+- [x] Used material value for Internal Transfer value
+- [x] Added success/error toasts
+- [x] Added saving states
+- [x] Verified responsive modal and table
+
+### Daily Milk Report Alignment
+
+- [x] Aggregated all sheds by date
+- [x] Preserved production precision
+- [x] Mapped morning yield
+- [x] Mapped evening yield
+- [x] Mapped morning/evening outgoing
+- [x] Mapped good milk
+- [x] Mapped colostrum
+- [x] Mapped temple
+- [x] Mapped workers and guests
+- [x] Included calves/bulls, canteen and events in free milk
+- [x] Added total yield
+- [x] Added total outgoing
+- [x] Added total good milk
+- [x] Added total colostrum
+- [x] Added total free milk
+- [x] Corrected missing-distribution row inconsistency
+- [x] Verified daily reconciliation
+- [x] Verified monthly totals
+- [x] Verified Print/PDF
+
+### Samvardhana Reports
+
+- [x] Renamed Govardhana Outgoing presentation
+- [x] Preserved existing backend report ID
+- [x] Added Detailed Ledger
+- [x] Added MSGP layout
+- [x] Added Krushi layout
+- [x] Added External Party layout
+- [x] Added Milk to External Party report
+- [x] Added Compost
+- [x] Added Gaumaya
+- [x] Added Gaumutra
+- [x] Added Slurry
+- [x] Added material subtotal
+- [x] Added tax
+- [x] Added transport
+- [x] Added other charges and remarks
+- [x] Added discount
+- [x] Added bill number and date
+- [x] Added final billed amount
+- [x] Added totals
+- [x] Added serial-number reset after filtering
+- [x] Verified screen layouts
+- [x] Verified CSV
+- [x] Verified MSGP Print/PDF
+- [x] Verified Krushi Print/PDF
+- [x] Added readable External Party material table
+- [x] Added readable External Party billing table
+- [x] Verified External Party Print/PDF
+
+### Backend Tests
+
+- [x] Add transaction
+- [x] Read transaction
+- [x] Update transaction
+- [x] Cancel transaction
+- [x] Multi-line transaction
+- [x] Rate lookup
+- [x] Safe item replacement
+- [x] Rollback handling
+- [x] Daily Milk alignment
+- [x] Samvardhana report generation
+- [x] Automatic bill number
+- [x] Bill-number preservation
+- [x] Subtotal calculation
+- [x] Tax calculation
+- [x] Transport calculation
+- [x] Other-charge calculation
+- [x] Discount calculation
+- [x] Final billed amount
+
+### Finalization
+
+- [x] Created new sprint branch
+- [x] Preserved previous feature checkpoint
+- [x] Updated README
+- [x] Updated Current State
+- [x] Updated Database Schema
+- [x] Updated Release Notes
+- [ ] Update Sprint Tracker
+- [ ] Update Version History
+- [ ] Cancel all test transactions
+- [ ] Run final production build
+- [ ] Review Git status and diff
+- [ ] Stage only intended files
+- [ ] Commit
+- [ ] Push feature branch
+- [ ] Preserve branch without merge
+- [ ] Do not deploy until approved
 
 ---
 
@@ -16,274 +253,266 @@
 
 Status: Completed
 
-- [x] Reusable PageHeader
-- [x] Reusable MetricCard
-- [x] Reusable StatusBadge
-- [x] Reusable FormActions
-- [x] Standard page headers
-- [x] Standard KPI cards
-- [x] Standard filter panels
-- [x] Standard table styling
-- [x] Zebra-striped rows
-- [x] Selected-row highlighting
+- [x] Reusable page headers
+- [x] Metric cards
+- [x] Status badges
+- [x] Form actions
+- [x] Filter panels
+- [x] Standard tables
+- [x] Row highlighting
 - [x] Gender colour coding
 
----
-
-## Sprint 1.2 – Tag Management UI Standardization
+## Sprint 1.2 – Tag Management
 
 Status: Completed
 
-- [x] Standard Tag Management header
-- [x] SectionCard layout
-- [x] Selected-cattle summary
-- [x] Standard tag-change form
-- [x] Standard Tag History table
-- [x] Standard action buttons
-- [x] Confirmation dialog
+- [x] Tag update workflow
+- [x] Tag History
 - [x] Historical tag search
+- [x] ConfirmDialog
+- [x] Current-tag synchronization
 
----
-
-## Sprint 1.3 – Registration UI
+## Sprint 1.3/1.4 – Registration
 
 Status: Completed
 
-- [x] Standard registration page
-- [x] Section-based form
-- [x] Admission-type-specific fields
+- [x] Standard registration UI
+- [x] Admission-specific forms
 - [x] Born at Goshala
 - [x] Purchase
 - [x] Donation
 - [x] From Farmer
 - [x] Rescue / Slaughter House
-- [x] Details modal
-- [x] Origin-data integration
-
----
-
-## Sprint 1.4 – Registration Enhancement
-
-Status: Completed
-
-- [x] Admission validation
-- [x] Age Years and Months
-- [x] Category and gender mapping
-- [x] Breed mapping
-- [x] Photo persistence
+- [x] Age in years/months
 - [x] Parent details
-- [x] Linked birth ID
-- [x] Birth-status update
-- [x] Save and loading states
-- [x] Toast notifications
-- [x] Duplicate checks
-
----
+- [x] Linked birth
+- [x] Photo
+- [x] Duplicate validation
 
 ## Sprint 2.0 – New Born Workflow
 
 Status: Completed
 
 - [x] Birth recording
-- [x] Parentage tracking
-- [x] Father source
-- [x] Father owner
-- [x] Father breed
+- [x] Parentage
+- [x] Father source and breed
 - [x] Automatic calf breed
 - [x] Mother eligibility
 - [x] Calving-gap validation
-- [x] Photo upload
-- [x] Edit workflow
-- [x] Search
-- [x] Filters
-- [x] KPI cards
-- [x] Pagination
 - [x] Registration eligibility
 - [x] Overdue registration
+- [x] Search, filters and pagination
 
----
-
-## Sprint 2.2.1 – Clinical Records Modernization
+## Sprint 2.2.1 – Clinical Records
 
 Status: Completed
 
-- [x] Standard page header
-- [x] Summary cards
-- [x] From and To date filters
-- [x] Search
-- [x] Disease / Symptom filter
-- [x] Doctor filter
-- [x] Standardized table
-- [x] Row-click Details modal
-- [x] Add modal
-- [x] Edit modal
-- [x] Master Cattle validation
-- [x] Cattle summary
-- [x] Searchable disease and symptom selection
-- [x] Searchable medicine selection
-- [x] Doctor suggestions
-- [x] Saving toast
-- [x] Success toast
-- [x] Error toast
+- [x] Clinical Records modernization
+- [x] Active-cattle validation
+- [x] Search and filters
+- [x] Add/Edit/Details
 - [x] Sequential `MED-#####` IDs
-- [x] Leading-zero protection
-- [x] Add workflow tested
-- [x] Edit workflow tested
-
-Deferred:
-
-- [ ] Separate Symptoms and Diagnosis
-- [ ] Structured dosage
-- [ ] Frequency
-- [ ] Duration
-- [ ] Administration route
-- [ ] Follow-up
-- [ ] Outcome
-- [ ] Health Timeline
-
----
+- [x] Toasts and saving states
 
 ## Sprint 2.3 – Preventive Care
 
 Status: Completed
 
-- [x] `preventive_care_log` sheet
-- [x] `preventive_care_types` sheet
-- [x] Preventive Care repository
-- [x] Controller actions
-- [x] Frontend API functions
-- [x] Preventive Care page
-- [x] Vaccination
-- [x] Deworming
-- [x] Vitamin Supplementation
-- [x] Mineral Supplementation
-- [x] Other Preventive Treatment
-- [x] Medicine selection
-- [x] Medicine batch number
-- [x] Medicine expiry date
-- [x] Dosage
-- [x] Dosage unit
-- [x] Administration route
-- [x] Target group
-- [x] Eligible count
-- [x] Administered count
-- [x] Automatic excluded count
-- [x] Next Schedule
-- [x] Doctor
-- [x] Draft status
-- [x] Completed status
-- [x] Cancelled status
-- [x] Search
-- [x] Date filters
-- [x] Care Type filter
-- [x] Medicine filter
-- [x] Event Status filter
-- [x] Due Status filter
+- [x] Preventive Care Log
+- [x] Preventive Care Types
+- [x] Vaccination and deworming
+- [x] Supplementation
+- [x] Coverage calculations
+- [x] Next schedules
+- [x] Draft/Completed/Cancelled
+- [x] Search, filters and pagination
+- [x] Sequential IDs and audit fields
+
+## Sprint 2.4 – Veterinary Completion
+
+Status: Completed
+
+- [x] Clinical Records
+- [x] Preventive Care
+- [x] Mortality Register
+- [x] Herd Exit integration
+- [x] Responsive veterinary workflows
+
+## Sprint 2.5 – Milk Operations
+
+Status: Completed
+
+- [x] Milk Production
+- [x] Milk Distribution
+- [x] Add/Edit
 - [x] KPI cards
-- [x] Pagination
-- [x] Add modal
-- [x] Edit modal
-- [x] Details modal
-- [x] Saving toast
-- [x] Success toast
-- [x] Error toast
-- [x] Sequential `PC-######` IDs
-- [x] Audit fields
+- [x] From/To dates
+- [x] Responsive modal
 - [x] Backend validation
-- [x] Existing records tested
-- [x] Add tested
-- [x] Edit tested
-- [x] Filter workflow tested
+
+## Sprint 2.6 – Feeding
+
+Status: Completed
+
+- [x] Feeding Register
+- [x] Shed and feed-type filters
+- [x] Quantity metrics
+- [x] Add/Edit
+- [x] Responsive design
+
+## Sprint 2.7 – Waste Management
+
+Status: Completed
+
+- [x] Bio Waste Register
+- [x] Add/Edit
+- [x] Search and filters
+- [x] KPI cards
+- [x] Validation
+- [x] Status handling
+
+## Sprint 2.8 – Sponsorship Management
+
+Status: Completed
+
+- [x] Sponsors
+- [x] Sponsorships
+- [x] Payments
+- [x] KPI cards
+- [x] Search and filters
+- [x] Backend validation
+
+## Sprint 2.9 – Master Configuration
+
+Status: Completed
+
+- [x] Breeds
+- [x] Medicines
+- [x] Preventive Care Types
+- [x] Rates
+- [x] Sheds
+- [x] Symptoms
+- [x] Weight Standards
+
+## Sprint 3.0 – Reports and Analytics
+
+Status: Completed
+
+- [x] Predefined report catalogue
+- [x] Dynamic filters
+- [x] Totals
+- [x] Pagination
+- [x] CSV
+- [x] Print/PDF
+- [x] Cattle Register
+- [x] Birth
+- [x] Death
+- [x] Sales
+- [x] Incoming
+- [x] Daily Milk
+- [x] Outgoing
+- [x] Sponsorship
+
+## Performance Improvement Sprint
+
+Status: Completed
+
+- [x] Dashboard summary backend
+- [x] Cache
+- [x] Cache invalidation
+- [x] Reduced duplicate requests
+- [x] Improved sheet reads
+- [x] Preserved 3–8 second target
+
+## Responsive Design Sprint
+
+Status: Completed
+
+- [x] Responsive application shell
+- [x] Mobile drawer
+- [x] Responsive filters
+- [x] Responsive tables
+- [x] Responsive modals
+- [x] Mobile/tablet/laptop compatibility
+
+## User Management and Authentication
+
+Status: Completed
+
+- [x] Role normalization
+- [x] Protected routes
+- [x] Viewer read-only
+- [x] Super Admin restrictions
+- [x] Email/mobile login
+- [x] Duplicate validation
+- [x] Inactive-user restriction
+
+## Individual Cattle Milk Yield
+
+Status: Completed checkpoint
+
+- [x] Lactations
+- [x] Individual Data Entry
+- [x] Cow History
+- [x] Monthly Register
+- [x] Per-cattle tracking
+- [x] Build verification
+- [x] Commit `18b97ba`
+- [x] Push feature branch
 
 ---
 
-# Current Sprint
+# Deferred Backlog
 
-None
+## Pregnancy Management
 
-The Preventive Care sprint has been completed.
+- [ ] Eligible female selection
+- [ ] Pregnancy examination
+- [ ] Status and stage
+- [ ] Expected delivery
+- [ ] Outcome
+- [ ] Reporting
 
----
+## Clinical Enhancements
 
-# Recommended Next Sprint
+- [ ] Separate Symptoms and Diagnosis
+- [ ] Structured dosage
+- [ ] Frequency and duration
+- [ ] Follow-up
+- [ ] Outcome
+- [ ] Animal Health Timeline
 
-## Sprint 2.4 – Module Audit and Gap Confirmation
+## Medicine Inventory
 
-Status: Proposed
-
-- [ ] Review Dashboard
-- [ ] Review Master Cattle
-- [ ] Review Cattle Registration
-- [ ] Review Pedigree Viewer
-- [ ] Review Calving Log
-- [ ] Review Tag Management
-- [ ] Review Lifecycle modules
-- [ ] Review Milk Production
-- [ ] Review Nutrition
-- [ ] Review Waste Management
-- [ ] Review Clinical Records
-- [ ] Review Preventive Care
-- [ ] Review Mortality Register
-- [ ] Review Sponsorship
-- [ ] Review Reports
-- [ ] Review User Management
-- [ ] Review Rates
-- [ ] Review Medicines
-- [ ] Review Preventive Care Master
-- [ ] Review Symptoms
-- [ ] Review Weight Scale
-- [ ] Review Sheds
-- [ ] Create verified gap list
-- [ ] Select next implementation sprint
-
----
-
-# Future Sprint Backlog
-
-## Authentication and Roles
-
-- [ ] Admin Role
-- [ ] Supervisor Role
-- [ ] Data Entry Role
-- [ ] Viewer Role
-- [ ] Route Protection
-- [ ] Menu Permissions
-- [ ] Session Timeout
-- [ ] Login Audit
+- [ ] Stock receipts
+- [ ] Stock issues
+- [ ] Batch-level stock
+- [ ] Expiry alerts
+- [ ] Low-stock alerts
+- [ ] Consumption posting
 
 ## Reports
 
-- [ ] Active Cattle Register
-- [ ] Tag Change Register
-- [ ] Herd Exit Register
-- [ ] Birth Register
-- [ ] Death Register
-- [ ] Milk Report
-- [ ] Clinical Records Report
-- [ ] Preventive Care Register
-- [ ] Upcoming Care Report
-- [ ] Overdue Care Report
-- [ ] Sponsorship Report
-- [ ] Standard CSV Export
-- [ ] Standard Print / PDF
+- [ ] Custom report builder
+- [ ] User-defined grouping
+- [ ] Advanced management MIS
+- [ ] Trend analysis
+- [ ] Additional exception reports
 
-## Management Dashboard
+## Notifications
 
-- [ ] Herd Dashboard
-- [ ] Birth Dashboard
-- [ ] Milk Dashboard
-- [ ] Mortality Dashboard
-- [ ] Medical Dashboard
-- [ ] Preventive Care Dashboard
-- [ ] Sponsorship Dashboard
-- [ ] Alerts
+- [ ] Email notifications
+- [ ] Scheduled alerts
+- [ ] Renewal reminders
+- [ ] Preventive-care reminders
 
 ## Rollout
 
-- [ ] UAT
-- [ ] User Manual
-- [ ] Training
-- [ ] Backup Strategy
-- [ ] Restore Test
-- [ ] Production Checklist
+- [ ] User Acceptance Testing
+- [ ] User manual
+- [ ] User training
+- [ ] Backup strategy
+- [ ] Restore test
+- [ ] Production checklist
 - [ ] Access-control review
+- [ ] Production deployment

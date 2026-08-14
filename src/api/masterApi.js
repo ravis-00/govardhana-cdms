@@ -1042,6 +1042,50 @@ export async function updateBioWaste(
   );
 }
 
+// 4. SAMVARDHANA OUTGOING
+
+export async function getSamvardhanaOutgoing(
+  params = {}
+) {
+  return getRequest(
+    "getSamvardhanaOutgoing",
+    params
+  );
+}
+
+export async function addSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "addSamvardhanaOutgoing",
+      payload
+    )
+  );
+}
+
+export async function updateSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "updateSamvardhanaOutgoing",
+      payload
+    )
+  );
+}
+
+export async function cancelSamvardhanaOutgoing(
+  payload
+) {
+  return runWithDashboardCacheInvalidation(
+    postRequest(
+      "cancelSamvardhanaOutgoing",
+      payload
+    )
+  );
+}
+
 // 5. FEEDING
 export async function getFeeding(
   options = {}

@@ -103,11 +103,32 @@ export default function MainLayout() {
   // CLOSE MOBILE DRAWER AFTER ROUTE CHANGE
   // ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    if (isMobileViewport) {
-      setIsSidebarOpen(false);
+    useEffect(() => {
+    if (!isMobileViewport) {
+      return undefined;
     }
-  }, [location.pathname, isMobileViewport]);
+
+    /*
+     * Defer the state update to the next animation frame.
+     * This closes the mobile drawer after programmatic route
+     * changes without synchronously setting state in an effect.
+     */
+    const frameId =
+      window.requestAnimationFrame(
+        () => {
+          setIsSidebarOpen(false);
+        }
+      );
+
+    return () => {
+      window.cancelAnimationFrame(
+        frameId
+      );
+    };
+  }, [
+    location.pathname,
+    isMobileViewport,
+  ]);
 
   // ---------------------------------------------------------------------------
   // PREVENT BACKGROUND SCROLL WHILE MOBILE DRAWER IS OPEN
@@ -246,6 +267,15 @@ export default function MainLayout() {
           name: "Waste Mgmt",
           path: "/bio-waste",
           icon: Icons.milk,
+        },
+
+                {
+          name:
+            "Samvardhana Outgoing",
+          path:
+            "/samvardhana-outgoing",
+          icon: Icons.milk,
+          restricted: !isAdmin,
         },
       ],
     },
