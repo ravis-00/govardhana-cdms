@@ -55,6 +55,124 @@ function toDateObj(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function formatAgeFromMonths(totalMonths) {
+  const safeMonths = Math.max(
+    0,
+    Math.floor(
+      Number(totalMonths) || 0
+    )
+  );
+
+  const years =
+    Math.floor(safeMonths / 12);
+
+  const months =
+    safeMonths % 12;
+
+  if (years === 0 && months === 0) {
+    return "Less than 1 month";
+  }
+
+  if (years === 0) {
+    return `${months} month${
+      months === 1 ? "" : "s"
+    }`;
+  }
+
+  if (months === 0) {
+    return `${years} year${
+      years === 1 ? "" : "s"
+    }`;
+  }
+
+  return `${years} year${
+    years === 1 ? "" : "s"
+  } ${months} month${
+    months === 1 ? "" : "s"
+  }`;
+}
+
+function completedMonthsBetween(
+  fromDate,
+  toDate
+) {
+  if (!fromDate || !toDate) {
+    return 0;
+  }
+
+  let months =
+    (toDate.getFullYear() -
+      fromDate.getFullYear()) *
+      12 +
+    (toDate.getMonth() -
+      fromDate.getMonth());
+
+  if (
+    toDate.getDate() <
+    fromDate.getDate()
+  ) {
+    months -= 1;
+  }
+
+  return Math.max(0, months);
+}
+
+function calculateRecordedAgeAtDeath({
+  dob,
+  dateOfDeath,
+  admissionDate,
+  admissionAgeMonths,
+}) {
+  const deathDate =
+    toDateObj(dateOfDeath);
+
+  if (!deathDate) {
+    return "Not available";
+  }
+
+  const birthDate =
+    toDateObj(dob);
+
+  if (birthDate) {
+    return formatAgeFromMonths(
+      completedMonthsBetween(
+        birthDate,
+        deathDate
+      )
+    );
+  }
+
+  const admittedOn =
+    toDateObj(admissionDate);
+
+  const startingAge =
+    Number(
+      String(
+        admissionAgeMonths ?? ""
+      ).replace(/[^0-9.]/g, "")
+    );
+
+  if (
+    admittedOn &&
+    Number.isFinite(startingAge)
+  ) {
+    const elapsedMonths =
+      completedMonthsBetween(
+        admittedOn,
+        deathDate
+      );
+
+    return (
+      formatAgeFromMonths(
+        startingAge +
+        elapsedMonths
+      ) + " (estimated)"
+    );
+  }
+
+  return "Not available";
+}
+
 function defaultFromDate() {
   const date = new Date();
 
@@ -161,6 +279,34 @@ function normalizeRecord(record) {
     )
   );
 
+  const dob = isoDateOnly(
+  firstValue(
+    record.dateOfBirth,
+    record.dob
+  )
+);
+
+const admissionDate = isoDateOnly(
+  firstValue(
+    record.admissionDate,
+    record.admission_date
+  )
+);
+
+const admissionAgeMonths =
+  firstValue(
+    record.admissionAgeMonths,
+    record.admission_age_months
+  );
+
+const recordedAgeAtDeath =
+  calculateRecordedAgeAtDeath({
+    dob,
+    dateOfDeath,
+    admissionDate,
+    admissionAgeMonths,
+  });
+
   const causeCategory = normalizeCauseCategory(
     firstValue(
       record.causeCategory,
@@ -204,12 +350,10 @@ function normalizeRecord(record) {
     breed: firstValue(record.breed, "-"),
     gender: firstValue(record.gender, "-"),
 
-    dob: isoDateOnly(
-      firstValue(
-        record.dateOfBirth,
-        record.dob
-      )
-    ),
+    dob,
+admissionDate,
+admissionAgeMonths,
+recordedAgeAtDeath,
 
     color: firstValue(
       record.color,
@@ -445,8 +589,21 @@ export default function DeathRecords() {
   }
 
   function printCertificate(row) {
-    const deathDate = formatDateDisplay(row.dateOfDeath);
-    const dob = formatDateDisplay(row.dob);
+    const deathDate =
+  formatDateDisplay(
+    row.dateOfDeath
+  );
+
+const recordedAge =
+  row.recordedAgeAtDeath ||
+  calculateRecordedAgeAtDeath({
+    dob: row.dob,
+    dateOfDeath: row.dateOfDeath,
+    admissionDate:
+      row.admissionDate,
+    admissionAgeMonths:
+      row.admissionAgeMonths,
+  });
 
     const html = `
       <html>
@@ -605,7 +762,7 @@ export default function DeathRecords() {
             <table>
               <tr>
                 <td>
-                  <span class="label">Date:</span>
+                  <span class="label">Date of Death:</span>
                   <span class="value">${deathDate || "-"}</span>
                 </td>
 
@@ -641,8 +798,8 @@ export default function DeathRecords() {
 
               <tr>
                 <td>
-                  <span class="label">Date of Birth:</span>
-                  <span class="value">${dob || "-"}</span>
+                  <span class="label">Age:</span>
+<span class="value">${recordedAge || "Not available"}</span>
                 </td>
 
                 <td>
@@ -658,7 +815,7 @@ export default function DeathRecords() {
                 </td>
 
                 <td>
-                  <span class="label">Teeth Age:</span>
+                  <span class="label">Age by Teeth:</span>
                   <span class="value">${row.teethAge || "-"}</span>
                 </td>
               </tr>
@@ -1202,15 +1359,17 @@ export default function DeathRecords() {
                 </SectionTitle>
 
                 <div style={detailsGridStyle}>
-                  <DetailItem
-                    label="Teeth Details"
-                    value={selected.teethDetails}
-                  />
+  <DetailItem
+    label="Recorded Age at Death"
+    value={
+      selected.recordedAgeAtDeath
+    }
+  />
 
-                  <DetailItem
-                    label="Teeth Age"
-                    value={selected.teethAge}
-                  />
+  <DetailItem
+  label="Age by Teeth"
+  value={selected.teethAge}
+/>
 
                   <DetailItem
                     label="Pregnancy Status"

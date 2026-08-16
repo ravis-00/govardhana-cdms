@@ -786,8 +786,14 @@ function CattlePreviewModal({
   onDeregister,
   isMobile,
 }) {
+  const recordedCurrentAge =
+    calculateRecordedAgeAtDate(
+      selected,
+      new Date()
+    );
+
   return (
-    <div style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={onClose}>
+          <div style={{ ...overlayStyle, padding: isMobile ? 0 : "1rem", alignItems: isMobile ? "stretch" : "center" }} onClick={onClose}>
       <div
         style={{
           ...previewModalStyle,
@@ -862,9 +868,18 @@ function CattlePreviewModal({
           />
 
           <PreviewItem
-            label="Date of Birth"
-            value={formatDisplayDate(selected?.dob)}
-          />
+  label="Date of Birth"
+  value={formatDisplayDate(
+    selected?.dob ||
+    selected?.dateOfBirth ||
+    selected?.date_of_birth
+  )}
+/>
+
+<PreviewItem
+  label="Recorded Age"
+  value={recordedCurrentAge}
+/>
 
           <PreviewItem
             label="Shed"
@@ -979,6 +994,11 @@ function DeregisterModal({
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] =
     useState(false);
+    const recordedAgeAtExit =
+  calculateRecordedAgeAtDate(
+    selected,
+    formData.date
+  );
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -1199,8 +1219,12 @@ function DeregisterModal({
                 </span>
 
                 <span style={identityChipStyle}>
-                  Breed: {selected?.breed || "-"}
-                </span>
+  Breed: {selected?.breed || "-"}
+</span>
+
+<span style={identityChipStyle}>
+  Recorded Age: {recordedAgeAtExit}
+</span>
               </div>
             </div>
 
@@ -1797,6 +1821,178 @@ function getInternalId(row) {
     row?.id ||
     ""
   );
+}
+
+function parseAgeDate(value) {
+  if (!value) return null;
+
+  if (
+    value instanceof Date &&
+    !Number.isNaN(value.getTime())
+  ) {
+    return value;
+  }
+
+  const text = String(value)
+    .trim()
+    .split("T")[0];
+
+  let match = text.match(
+    /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+  );
+
+  if (match) {
+    return new Date(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3])
+    );
+  }
+
+  match = text.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/
+  );
+
+  if (match) {
+    return new Date(
+      Number(match[3]),
+      Number(match[2]) - 1,
+      Number(match[1])
+    );
+  }
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed;
+}
+
+function formatRecordedAge(totalMonths) {
+  const monthsValue = Math.max(
+    0,
+    Math.floor(Number(totalMonths) || 0)
+  );
+
+  const years =
+    Math.floor(monthsValue / 12);
+
+  const months =
+    monthsValue % 12;
+
+  if (years === 0 && months === 0) {
+    return "Less than 1 month";
+  }
+
+  if (years === 0) {
+    return `${months} month${
+      months === 1 ? "" : "s"
+    }`;
+  }
+
+  if (months === 0) {
+    return `${years} year${
+      years === 1 ? "" : "s"
+    }`;
+  }
+
+  return `${years} year${
+    years === 1 ? "" : "s"
+  } ${months} month${
+    months === 1 ? "" : "s"
+  }`;
+}
+
+function completedMonthsBetween(
+  fromDate,
+  toDate
+) {
+  if (!fromDate || !toDate) return 0;
+
+  let months =
+    (toDate.getFullYear() -
+      fromDate.getFullYear()) *
+      12 +
+    (toDate.getMonth() -
+      fromDate.getMonth());
+
+  if (
+    toDate.getDate() <
+    fromDate.getDate()
+  ) {
+    months -= 1;
+  }
+
+  return Math.max(0, months);
+}
+
+function calculateRecordedAgeAtDate(
+  cattle,
+  targetDateValue
+) {
+  const targetDate =
+    parseAgeDate(targetDateValue);
+
+  if (!targetDate) {
+    return "Not available";
+  }
+
+  const dob =
+    parseAgeDate(
+      cattle?.dob ||
+      cattle?.dateOfBirth ||
+      cattle?.date_of_birth
+    );
+
+  if (dob) {
+    return formatRecordedAge(
+      completedMonthsBetween(
+        dob,
+        targetDate
+      )
+    );
+  }
+
+  const admissionDate =
+    parseAgeDate(
+      cattle?.admissionDate ||
+      cattle?.admission_date ||
+      cattle?.registrationDate ||
+      cattle?.registration_date
+    );
+
+  const admissionAgeRaw =
+    cattle?.admissionAgeMonths ??
+    cattle?.admission_age_months ??
+    cattle?.admissionAge ??
+    cattle?.age_at_admission ??
+    "";
+
+  const admissionAgeMonths =
+    Number(
+      String(admissionAgeRaw)
+        .replace(/[^0-9.]/g, "")
+    );
+
+  if (
+    admissionDate &&
+    Number.isFinite(admissionAgeMonths)
+  ) {
+    const elapsedMonths =
+      completedMonthsBetween(
+        admissionDate,
+        targetDate
+      );
+
+    return (
+      formatRecordedAge(
+        admissionAgeMonths +
+        elapsedMonths
+      ) + " (estimated)"
+    );
+  }
+
+  return "Not available";
 }
 
 function formatDisplayDate(value) {
