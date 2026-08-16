@@ -62,6 +62,76 @@ function uniqueOptions(list, field) {
   ).sort((a, b) => a.localeCompare(b));
 }
 
+const STANDARD_CATTLE_COLOURS = [
+  "Black",
+  "White",
+  "Grey",
+  "Brown",
+  "Red",
+  "Reddish Brown",
+  "Fawn",
+  "Cream",
+  "Mixed",
+  "To be confirmed",
+];
+
+function normalizeColourText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\bgray\b/g, "grey")
+    .replace(/[-_/]+/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchesStandardColour(
+  recordedColour,
+  selectedColour
+) {
+  if (!selectedColour) {
+    return true;
+  }
+
+  const recorded =
+    normalizeColourText(recordedColour);
+
+  const selected =
+    normalizeColourText(selectedColour);
+
+  if (selected === "to be confirmed") {
+    return (
+      recorded === "to be confirmed" ||
+      recorded === "unknown" ||
+      recorded === "not confirmed" ||
+      recorded === "pending confirmation"
+    );
+  }
+
+  if (selected === "mixed") {
+    return (
+      recorded === "mixed" ||
+      recorded.includes(" mix") ||
+      recorded.startsWith("mix ") ||
+      recorded.includes("mixed") ||
+      recorded.includes("multi colour") ||
+      recorded.includes("multicolour")
+    );
+  }
+
+  if (selected === "reddish brown") {
+    return (
+      recorded.includes("reddish brown") ||
+      recorded.includes("red brown")
+    );
+  }
+
+  return recorded
+    .split(" ")
+    .includes(selected);
+}
+
 function sortHistoryLatestFirst(rows) {
   return [...rows].sort((a, b) => {
     return new Date(b.change_date || 0) - new Date(a.change_date || 0);
@@ -212,10 +282,7 @@ const [pendingPayload, setPendingPayload] = useState(null);
         "breed"
       ),
 
-      colors: uniqueOptions(
-        activeCattle,
-        "color"
-      ),
+            colors: STANDARD_CATTLE_COLOURS,
 
       sheds: uniqueOptions(
         activeCattle,
@@ -329,8 +396,8 @@ const [pendingPayload, setPendingPayload] = useState(null);
             "breed",
             filters.breed
           ) &&
-          matchExact(
-            "color",
+                    matchesStandardColour(
+            animal.color,
             filters.color
           ) &&
           matchExact(

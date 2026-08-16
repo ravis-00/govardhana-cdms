@@ -1,6 +1,74 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { getPedigree, getPedigreeList } from "../api/masterApi"; 
 
+function getPedigreeStatus(status) {
+  const rawStatus = String(status || "")
+    .trim();
+
+  const normalizedStatus =
+    rawStatus.toLowerCase();
+
+  if (normalizedStatus === "active") {
+    return {
+      label: "Active",
+      rawStatus,
+      background: "#dcfce7",
+      color: "#166534",
+      border: "#bbf7d0",
+    };
+  }
+
+  if (!normalizedStatus) {
+    return {
+      label: "Status unknown",
+      rawStatus: "",
+      background: "#f1f5f9",
+      color: "#64748b",
+      border: "#cbd5e1",
+    };
+  }
+
+  return {
+    label: "Inactive",
+    rawStatus,
+    background: "#fee2e2",
+    color: "#b91c1c",
+    border: "#fecaca",
+  };
+}
+
+function PedigreeStatusBadge({ status }) {
+  const displayStatus =
+    getPedigreeStatus(status);
+
+  return (
+    <span
+      title={
+        displayStatus.rawStatus
+          ? `Recorded status: ${displayStatus.rawStatus}`
+          : "Status not recorded"
+      }
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        width: "fit-content",
+        marginTop: "0.3rem",
+        padding: "0.12rem 0.4rem",
+        border: `1px solid ${displayStatus.border}`,
+        borderRadius: "999px",
+        background: displayStatus.background,
+        color: displayStatus.color,
+        fontSize: "0.62rem",
+        fontWeight: 700,
+        lineHeight: 1.25,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {displayStatus.label}
+    </span>
+  );
+}
+
 export default function PedigreeViewer() {
   // --- STATE ---
   const requestedCattleIdRef = useRef(
@@ -758,8 +826,10 @@ export default function PedigreeViewer() {
         {treeData.name}
       </h1>
 
-      <span className="pedigree-tree-id">
-        ID: {treeData.id}
+            <span className="pedigree-tree-id">
+        Tag: {treeData.tag || "Not recorded"}
+        {" • "}
+        Internal ID: {treeData.id || "Not recorded"}
       </span>
     </div>
   </div>
@@ -992,7 +1062,7 @@ function TreeCard({
             {animal.tag || "No Tag"}
           </div>
 
-          <div
+                    <div
             className="pedigree-card-breed"
             style={{
               color: "#6b7280",
@@ -1004,6 +1074,10 @@ function TreeCard({
           >
             {animal.breed || "Unknown breed"}
           </div>
+
+          <PedigreeStatusBadge
+            status={animal.status}
+          />
         </div>
       </div>
     </div>
@@ -1032,6 +1106,10 @@ const paginationButtonStyle = {
 
 
 const treeTitleStyle = {
-  fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em",
-  color: "#9ca3af", marginBottom: "0.5rem", fontWeight: 600
+  fontSize: "0.7rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "#9ca3af",
+  marginBottom: "0.5rem",
+  fontWeight: 600,
 };

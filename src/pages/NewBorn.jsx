@@ -388,22 +388,64 @@ useEffect(() => {
 const summary = useMemo(() => {
   const total = rows.length;
 
-  const pending = rows.filter((r) => {
-    const reg = getRegistrationEligibility(r);
-    return reg.showButton && !reg.eligible;
+  /*
+   * Pending Registration:
+   * Healthy/weak calves that have completed 21 days,
+   * are not yet overdue, and are not already registered.
+   */
+  const pending = rows.filter((row) => {
+    const registration =
+      getRegistrationEligibility(row);
+
+    return (
+      registration.showButton &&
+      registration.eligible &&
+      !registration.overdue
+    );
   }).length;
 
-  const overdue = rows.filter((r) => getRegistrationEligibility(r).overdue).length;
+  /*
+   * Overdue Registration:
+   * Eligible unregistered calves older than 30 days.
+   */
+  const overdue = rows.filter((row) => {
+    return getRegistrationEligibility(row)
+      .overdue;
+  }).length;
 
-  const registered = rows.filter((r) =>
-    ["Registered", "Tagged"].includes(r.status)
-  ).length;
+  const registered = rows.filter((row) => {
+    const status = String(
+      row.status || ""
+    )
+      .trim()
+      .toLowerCase();
 
-  const closed = rows.filter((r) =>
-    ["Archived", "Closed"].includes(r.status)
-  ).length;
+    return (
+      status === "registered" ||
+      status === "tagged"
+    );
+  }).length;
 
-  return { total, pending, overdue, registered, closed };
+  const closed = rows.filter((row) => {
+    const status = String(
+      row.status || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    return (
+      status === "archived" ||
+      status === "closed"
+    );
+  }).length;
+
+  return {
+    total,
+    pending,
+    overdue,
+    registered,
+    closed,
+  };
 }, [rows]);
 
 const totalPages = Math.max(1, Math.ceil(filteredRows.length / recordsPerPage));

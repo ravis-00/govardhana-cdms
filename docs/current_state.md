@@ -2,26 +2,45 @@
 
 ## Current Version
 
-`v3.1-reports-alignment` — Unreleased development checkpoint
+`v3.1-reports-alignment`
+
+## Current UAT Checkpoint
+
+`post-deployment-uat-round-1`
 
 ## Current Branch
 
-`feature/existing-reports-alignment`
+`fix/post-deployment-uat-round-1`
 
-## Previous Preserved Checkpoint
+## Previous Completed Development
 
-- Branch: `feature/individual-cattle-milk-yield`
-- Commit: `18b97ba`
-- Status: Locally verified, committed and pushed
-- Merge/deployment: Not performed
+- Feature branch: `feature/existing-reports-alignment`
+- Feature commit: `eaaa8ee`
+- Sidebar commit: `849db9a`
+- Main merge commit: `702cd96`
+- Existing Reports Alignment was merged into `main` and pushed.
+- Google Apps Script updates were deployed.
+- Post-deployment UAT Round 1 fixes are currently pending final commit, merge and frontend deployment.
 
 ## Current Status
 
-Existing Reports Alignment and Outgoing Reconciliation Sprint is functionally completed and locally verified.
+The Existing Reports Alignment and Samvardhana Outgoing development is complete.
 
-The current branch has not been merged or deployed to Netlify.
+Post-deployment UAT Round 1 has also been completed and locally verified. The fixes include:
 
-Last updated: 14-Aug-2026
+- Pedigree parent resolution
+- Pedigree animal-status display
+- Pedigree selected-cattle identification
+- Newborn registration KPI reconciliation
+- Herd Exit recorded-age display
+- Mortality recorded-age display
+- Death Certificate corrections
+- Sidebar readability and responsiveness
+- Standard cattle-colour filtering
+
+The final frontend production build passed successfully with no warnings.
+
+Last updated: 16-Aug-2026
 
 ---
 
@@ -49,12 +68,12 @@ Last updated: 14-Aug-2026
 1. `internal_id` is the permanent identity of each cattle.
 2. Ear-tag changes are preserved in `tag_history`.
 3. Lifecycle events must remain traceable.
-4. Historical transactions must not be overwritten or deleted.
+4. Historical transactions must not be overwritten or physically deleted.
 5. Cancelled operational and financial records remain available for audit.
 6. Google Sheets is the operational database.
 7. Google Apps Script is the API and business-logic layer.
 8. React is the primary application interface.
-9. The backend is the authoritative source for validation and financial calculation.
+9. The backend is authoritative for validation and financial calculation.
 10. Financial rates are stored as transaction snapshots.
 11. Display dates use `DD-MM-YYYY`.
 12. Browser date inputs use `YYYY-MM-DD`.
@@ -62,6 +81,10 @@ Last updated: 14-Aug-2026
 14. Add/Edit actions are disabled while saving.
 15. Protected operations follow role-based access rules.
 16. Performance target is approximately 3–8 seconds.
+17. Parentage remains visible even when a parent becomes inactive or dies.
+18. Operational status must not erase historical lineage.
+19. Cattle-sale reporting remains separate from by-product outgoing.
+20. Existing predefined reports are improved instead of creating duplicate reporting systems.
 
 ---
 
@@ -102,16 +125,51 @@ Rules:
 
 ---
 
-## 4. Dashboard
+## 4. Application Navigation and Responsive Shell
+
+Status: Completed and UAT-verified
+
+Features:
+
+- Collapsible sidebar menu groups
+- Active menu highlighting
+- Desktop sidebar collapse
+- Mobile drawer navigation
+- Mobile background overlay
+- Route-aware menu expansion
+- Role-aware menu visibility
+- User summary and Logout action
+- Responsive main-content area
+
+Post-deployment UAT improvements:
+
+- Increased sidebar section-heading size
+- Increased sidebar menu font size
+- Improved sidebar text contrast
+- Changed sidebar to a softer blue/slate colour
+- Reduced mobile sidebar width
+- Reduced mobile overlay darkness
+- Restored full desktop content width after CSS regression
+- Verified desktop and mobile navigation
+
+---
+
+## 5. Dashboard
 
 Status: Implemented and performance-optimized
 
 Features:
 
 - Cattle and operational summaries
+- Active cattle count
+- Purebred rate
+- Calf mortality
+- Active sponsors
+- Herd demographics
+- Milk and feeding indicators
 - Attention-required cards
-- Vaccination overdue routing
-- Calf-registration overdue routing
+- Vaccination-overdue routing
+- Calf-registration-overdue routing
 - Sponsorship-expiry routing
 - Dashboard backend summary endpoint
 - Cache support
@@ -119,7 +177,7 @@ Features:
 
 ---
 
-## 5. Herd Management
+## 6. Herd Management
 
 ### Master Cattle
 
@@ -136,6 +194,7 @@ Features include:
 - Admission and source information
 - Disability details
 - Photo
+- Parentage
 - Search, filters and pagination
 - Row-click details
 - Edit workflow
@@ -163,10 +222,24 @@ Features:
 - Linked birth transaction
 - Parent information
 - Photo and health details
+- Standardized base-colour selection
+
+Standard cattle colours:
+
+- Black
+- White
+- Grey
+- Brown
+- Red
+- Reddish Brown
+- Fawn
+- Cream
+- Mixed
+- To be confirmed
 
 ### New Born / Calving Log
 
-Status: Completed
+Status: Completed and UAT-verified
 
 Features:
 
@@ -179,11 +252,19 @@ Features:
 - Disability and remarks
 - Photo
 - Edit, search, filters and pagination
-- Registration eligibility and overdue tracking
+- Registration eligibility
+- Pending-registration tracking
+- Overdue-registration tracking
+- Registered and closed workflow counts
+
+Post-deployment UAT correction:
+
+- Pending Registration KPI now counts calves that are eligible for registration and not yet overdue.
+- `BIRTH-445842` was used to verify the corrected KPI calculation.
 
 ### Tag Management
 
-Status: Completed
+Status: Completed and UAT-verified
 
 Features:
 
@@ -192,10 +273,19 @@ Features:
 - Old/new tag traceability
 - Change reason, date and user
 - Confirmation workflow
+- Search by current and previous tags
+- Cattle filters
+- Standardized colour filter
+
+Post-deployment UAT correction:
+
+- Removed repeated colour options caused by historical capitalization, spelling and compound-colour variations.
+- The filter now displays only the approved Cattle Registration colour list.
+- Historical colour values remain searchable through normalized matching.
 
 ### Herd Exit and Reactivation
 
-Status: Completed
+Status: Completed and UAT-verified
 
 Exit types include:
 
@@ -210,20 +300,51 @@ Rules:
 - Exit history is preserved.
 - Eligible exited cattle may be reactivated.
 - Cattle recorded as dead cannot be reactivated.
+- Cancellation and reactivation do not erase historical lifecycle events.
+
+Post-deployment UAT improvements:
+
+- Active Cattle Preview displays Recorded Age.
+- Deregistration workflow displays recorded age from Master Cattle.
+- Recorded age can be compared with Age by Teeth.
+- Age is calculated using Date of Birth when available.
+- Admission Date and Admission Age are used as fallback age sources.
 
 ### Pedigree Viewer
 
-Status: Completed
+Status: Completed and UAT-verified
 
 Features:
 
-- Search by cattle identifiers
-- Dam and sire information
-- Parentage and lineage display
+- Search by cattle name, tag number or internal ID
+- Dam and sire resolution
+- Parent and grandparent lineage
+- Photo, name, tag and breed display
+- Printable pedigree
+- Selected-cattle Tag Number and Internal ID
+- Status display for focus animal, parents and grandparents
+
+Business rules:
+
+- Pedigree is historical and is not restricted to active parents.
+- An inactive or deceased parent remains visible in the lineage.
+- Active animals display an Active badge.
+- All recorded non-active states display an Inactive badge.
+- Missing status displays Status unknown.
+- The stored raw status remains available as supporting information.
+
+Post-deployment UAT correction:
+
+- Parent references are resolved using `cattle_origins`, `birth_log` and `cattle_master`.
+- Parent lookup supports internal IDs and tag numbers.
+- The previous Unknown-parent issue was corrected.
+- UAT verification confirmed parent resolution for `RPCAT0955`.
+- Status propagation was added to every pedigree node.
+- Gowri (`RPCAT0960`) was used to verify selected-cattle Tag, Internal ID and status display.
 
 ### Individual Cattle Milk Yield
 
-Status: Completed checkpoint
+Status: Completed
 
 Features:
 
@@ -235,13 +356,13 @@ Features:
 - Two-decimal precision
 - Actual milked quantity tracking
 
-Checkpoint:
+Original checkpoint:
 
 `18b97ba`
 
 ---
 
-## 6. Veterinary
+## 7. Veterinary
 
 ### Clinical Records
 
@@ -253,7 +374,7 @@ Features:
 - Disease, symptom, medicine and doctor search
 - Date filters
 - Add/Edit/Details
-- Transaction IDs
+- Sequential transaction IDs
 - Clinical remarks
 - Toasts and saving states
 
@@ -272,8 +393,9 @@ Supported care types include:
 Features:
 
 - Draft, Completed and Cancelled statuses
-- Eligible/administered/excluded counts
-- Batch, expiry, dosage, unit and route
+- Eligible, administered and excluded counts
+- Medicine batch and expiry
+- Dosage, unit and administration route
 - Target group
 - Next schedule
 - Due and overdue interpretation
@@ -281,13 +403,39 @@ Features:
 
 ### Mortality Register
 
-Status: Completed
+Status: Completed and UAT-verified
 
 Features:
 
 - Death records
-- Cause and date information
+- Cause category and specific cause
+- Date and time of death
+- Certifying person
+- Teeth details
+- Age by Teeth
+- Recorded Age at Death
+- Pregnancy status
+- Market value
+- Photo and remarks
 - Cattle lifecycle integration
+- Death Certificate
+
+Recorded-age rules:
+
+1. Date of Birth is used when available.
+2. Admission Date and Admission Age are used as fallback.
+3. Age is calculated as of the Date of Death.
+4. Fallback-derived age is marked as estimated.
+
+Post-deployment UAT improvements:
+
+- Mortality Details displays Recorded Age at Death.
+- Age by Teeth is displayed separately.
+- Death Certificate uses the label Date of Death.
+- Death Certificate displays Age instead of Date of Birth.
+- Estimated age is clearly marked.
+- Missing values display Not recorded.
+- Master-record age and Age by Teeth remain visible for reconciliation.
 
 ### Veterinary Masters
 
@@ -299,7 +447,7 @@ Implemented:
 
 ---
 
-## 7. Daily Operations
+## 8. Daily Operations
 
 ### Milk Production and Distribution
 
@@ -349,7 +497,10 @@ Sheet:
 
 Features:
 
-- Gaumaya, Gaumutra, Compost and Slurry
+- Gaumaya
+- Gaumutra
+- Compost
+- Slurry
 - Source shed
 - Destination
 - Quantity and unit
@@ -359,7 +510,7 @@ Features:
 
 ### Samvardhana Outgoing
 
-Status: Completed and locally verified
+Status: Completed and deployed
 
 Purpose:
 
@@ -372,6 +523,10 @@ Govardhana / Sheds
         |
         v
 Samvardhana
-   |         |          |
-   v         v          v
-MSGP      Krushi    External Party
+   |         |              |
+   v         v              v
+MSGP      Krushi      External Party
+   |         |              |
+   v         v              v
+Internal valued      External sale
+transfer             and billing

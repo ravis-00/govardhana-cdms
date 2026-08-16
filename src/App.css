@@ -14,12 +14,12 @@
   --primary-light: #fff7ed;
   --primary-border: #fed7aa;
 
-  /* Sidebar */
-  --sidebar-bg: #0f172a;
-  --sidebar-border: #334155;
-  --sidebar-text: #cbd5e1;
-  --sidebar-muted: #94a3b8;
-  --sidebar-heading: #64748b;
+   /* Sidebar */
+  --sidebar-bg: #2f4a6c;
+  --sidebar-border: #31567d;
+  --sidebar-text: #e2e8f0;
+  --sidebar-muted: #bfd0e3;
+  --sidebar-heading: #b7cce2;
   --sidebar-active-bg: #ea580c;
   --sidebar-active-text: #ffffff;
 
@@ -317,9 +317,9 @@ p {
 
 .sidebar-brand {
   flex-shrink: 0;
-  padding: 1.25rem 1rem;
+  padding: 1.1rem 1rem;
   text-align: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .sidebar-logo {
@@ -327,7 +327,7 @@ p {
   width: auto;
   max-width: 100%;
   height: 56px;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto 0.65rem;
   padding: 5px;
   object-fit: contain;
   background-color: #ffffff;
@@ -336,25 +336,25 @@ p {
 
 .sidebar-brand-title {
   margin: 0;
-  color: var(--primary-color);
-  font-size: 1.05rem;
+  color: #fb7a32;
+  font-size: 1.08rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.045em;
 }
 
 .sidebar-brand-subtitle {
-  margin: 0.25rem 0 0;
+  margin: 0.3rem 0 0;
   color: var(--sidebar-muted);
-  font-size: 0.65rem;
+  font-size: 0.69rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
 }
 
 .sidebar nav {
   flex: 1;
   min-height: 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -369,16 +369,16 @@ p {
 }
 
 .sidebar nav::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
+  background: rgba(226, 232, 240, 0.35);
   border-radius: 999px;
 }
 
 .sidebar nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.6);
+  background: rgba(226, 232, 240, 0.58);
 }
 
 .sidebar-menu-group {
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.2rem;
 }
 
 .sidebar-menu-group:last-child {
@@ -387,12 +387,12 @@ p {
 
 .sidebar-group-toggle {
   width: 100%;
-  min-height: 34px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.72rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -405,7 +405,7 @@ p {
 }
 
 .sidebar-group-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.07);
+  background-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
@@ -415,24 +415,24 @@ p {
 }
 
 .sidebar-group-toggle-active {
-  color: #fb923c;
+  color: #ffb17c;
 }
 
 .sidebar-group-toggle-expanded {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.09);
   color: #ffffff;
 }
 
 .sidebar-group-toggle-expanded.sidebar-group-toggle-active {
-  color: #fb923c;
+  color: #ffb17c;
 }
 
 .sidebar-group-title {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.63rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.075em;
+  letter-spacing: 0.065em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -444,7 +444,7 @@ p {
   align-items: center;
   justify-content: center;
   color: currentColor;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 700;
   line-height: 1;
   transform: rotate(0deg);
@@ -478,18 +478,19 @@ p {
   background-color: var(--primary-color);
   content: "";
 }
+
 .sidebar a {
   width: 100%;
   min-height: 44px;
   display: flex;
   align-items: center;
-  padding: 0.7rem 0.85rem;
-  margin-bottom: 0.35rem;
+  padding: 0.68rem 0.85rem;
+  margin-bottom: 0.3rem;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--sidebar-text);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.94rem;
   font-weight: 500;
   transition:
     background-color var(--transition-fast),
@@ -499,7 +500,7 @@ p {
 }
 
 .sidebar a:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.11);
   color: #ffffff;
   transform: translateX(2px);
 }
@@ -513,20 +514,20 @@ p {
   background-color: var(--sidebar-active-bg);
   color: var(--sidebar-active-text);
   font-weight: 700;
-  box-shadow: 0 4px 8px rgba(234, 88, 12, 0.3);
+  box-shadow: 0 4px 10px rgba(124, 45, 18, 0.28);
 }
 
 .sidebar-menu-icon {
   flex-shrink: 0;
   margin-right: 0.75rem;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .sidebar-user-section {
   flex-shrink: 0;
-  padding: 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.85rem 1rem;
+  background-color: rgba(9, 25, 46, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .sidebar-user-details {
@@ -534,7 +535,7 @@ p {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.75rem;
 }
 
 .sidebar-user-avatar {
@@ -545,7 +546,7 @@ p {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background-color: #334155;
+  background-color: #41658c;
   color: #ffffff;
   font-size: 0.9rem;
   font-weight: 800;
@@ -558,7 +559,7 @@ p {
 
 .sidebar-user-name {
   color: #ffffff;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -568,7 +569,7 @@ p {
 .sidebar-user-role {
   margin-top: 0.1rem;
   color: var(--sidebar-muted);
-  font-size: 0.7rem;
+  font-size: 0.73rem;
 }
 
 .sidebar-logout-btn {
@@ -583,7 +584,7 @@ p {
   border-radius: var(--radius-md);
   background-color: var(--danger-color);
   color: #ffffff;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
   transition:
@@ -606,13 +607,12 @@ p {
 
 .sidebar-footer {
   flex-shrink: 0;
-  padding: 0.7rem;
-  background-color: #020617;
-  color: var(--sidebar-heading);
-  font-size: 0.65rem;
+  padding: 0.65rem;
+  background-color: #193451;
+  color: var(--sidebar-muted);
+  font-size: 0.67rem;
   text-align: center;
 }
-
 
 /* =========================================================
    7. MAIN CONTENT
@@ -678,15 +678,15 @@ p {
     display: none;
   }
 
-  .sidebar {
+    .sidebar {
     position: fixed;
     top: var(--header-height);
     bottom: 0;
     left: 0;
-    width: min(var(--sidebar-width), 86vw);
+    width: min(240px, 78vw);
     height: calc(100dvh - var(--header-height));
     flex-basis: auto;
-    box-shadow: 6px 0 20px rgba(15, 23, 42, 0.3);
+    box-shadow: 6px 0 18px rgba(15, 23, 42, 0.22);
   }
 
   .sidebar.sidebar-open {
@@ -709,8 +709,8 @@ p {
     height: calc(100dvh - var(--header-height));
     padding: 0;
     border: none;
-    background-color: rgba(15, 23, 42, 0.58);
-    backdrop-filter: blur(2px);
+        background-color: rgba(30, 41, 59, 0.42);
+    backdrop-filter: blur(1px);
     cursor: default;
   }
 
