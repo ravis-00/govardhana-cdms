@@ -24,3 +24,31 @@ dist-ssr
 *.sw?
 
 govardhana-cdms/
+
+
+# Govardhana CDMS migration - local backups and source data
+backup files/
+apps-script-legacy-*/
+
+# Google Apps Script clasp configuration
+.clasp.json
+.clasprc.json
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+credentials*.json
+secrets*.json
+
+# Operational data and backup exports
+*.xlsx
+*.xls
+*.csv
+*.zip
+
+# Migration working data and generated outputs
+migration/data/
+migration/output/
+migration/exceptions/
+migration/backups/
